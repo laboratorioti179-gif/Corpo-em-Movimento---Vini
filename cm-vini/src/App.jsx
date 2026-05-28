@@ -1,0 +1,494 @@
+import React, { useState } from 'react';
+import { 
+  Home, 
+  Dumbbell, 
+  ClipboardList, 
+  Activity, 
+  User, 
+  Menu, 
+  Bell, 
+  ChevronRight,
+  Target,
+  Flame,
+  Award,
+  Settings,
+  LogOut,
+  ChevronLeft
+} from 'lucide-react';
+
+const modalidadesData = [
+  {
+    id: 1,
+    titulo: 'Boxe',
+    categoria: 'Combate',
+    fases: 5,
+    dietas: 3,
+    icon: ({ size, strokeWidth }) => (
+      <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )
+  },
+  {
+    id: 7,
+    titulo: 'Jiu-Jitsu',
+    categoria: 'Luta Agarrada',
+    fases: 5,
+    dietas: 3,
+    icon: ({ size, strokeWidth }) => (
+      <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )
+  },
+  {
+    id: 2,
+    titulo: 'Tênis de Picobol',
+    categoria: 'Esportes de raquete',
+    fases: 5,
+    dietas: 3,
+    icon: ({ size, strokeWidth }) => (
+      <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none">
+        <circle cx="12" cy="12" r="10" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M12 2v20" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )
+  },
+  {
+    id: 3,
+    titulo: 'Corrida',
+    categoria: 'longa / curta',
+    fases: 5,
+    dietas: 3,
+    icon: Activity
+  },
+  {
+    id: 4,
+    titulo: 'Natação',
+    categoria: 'Piscina / Mar',
+    fases: 5,
+    dietas: 3,
+    icon: ({ size, strokeWidth }) => (
+      <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none">
+        <path d="M2 12c2.667 0 5.333-2 8-2s5.333 2 8 2 5.333-2 8-2" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M2 16c2.667 0 5.333-2 8-2s5.333 2 8 2 5.333-2 8-2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )
+  },
+  {
+    id: 5,
+    titulo: 'Ciclismo',
+    categoria: 'longa / curta',
+    fases: 5,
+    dietas: 3,
+    icon: ({ size, strokeWidth }) => (
+      <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none">
+        <circle cx="5" cy="18" r="4" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="19" cy="18" r="4" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M5 18l4-8h6l4 8M15 10l-3-6H8" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    )
+  },
+  {
+    id: 6,
+    titulo: 'Body Builders',
+    categoria: 'HOMEN - Mens / Classic\nMULHER - Figure / Wellness',
+    fases: 5,
+    dietas: 3,
+    icon: Dumbbell
+  }
+];
+
+const planosData = [
+  { id: 1, titulo: 'Cutting Intenso', objetivo: 'Perda de Gordura', calorias: '1800 kcal' },
+  { id: 2, titulo: 'Bulking Limpo', objetivo: 'Ganho de Massa', calorias: '3200 kcal' },
+  { id: 3, titulo: 'Manutenção', objetivo: 'Condicionamento', calorias: '2400 kcal' }
+];
+
+const App = () => {
+  const [activeTab, setActiveTab] = useState('modalidades');
+  const [selectedModalidade, setSelectedModalidade] = useState(null);
+
+  const colors = {
+    bgDark: '#051109',
+    bgCard: '#0A1A10',
+    accent: '#D4AF37',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#A0B3A6',
+    borderLight: '#1A4026'
+  };
+
+  const renderInicio = () => (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
+      <div className="mb-4">
+        <h2 className="text-[#D4AF37] text-xl font-serif mb-2">Bem-vindo de volta!</h2>
+        <p className="text-[#A0B3A6] text-sm">Pronto para superar seus limites hoje?</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+          <Flame size={32} className="text-[#D4AF37] mb-2" />
+          <span className="text-2xl font-bold">14</span>
+          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Dias Seguidos</span>
+        </div>
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+          <Target size={32} className="text-[#D4AF37] mb-2" />
+          <span className="text-2xl font-bold">85%</span>
+          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Meta Mensal</span>
+        </div>
+      </div>
+
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3">Próximo Treino</h3>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+            <Dumbbell size={24} />
+          </div>
+          <div>
+            <h4 className="font-medium">Musculação - Costas</h4>
+            <p className="text-[#A0B3A6] text-xs">Hoje, 18:30</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderPlanos = () => (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
+      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1">
+        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
+          Planos Alimentares
+        </h2>
+        <h3 className="text-white text-lg font-medium mb-1">
+          Seus Planos Ativos
+        </h3>
+      </div>
+      
+      {planosData.map((plano) => (
+        <button key={plano.id} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center gap-4 transition-all active:scale-[0.98] hover:border-[#2A5036]">
+           <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]">
+             <ClipboardList size={24} />
+           </div>
+           <div className="flex-1 text-left">
+             <h4 className="text-white font-medium">{plano.titulo}</h4>
+             <p className="text-[#A0B3A6] text-xs">{plano.objetivo}</p>
+           </div>
+           <div className="text-right">
+              <span className="text-[#D4AF37] font-bold block">{plano.calorias}</span>
+           </div>
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderProgresso = () => (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
+      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1">
+        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
+          Evolução
+        </h2>
+        <h3 className="text-white text-lg font-medium mb-1">
+          Seu Progresso
+        </h3>
+      </div>
+
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+         <div className="flex justify-between items-center mb-4">
+           <h4 className="font-medium text-[#D4AF37]">Peso Corporal</h4>
+           <span className="text-sm font-bold text-white">75.2 kg</span>
+         </div>
+         {/* Simple visual representation of a chart */}
+         <div className="h-32 flex items-end gap-2 pt-4 border-b border-[#1A4026] opacity-70">
+            {[40, 50, 45, 60, 55, 70, 65].map((h, i) => (
+              <div key={i} className="flex-1 bg-[#D4AF37] rounded-t-sm" style={{ height: `${h}%` }}></div>
+            ))}
+         </div>
+         <div className="flex justify-between text-[#A0B3A6] text-[10px] mt-2">
+           <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span><span>Mai</span><span>Jun</span><span>Jul</span>
+         </div>
+      </div>
+
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Award className="text-[#D4AF37]" size={24} />
+          <div>
+            <h4 className="font-medium">Conquistas</h4>
+            <p className="text-[#A0B3A6] text-xs">3 novas este mês</p>
+          </div>
+        </div>
+        <ChevronRight className="text-[#D4AF37] opacity-80" size={18} />
+      </div>
+    </div>
+  );
+
+  const renderPerfil = () => (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
+      <div className="flex flex-col items-center mb-8 mt-4">
+        <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-[#D4AF37] mb-4 shadow-[0_0_15px_rgba(212,175,55,0.3)]">
+          <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+            <User size={48} strokeWidth={1} />
+          </div>
+        </div>
+        <h2 className="text-xl font-bold">Atleta Pro</h2>
+        <p className="text-[#A0B3A6] text-sm">atleta@corpoemmovimento.com</p>
+      </div>
+
+      <div className="space-y-2">
+        <button className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center justify-between transition-all active:scale-[0.98] hover:border-[#2A5036]">
+          <div className="flex items-center gap-3">
+            <User className="text-[#D4AF37]" size={20} />
+            <span>Dados Pessoais</span>
+          </div>
+          <ChevronRight className="text-[#D4AF37] opacity-80" size={18} />
+        </button>
+        <button className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center justify-between transition-all active:scale-[0.98] hover:border-[#2A5036]">
+          <div className="flex items-center gap-3">
+            <Settings className="text-[#D4AF37]" size={20} />
+            <span>Configurações</span>
+          </div>
+          <ChevronRight className="text-[#D4AF37] opacity-80" size={18} />
+        </button>
+        <button className="w-full mt-4 bg-transparent border border-red-900/50 rounded-xl p-4 flex items-center justify-center gap-2 text-red-500 transition-all active:scale-[0.98] hover:bg-red-900/10">
+          <LogOut size={20} />
+          <span>Sair da Conta</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderModalidadeDetalhes = () => {
+    if (!selectedModalidade) return null;
+
+    return (
+      <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
+        <button 
+          onClick={() => setSelectedModalidade(null)}
+          className="flex items-center text-[#D4AF37] mb-4 hover:opacity-80 transition-opacity"
+        >
+          <ChevronLeft size={20} />
+          <span>Voltar para Modalidades</span>
+        </button>
+
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-16 h-16 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+            <selectedModalidade.icon size={32} strokeWidth={1.5} />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold text-white">{selectedModalidade.titulo}</h2>
+            <p className="text-[#A0B3A6] text-sm">{selectedModalidade.categoria}</p>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-[#D4AF37] text-lg font-medium border-b border-[#1A4026] pb-2">
+            Fases do Treinamento
+          </h3>
+          {[...Array(selectedModalidade.fases)].map((_, i) => (
+            <div key={`fase-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center justify-between">
+              <span className="font-medium">Fase {i + 1}</span>
+              <ChevronRight className="text-[#D4AF37] opacity-50" size={18} />
+            </div>
+          ))}
+        </div>
+
+        <div className="space-y-4 mt-8">
+          <h3 className="text-[#D4AF37] text-lg font-medium border-b border-[#1A4026] pb-2">
+            Dietas Recomendadas
+          </h3>
+          {[...Array(selectedModalidade.dietas)].map((_, i) => (
+            <div key={`dieta-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center gap-3">
+               <ClipboardList className="text-[#D4AF37]" size={20} />
+              <span className="font-medium">Dieta Opção {i + 1}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-[#051109] flex items-center justify-center sm:p-4">
+      {/* Container simulando a tela do celular */}
+      <div 
+        className="w-full h-screen sm:h-[852px] sm:max-w-[393px] flex flex-col font-sans relative overflow-hidden selection:bg-[#D4AF37] selection:text-[#0A2514] sm:rounded-[3rem] sm:border-[8px] sm:border-black shadow-[0_0_50px_rgba(0,0,0,0.5)]"
+        style={{ backgroundColor: colors.bgDark, color: colors.textPrimary }}
+      >
+        <style>
+          {`
+            @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+          `}
+        </style>
+        
+        {/* Background Image overlay (subtle gym background) */}
+        <div 
+          className="absolute inset-0 z-0 opacity-10 pointer-events-none bg-cover bg-center" 
+          style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop")' }}
+        />
+        
+        {/* Background Gradient overlay (subtle) */}
+        <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#143B21] to-transparent opacity-50 pointer-events-none z-0" />
+
+        {/* Header */}
+        <header className="flex justify-between items-center p-6 pt-12 relative z-10">
+          <button 
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] -ml-2 transition-transform active:scale-95"
+            onClick={() => setActiveTab('perfil')}
+          >
+            <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+              <User size={20} strokeWidth={1.5} />
+            </div>
+          </button>
+        
+          <div className="flex flex-col items-center">
+            <h1 
+              className="text-3xl text-center leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent drop-shadow-md"
+              style={{ fontFamily: "'Playfair Display', serif", fontStyle: "italic", fontWeight: 700 }}
+            >
+              Corpo em<br/>Movimento
+            </h1>
+          </div>
+
+          <button className="p-2 -mr-2 text-[#D4AF37] relative">
+            <Bell size={24} strokeWidth={2} />
+            <span className="absolute top-2 right-2 w-2 h-2 bg-[#D4AF37] rounded-full border-2 border-[#0A2514]"></span>
+          </button>
+        </header>
+
+        <main className="flex-1 px-6 pb-6 relative z-10 flex flex-col h-full overflow-hidden">
+          
+          {activeTab === 'inicio' && renderInicio()}
+          {activeTab === 'planos' && renderPlanos()}
+          {activeTab === 'progresso' && renderProgresso()}
+          {activeTab === 'perfil' && renderPerfil()}
+
+          {activeTab === 'modalidades' && !selectedModalidade && (
+            <>
+              {/* Section Header */}
+              <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1">
+                <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
+                  Modalidades
+                </h2>
+                <h3 className="text-white text-lg font-medium mb-1">
+                  Escolha sua modalidade
+                </h3>
+                <p className="text-[#A0B3A6] text-xs max-w-[280px]">
+                  Selecione sua modalidade para acessar planos alimentares personalizados.
+                </p>
+              </div>
+
+              {/* Scrollable List Container */}
+              <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
+                {modalidadesData.map((item) => (
+                  <button 
+                    key={item.id}
+                    onClick={() => setSelectedModalidade(item)}
+                    className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center gap-4 transition-all active:scale-[0.98] hover:border-[#2A5036]"
+                  >
+                    {/* Icon Container */}
+                    <div className="w-14 h-14 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]">
+                      <item.icon size={26} strokeWidth={1.5} />
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 text-left">
+                      <h4 className="text-white text-base font-medium mb-0.5">{item.titulo}</h4>
+                      <p className="text-[#D4AF37] text-[10px] mb-0.5">Categoria:</p>
+                      <p className="text-[#A0B3A6] text-[10px] whitespace-pre-line">{item.categoria}</p>
+                    </div>
+
+                    {/* Fases e Dietas Info */}
+                    <div className="flex flex-col items-end gap-1 text-right">
+                        <span className="text-[#D4AF37] text-xs font-medium bg-[#1A3020] px-2 py-0.5 rounded-full">{item.fases} Fases</span>
+                        <span className="text-[#D4AF37] text-xs font-medium bg-[#1A3020] px-2 py-0.5 rounded-full">{item.dietas} Dietas</span>
+                    </div>
+
+                    {/* Chevron */}
+                    <div className="text-[#D4AF37] ml-2 opacity-80">
+                      <ChevronRight size={18} strokeWidth={2} />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+          
+          {activeTab === 'modalidades' && selectedModalidade && renderModalidadeDetalhes()}
+
+        </main>
+
+        {/* Bottom Navigation */}
+        <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-6 py-2 z-50">
+          <div className="flex justify-between items-center max-w-md mx-auto h-14">
+            <NavItem 
+              icon={Home} 
+              label="Início" 
+              isActive={activeTab === 'inicio'} 
+              onClick={() => { setActiveTab('inicio'); setSelectedModalidade(null); }} 
+            />
+            <NavItem 
+              icon={Dumbbell} 
+              label="Modalidades" 
+              isActive={activeTab === 'modalidades'} 
+              onClick={() => { setActiveTab('modalidades'); setSelectedModalidade(null); }} 
+            />
+            <NavItem 
+              icon={ClipboardList} 
+              label="Planos" 
+              isActive={activeTab === 'planos'} 
+              onClick={() => { setActiveTab('planos'); setSelectedModalidade(null); }} 
+            />
+            <NavItem 
+              icon={Activity} 
+              label="Progresso" 
+              isActive={activeTab === 'progresso'} 
+              onClick={() => { setActiveTab('progresso'); setSelectedModalidade(null); }} 
+            />
+            <NavItem 
+              icon={User} 
+              label="Perfil" 
+              isActive={activeTab === 'perfil'} 
+              onClick={() => { setActiveTab('perfil'); setSelectedModalidade(null); }} 
+            />
+          </div>
+        </nav>
+
+        <style dangerouslySetInnerHTML={{__html: `
+          .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #1A4026;
+            border-radius: 20px;
+          }
+          .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background-color: #D4AF37;
+          }
+        `}} />
+      </div>
+    </div>
+  );
+};
+
+const NavItem = ({ icon: Icon, label, isActive, onClick }) => {
+  return (
+    <button 
+      onClick={onClick}
+      className={`flex flex-col items-center justify-center w-14 h-full relative transition-colors ${
+        isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'
+      }`}
+    >
+      {/* Active Indicator Top Line */}
+      {isActive && (
+        <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#D4AF37] rounded-b-md shadow-[0_2px_8px_rgba(212,175,55,0.5)]" />
+      )}
+      
+      <Icon size={20} strokeWidth={isActive ? 2 : 1.5} className="mb-1" />
+      <span className="text-[9px] font-medium tracking-wide">{label}</span>
+    </button>
+  );
+};
+
+export default App;
