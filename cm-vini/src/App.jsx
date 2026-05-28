@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Home, 
   Dumbbell, 
@@ -109,6 +109,80 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('modalidades');
   const [selectedModalidade, setSelectedModalidade] = useState(null);
 
+  useEffect(() => {
+    // Adiciona meta tags e ícone para PWA (Add to Homescreen) dinamicamente
+    const head = document.head;
+
+    // Remove tags antigas se existirem para evitar duplicação em HMR
+    document.querySelectorAll('meta[name="apple-mobile-web-app-capable"]').forEach(e => e.remove());
+    document.querySelectorAll('meta[name="apple-mobile-web-app-status-bar-style"]').forEach(e => e.remove());
+    document.querySelectorAll('meta[name="apple-mobile-web-app-title"]').forEach(e => e.remove());
+    document.querySelectorAll('meta[name="mobile-web-app-capable"]').forEach(e => e.remove());
+    document.querySelectorAll('link[rel="apple-touch-icon"]').forEach(e => e.remove());
+    document.querySelectorAll('link[rel="icon"]').forEach(e => e.remove());
+
+    const metaTags = [
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+      { name: 'apple-mobile-web-app-title', content: 'Corpo em Movimento' },
+      { name: 'mobile-web-app-capable', content: 'yes' }
+    ];
+
+    metaTags.forEach(tagInfo => {
+      const meta = document.createElement('meta');
+      meta.name = tagInfo.name;
+      meta.content = tagInfo.content;
+      head.appendChild(meta);
+    });
+
+    // Mock de um manifest gerado em base64 para que o navegador reconheça como instalável
+    const manifestContent = {
+      name: "Corpo em Movimento",
+      short_name: "Corpo em Movimento",
+      start_url: ".",
+      display: "standalone",
+      background_color: "#051109",
+      theme_color: "#051109",
+      icons: [
+        {
+          src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzA1MTEwOSIvPgogIDxwYXRoIGQ9Ik0zNSwzNSBMNjUsNjUgTTY1LDM1IEwzNSw2NSIgc3Ryb2tlPSIjRDRBRjM3IiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=",
+          sizes: "192x192",
+          type: "image/svg+xml"
+        },
+        {
+          src: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzA1MTEwOSIvPgogIDxwYXRoIGQ9Ik0zNSwzNSBMNjUsNjUgTTY1LDM1IEwzNSw2NSIgc3Ryb2tlPSIjRDRBRjM3IiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=",
+          sizes: "512x512",
+          type: "image/svg+xml"
+        }
+      ]
+    };
+    
+    // Remove manifest antigo
+    document.querySelectorAll('link[rel="manifest"]').forEach(e => e.remove());
+    const manifestLink = document.createElement('link');
+    manifestLink.rel = 'manifest';
+    manifestLink.href = 'data:application/manifest+json;base64,' + btoa(JSON.stringify(manifestContent));
+    head.appendChild(manifestLink);
+
+    // Ícones
+    const iconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj4KICA8cmVjdCB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCIgZmlsbD0iIzA1MTEwOSIvPgogIDxwYXRoIGQ9Ik0zNSwzNSBMNjUsNjUgTTY1LDM1IEwzNSw2NSIgc3Ryb2tlPSIjRDRBRjM3IiBzdHJva2Utd2lkdGg9IjgiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgo8L3N2Zz4=";
+    
+    const appleIcon = document.createElement('link');
+    appleIcon.rel = 'apple-touch-icon';
+    appleIcon.href = iconBase64;
+    head.appendChild(appleIcon);
+
+    const standardIcon = document.createElement('link');
+    standardIcon.rel = 'icon';
+    standardIcon.type = 'image/svg+xml';
+    standardIcon.href = iconBase64;
+    head.appendChild(standardIcon);
+
+    // Document title
+    document.title = "Corpo em Movimento";
+
+  }, []);
+
   const colors = {
     bgDark: '#051109',
     bgCard: '#0A1A10',
@@ -120,7 +194,7 @@ const App = () => {
 
   const renderInicio = () => (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
-      <div className="mb-4">
+      <div className="mb-4 pt-4">
         <h2 className="text-[#D4AF37] text-xl font-serif mb-2">Bem-vindo de volta!</h2>
         <p className="text-[#A0B3A6] text-sm">Pronto para superar seus limites hoje?</p>
       </div>
@@ -155,7 +229,7 @@ const App = () => {
 
   const renderPlanos = () => (
     <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
-      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1">
+      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
           Planos Alimentares
         </h2>
@@ -183,7 +257,7 @@ const App = () => {
 
   const renderProgresso = () => (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
-      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1">
+      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
           Evolução
         </h2>
@@ -263,7 +337,7 @@ const App = () => {
       <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
         <button 
           onClick={() => setSelectedModalidade(null)}
-          className="flex items-center text-[#D4AF37] mb-4 hover:opacity-80 transition-opacity"
+          className="flex items-center text-[#D4AF37] mb-4 mt-4 hover:opacity-80 transition-opacity"
         >
           <ChevronLeft size={20} />
           <span>Voltar para Modalidades</span>
@@ -308,7 +382,7 @@ const App = () => {
 
   return (
     <div className="min-h-screen bg-[#051109] flex items-center justify-center sm:p-4">
-      {/* Container simulando a tela do celular */}
+      {/* Container - Ajustado para ocupar a tela toda no mobile e remover a faixa branca */}
       <div 
         className="w-full h-screen sm:h-[852px] sm:max-w-[393px] flex flex-col font-sans relative overflow-hidden selection:bg-[#D4AF37] selection:text-[#0A2514] sm:rounded-[3rem] sm:border-[8px] sm:border-black shadow-[0_0_50px_rgba(0,0,0,0.5)]"
         style={{ backgroundColor: colors.bgDark, color: colors.textPrimary }}
@@ -328,10 +402,10 @@ const App = () => {
         {/* Background Gradient overlay (subtle) */}
         <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#143B21] to-transparent opacity-50 pointer-events-none z-0" />
 
-        {/* Header */}
-        <header className="flex justify-between items-center p-6 pt-12 relative z-10">
+        {/* Header - Ajustado com padding-top seguro para notch em PWA standalone */}
+        <header className="flex justify-between items-center p-6 pt-[calc(1.5rem+env(safe-area-inset-top))] relative z-10">
           <button 
-            className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] -ml-2 transition-transform active:scale-95"
+            className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] -ml-2 transition-transform active:scale-95 bg-[#051109]"
             onClick={() => setActiveTab('perfil')}
           >
             <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
@@ -364,7 +438,7 @@ const App = () => {
           {activeTab === 'modalidades' && !selectedModalidade && (
             <>
               {/* Section Header */}
-              <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1">
+              <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
                 <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">
                   Modalidades
                 </h2>
@@ -417,7 +491,7 @@ const App = () => {
         </main>
 
         {/* Bottom Navigation */}
-        <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-6 py-2 z-50">
+        <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-6 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
           <div className="flex justify-between items-center max-w-md mx-auto h-14">
             <NavItem 
               icon={Home} 
