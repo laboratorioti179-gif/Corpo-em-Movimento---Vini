@@ -441,15 +441,82 @@ const Login = () => {
 };
 
 const Inicio = () => {
-  const waterGoal = 2000;
-  const waterConsumed = 500; // Mock just for visual percentage
-  const fillPercentage = Math.min((waterConsumed / waterGoal) * 100, 100);
+  const { profile, setActiveTab, setSelectedModalidade, registrarConquista } = useApp();
+  const scrollRef = React.useRef(null);
+  const [estatisticas, setEstatisticas] = useState({ sequencia: 0, treinosMes: 0, metaMes: 20 });
 
-  const noticiasFit = [
+  const dicasFit = [
     { id: 1, titulo: "Nova descoberta sobre hipertrofia e descanso", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
     { id: 2, titulo: "Alimentação pré-treino: O que realmente funciona?", img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&auto=format&fit=crop&q=60" },
     { id: 3, titulo: "Os benefícios ocultos da hidratação constante", img: "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=500&auto=format&fit=crop&q=60" }
   ];
+
+  useEffect(() => {
+    const fetchTreinos = async () => {
+      if (!profile?.id) return;
+      const { data, error } = await supabase.from('treinos_realizados').select('*').eq('user_id', profile.id);
+      
+      if (!error && data) {
+        const hoje = new Date();
+        const mesAtual = data.filter(d => {
+          const dData = new Date(d.created_at);
+          return dData.getMonth() === hoje.getMonth() && dData.getFullYear() === hoje.getFullYear();
+        });
+
+        // Cálculo real de sequência (dias consecutivos de treino)
+        const datasUnicas = [...new Set(data.map(d => {
+          const dt = new Date(d.created_at);
+          return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
+        }))].sort((a, b) => b - a);
+
+        let seqReal = 0;
+        let dataReferencia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
+        
+        if (datasUnicas.length > 0) {
+          if (datasUnicas[0] === dataReferencia) {
+            seqReal = 1;
+            dataReferencia -= 86400000; // 1 dia em milissegundos
+            for (let i = 1; i < datasUnicas.length; i++) {
+              if (datasUnicas[i] === dataReferencia) { seqReal++; dataReferencia -= 86400000; } else break;
+            }
+          } else if (datasUnicas[0] === dataReferencia - 86400000) { // Ontem
+            seqReal = 1;
+            dataReferencia -= 86400000 * 2;
+            for (let i = 1; i < datasUnicas.length; i++) {
+              if (datasUnicas[i] === dataReferencia) { seqReal++; dataReferencia -= 86400000; } else break;
+            }
+          }
+        }
+
+        setEstatisticas({
+          sequencia: seqReal,
+          treinosMes: mesAtual.length,
+          metaMes: 20
+        });
+
+        if (seqReal === 1 && data.length === 1) registrarConquista("🎉 Conquista: Primeiro treino realizado!");
+        if (seqReal === 5) registrarConquista("🔥 Conquista: 5 dias seguidos!");
+        if (seqReal === 15) registrarConquista("🔥 Conquista: 15 dias seguidos!");
+        if (seqReal === 25) registrarConquista("🔥 Conquista: 25 dias seguidos!");
+        if (mesAtual.length >= 20) registrarConquista("🏆 Conquista: Meta mensal concluída!");
+      }
+    };
+    fetchTreinos();
+  }, [profile, registrarConquista]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (scrollRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+        if (scrollLeft >= scrollWidth - clientWidth - 10) {
+          scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          scrollRef.current.scrollBy({ left: 216, behavior: 'smooth' });
+        }
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
@@ -460,43 +527,58 @@ const Inicio = () => {
       
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-          <Flame size={32} className="text-[#D4AF37] mb-2" />
-          <span className="text-2xl font-bold">14</span>
-          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Dias Seguidos</span>
+          <Flame size={28} className="text-[#D4AF37] mb-1" />
+          <span className="text-xl font-bold">{estatisticas.sequencia}</span>
+          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Sequência (Dias)</span>
         </div>
         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-          <Target size={32} className="text-[#D4AF37] mb-2" />
-          <span className="text-2xl font-bold">85%</span>
-          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Meta Mensal</span>
+          <Target size={28} className="text-[#D4AF37] mb-1" />
+          <span className="text-xl font-bold">{Math.min(Math.round((estatisticas.treinosMes / estatisticas.metaMes) * 100), 100)}%</span>
+          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Meta do Mês</span>
+        </div>
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+          <ClipboardList size={28} className="text-[#D4AF37] mb-1" />
+          <span className="text-xl font-bold">{estatisticas.treinosMes}/{estatisticas.metaMes}</span>
+          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Treinos Realizados</span>
+        </div>
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
+          <Activity size={28} className="text-[#D4AF37] mb-1" />
+          <span className="text-xl font-bold">{profile?.peso_atual ? `${profile.peso_atual} kg` : 'N/A'}</span>
+          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Peso Atual</span>
         </div>
       </div>
 
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
         <h3 className="text-[#D4AF37] text-sm font-semibold mb-3">Próximo Treino</h3>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 mb-3">
           <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
             <Dumbbell size={24} />
           </div>
           <div>
-            <h4 className="font-medium">Musculação - Costas</h4>
-            <p className="text-[#A0B3A6] text-xs">Hoje, 18:30</p>
+            <h4 className="font-medium">Modalidade Recomendada</h4>
+            <p className="text-[#A0B3A6] text-xs">Acesse para iniciar a fase</p>
           </div>
         </div>
+        <button onClick={() => {
+            setActiveTab('modalidades');
+        }} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2">
+            Ver Treinos <ChevronRight size={18} />
+        </button>
       </div>
 
-      {/* Seção Mundo Fit (Notícias) */}
+      {/* Seção Mundo Fit (Dicas) */}
       <div className="mt-8">
-        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3 border-l-2 border-[#D4AF37] pl-2">Mundo Fit - Notícias</h3>
-        <div className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-2 pr-2">
-          {noticiasFit.map(noticia => (
-            <div key={noticia.id} className="min-w-[200px] w-[200px] bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden flex-shrink-0">
+        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3 border-l-2 border-[#D4AF37] pl-2">Mundo Fit - Dicas</h3>
+        <div ref={scrollRef} className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-2 pr-2 snap-x snap-mandatory scroll-smooth">
+          {dicasFit.map(dica => (
+            <div key={dica.id} className="min-w-[200px] w-[200px] bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden flex-shrink-0 snap-start">
               <div className="h-28 w-full relative">
-                <img src={noticia.img} alt={noticia.titulo} className="w-full h-full object-cover" />
+                <img src={dica.img} alt={dica.titulo} className="w-full h-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#0A1A10] to-transparent"></div>
               </div>
               <div className="p-3">
-                <h4 className="text-sm font-medium text-white line-clamp-2 leading-snug">{noticia.titulo}</h4>
-                <p className="text-[#D4AF37] text-[10px] mt-2">Ler artigo</p>
+                <h4 className="text-sm font-medium text-white line-clamp-2 leading-snug">{dica.titulo}</h4>
+                <p className="text-[#D4AF37] text-[10px] mt-2">Ver dica completa</p>
               </div>
             </div>
           ))}
@@ -643,11 +725,23 @@ const Progresso = () => {
 };
 
 const Agua = () => {
+  const { registrarConquista } = useApp();
   const [waterGoal, setWaterGoal] = useState(2000);
   const [waterConsumed, setWaterConsumed] = useState(0);
   const [waterInterval, setWaterInterval] = useState(60);
   const [drinkSize, setDrinkSize] = useState(250);
+  const [conquistaRegistrada, setConquistaRegistrada] = useState(false);
+  
   const fillPercentage = Math.min((waterConsumed / waterGoal) * 100, 100);
+
+  useEffect(() => {
+    if (fillPercentage >= 100 && !conquistaRegistrada) {
+      registrarConquista("💧 Conquista: Meta de água diária concluída!");
+      setConquistaRegistrada(true);
+    } else if (fillPercentage < 100) {
+      setConquistaRegistrada(false); // Reinicia a conquista se a meta for aumentada ou a água zerada
+    }
+  }, [fillPercentage, conquistaRegistrada, registrarConquista]);
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
@@ -821,7 +915,9 @@ const Modalidades = () => {
       <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
         <button onClick={() => setSelectedModalidade(null)} className="flex items-center text-[#D4AF37] mb-4 mt-4 hover:opacity-80 transition-opacity"><ChevronLeft size={20} /><span>Voltar para Modalidades</span></button>
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><selectedModalidade.icon size={32} strokeWidth={1.5} /></div>
+          <div className="w-16 h-16 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+            {selectedModalidade.icon ? <selectedModalidade.icon size={32} strokeWidth={1.5} /> : <Dumbbell size={32} strokeWidth={1.5} />}
+          </div>
           <div><h2 className="text-2xl font-bold text-white">{selectedModalidade.titulo}</h2><p className="text-[#A0B3A6] text-sm">{selectedModalidade.categoria}</p></div>
         </div>
         
@@ -855,12 +951,51 @@ const Modalidades = () => {
                   {treinosLocais[`${selectedModalidade.id}-${i}`] || 'Treino padrão da fase. O administrador ainda não personalizou a rotina.'}
                 </p>
               )}
+              
+              {!profile?.is_admin && (
+                <button 
+                  onClick={async () => {
+                    await supabase.from('treinos_realizados').insert([{ user_id: profile.id, modalidade_nome: `${selectedModalidade.titulo} - Fase ${i+1}` }]);
+                    alert("Treino concluído com sucesso!");
+                  }}
+                  className="mt-2 bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] py-1.5 rounded-lg text-xs font-medium active:scale-95 transition-transform"
+                >
+                  Marcar como Concluído
+                </button>
+              )}
             </div>
           ))}
         </div>
         <div className="space-y-4 mt-8">
           <h3 className="text-[#D4AF37] text-lg font-medium border-b border-[#1A4026] pb-2">Dietas Recomendadas</h3>
-          {[...Array(selectedModalidade.dietas)].map((_, i) => <div key={`dieta-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center gap-3"><ClipboardList className="text-[#D4AF37]" size={20} /><span className="font-medium">Dieta Opção {i + 1}</span></div>)}
+          {[...Array(selectedModalidade.dietas)].map((_, i) => {
+            const pdfUrl = `${supabaseUrl}/storage/v1/object/public/dietas/modalidade-${selectedModalidade.id}-dieta-${i}.pdf`;
+            return (
+              <div key={`dieta-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center gap-3">
+                  <ClipboardList className="text-[#D4AF37]" size={20} />
+                  <span className="font-medium">Dieta Opção {i + 1}</span>
+                </div>
+                {profile?.is_admin ? (
+                  <label className="text-xs text-[#D4AF37] border border-[#D4AF37] px-3 py-2 rounded-lg cursor-pointer text-center active:scale-95 transition-transform flex items-center justify-center gap-2">
+                    <input type="file" accept="application/pdf" className="hidden" onChange={async (e) => {
+                      const file = e.target.files[0];
+                      if(!file) return;
+                      const fileName = `modalidade-${selectedModalidade.id}-dieta-${i}.pdf`;
+                      const { error } = await supabase.storage.from('dietas').upload(fileName, file, { upsert: true });
+                      if(error) alert('Erro ao fazer upload: ' + error.message);
+                      else alert('PDF salvo com sucesso!');
+                    }} />
+                    Carregar PDF da Dieta
+                  </label>
+                ) : (
+                  <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="bg-[#1A3020] text-[#D4AF37] text-xs font-bold px-3 py-2 rounded-lg text-center active:scale-95 transition-transform">
+                    Abrir Dieta (PDF)
+                  </a>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -940,17 +1075,34 @@ const Notificacoes = () => {
 // --- ÁREA ADMINISTRATIVA ---
 const AdminPanel = ({ onExitAdmin }) => {
   const [adminTab, setAdminTab] = useState('evolucao');
+  const [gestaoView, setGestaoView] = useState('menu');
+  
   const [alunos, setAlunos] = useState([]);
   const [alunoSelecionado, setAlunoSelecionado] = useState('');
   const [mensagem, setMensagem] = useState('');
   const [statusMsg, setStatusMsg] = useState('');
   const [progressoAluno, setProgressoAluno] = useState([]);
   const [showDesempenho, setShowDesempenho] = useState(false);
+  const [ranking, setRanking] = useState([]);
+  
+  const [novaModalidade, setNovaModalidade] = useState({ titulo: '', categoria: '', fases: 10, dietas: 2 });
 
   useEffect(() => {
     const fetchAlunos = async () => {
       const { data } = await supabase.from('profiles').select('*').eq('is_admin', false);
-      if (data) setAlunos(data);
+      if (data) {
+        setAlunos(data);
+        const { data: treinos } = await supabase.from('treinos_realizados').select('*');
+        if (treinos) {
+          const r = data.map(a => ({
+            ...a,
+            treinosCount: treinos.filter(t => t.user_id === a.id).length
+          })).sort((a, b) => b.treinosCount - a.treinosCount);
+          setRanking(r);
+        } else {
+          setRanking(data.map(a => ({...a, treinosCount: 0})));
+        }
+      }
     };
     fetchAlunos();
   }, []);
@@ -973,6 +1125,23 @@ const AdminPanel = ({ onExitAdmin }) => {
       setMensagem('');
     } else {
       setStatusMsg('Erro ao enviar.');
+    }
+    setTimeout(() => setStatusMsg(''), 3000);
+  };
+
+  const handleCriarModalidade = async () => {
+    if (!novaModalidade.titulo || !novaModalidade.categoria) {
+        setStatusMsg('Preencha título e categoria.');
+        setTimeout(() => setStatusMsg(''), 3000);
+        return;
+    }
+    setStatusMsg('Criando...');
+    const { error } = await supabase.from('modalidades_custom').insert([novaModalidade]);
+    if (!error) {
+        setStatusMsg('Criado com sucesso!');
+        setNovaModalidade({ titulo: '', categoria: '', fases: 10, dietas: 2 });
+    } else {
+        setStatusMsg('Erro ao criar modalidade.');
     }
     setTimeout(() => setStatusMsg(''), 3000);
   };
@@ -1148,27 +1317,97 @@ const AdminPanel = ({ onExitAdmin }) => {
           </div>
         )}
 
-        {/* TAB: ACOMPANHAMENTO */}
+        {/* TAB: ACOMPANHAMENTO (GESTÃO DE TREINOS E ALUNOS) */}
         {adminTab === 'acompanhamento' && (
           <div className="space-y-6">
-            <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Acompanhamento</h3>
-            <div className="space-y-3">
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas</p></div><Activity className="text-[#D4AF37]" size={20} />
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Histórico Individual</h4><p className="text-xs text-[#A0B3A6]">Fichas de cada aluno</p></div><User className="text-[#D4AF37]" size={20} />
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Relatórios e Gráficos</h4><p className="text-xs text-[#A0B3A6]">Evolutivos gerais</p></div><TrendingUp className="text-[#D4AF37]" size={20} />
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Fotos dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Galeria antes/depois</p></div><ImageIcon className="text-[#D4AF37]" size={20} />
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Gráfico de Desenvolvimento</h4><p className="text-xs text-[#A0B3A6]">Comparações métricas</p></div><Target className="text-[#D4AF37]" size={20} />
-              </div>
+            <div className="flex items-center justify-between mb-4 border-l-2 border-[#D4AF37] pl-3">
+              <h3 className="text-xl font-medium">Acompanhamento e Gestão</h3>
+              {gestaoView !== 'menu' && (
+                <button onClick={() => setGestaoView('menu')} className="text-[#D4AF37] text-xs flex items-center gap-1 bg-[#1A3020] px-3 py-1 rounded-full"><ChevronLeft size={14}/> Voltar</button>
+              )}
             </div>
+
+            {gestaoView === 'menu' && (
+              <div className="space-y-3">
+                <button onClick={() => setGestaoView('desempenho')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
+                  <div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas</p></div><Activity className="text-[#D4AF37]" size={20} />
+                </button>
+                <button onClick={() => { setAdminTab('evolucao'); setAlunoSelecionado(''); }} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
+                  <div className="text-left"><h4 className="font-medium">Histórico Individual</h4><p className="text-xs text-[#A0B3A6]">Fichas de cada aluno</p></div><User className="text-[#D4AF37]" size={20} />
+                </button>
+                <button onClick={() => setGestaoView('relatorios')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
+                  <div className="text-left"><h4 className="font-medium">Relatórios e Gráficos de Desenvolvimento</h4><p className="text-xs text-[#A0B3A6]">Evolutivos gerais da academia</p></div><TrendingUp className="text-[#D4AF37]" size={20} />
+                </button>
+                <button onClick={() => setGestaoView('criar_treinos')} className="w-full bg-[#1A3020] border border-[#D4AF37]/50 rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform mt-6 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                  <div className="text-left"><h4 className="font-medium text-[#D4AF37]">Criar Modalidades e Treinos</h4><p className="text-xs text-[#A0B3A6]">Adicionar novas opções no App</p></div><Dumbbell className="text-[#D4AF37]" size={20} />
+                </button>
+              </div>
+            )}
+
+            {gestaoView === 'criar_treinos' && (
+              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
+                <div className="flex justify-between items-center border-b border-[#1A4026] pb-2">
+                  <h4 className="text-[#D4AF37] font-medium flex items-center gap-2">Nova Modalidade <Plus size={14}/></h4>
+                  {statusMsg && <span className="text-[#D4AF37] text-xs font-medium">{statusMsg}</span>}
+                </div>
+                <div>
+                  <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Título da Modalidade</label>
+                  <input type="text" value={novaModalidade.titulo} onChange={e => setNovaModalidade({...novaModalidade, titulo: e.target.value})} placeholder="Ex: Crossfit" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Categoria / Descrição</label>
+                  <input type="text" value={novaModalidade.categoria} onChange={e => setNovaModalidade({...novaModalidade, categoria: e.target.value})} placeholder="Ex: Alta Intensidade" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Nº de Fases</label>
+                    <input type="number" value={novaModalidade.fases} onChange={e => setNovaModalidade({...novaModalidade, fases: parseInt(e.target.value)})} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Nº de Dietas</label>
+                    <input type="number" value={novaModalidade.dietas} onChange={e => setNovaModalidade({...novaModalidade, dietas: parseInt(e.target.value)})} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
+                  </div>
+                </div>
+                <button onClick={handleCriarModalidade} className="w-full bg-[#D4AF37] text-[#051109] font-bold py-3 rounded-xl mt-4 active:scale-95 transition-transform flex justify-center items-center gap-2">Salvar Modalidade <Save size={18}/></button>
+              </div>
+            )}
+
+            {gestaoView === 'desempenho' && (
+              <div className="space-y-4">
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+                  <h4 className="text-[#D4AF37] font-medium mb-3">Ranking de Treinos Realizados</h4>
+                  <div className="space-y-3">
+                    {ranking.slice(0,5).map((a, i) => (
+                      <div key={a.id} className="flex justify-between items-center border-b border-[#1A4026] pb-2 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-3">
+                          <span className={`font-bold ${i===0 ? 'text-[#D4AF37]' : 'text-[#A0B3A6]'}`}>{i+1}º</span>
+                          <div>
+                            <p className="text-sm text-white font-medium">{a.nome || 'Aluno Sem Nome'}</p>
+                            <p className="text-[10px] text-[#A0B3A6]">{a.treinosCount || 0} treinos registrados</p>
+                          </div>
+                        </div>
+                        <Award size={18} className={i===0 ? 'text-[#D4AF37]' : 'text-transparent'} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {gestaoView === 'relatorios' && (
+              <div className="space-y-4">
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+                  <h4 className="text-[#D4AF37] font-medium mb-3">Retenção e Crescimento (Média)</h4>
+                  <div className="h-40 flex items-end justify-around gap-2 pt-4 border-b border-[#1A4026] opacity-80">
+                    {[30, 45, 60, 50, 75, 90, 85].map((h, i) => <div key={i} className="w-6 bg-[#D4AF37] rounded-t-sm" style={{ height: `${h}%` }}></div>)}
+                  </div>
+                  <div className="flex justify-around text-[#A0B3A6] text-[10px] mt-2">
+                    <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span><span>Mai</span><span>Jun</span><span>Jul</span>
+                  </div>
+                  <p className="text-xs text-[#A0B3A6] text-center mt-4 pt-4 border-t border-[#1A4026]">Análise geral do progresso de perda de peso e ganho de massa de todos os alunos ativos na plataforma.</p>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -1187,7 +1426,7 @@ const AdminPanel = ({ onExitAdmin }) => {
               icon={tab.icon} 
               label={tab.label} 
               isActive={adminTab === tab.id} 
-              onClick={() => setAdminTab(tab.id)} 
+              onClick={() => { setAdminTab(tab.id); setGestaoView('menu'); }} 
             />
           ))}
         </div>
@@ -1197,9 +1436,9 @@ const AdminPanel = ({ onExitAdmin }) => {
 };
 
 const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
-  <button onClick={onClick} className={`flex flex-col items-center justify-center w-14 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}`}>
+  <button onClick={onClick} className={`flex flex-col items-center justify-center w-12 sm:w-14 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}`}>
     {isActive && <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#D4AF37] rounded-b-md shadow-[0_2px_8px_rgba(212,175,55,0.5)]" />}
-    <Icon size={20} strokeWidth={isActive ? 2 : 1.5} className="mb-1" /><span className="text-[9px] font-medium tracking-wide">{label}</span>
+    <Icon size={20} strokeWidth={isActive ? 2 : 1.5} className="mb-1" /><span className="text-[8px] sm:text-[9px] font-medium tracking-wide">{label}</span>
   </button>
 );
 
@@ -1224,7 +1463,6 @@ const NavBar = () => {
     </>
   );
 };
-
 
 // --- O SEU COMPONENTE APP ORIGINAL ---
 export default function App() {
@@ -1395,6 +1633,18 @@ export default function App() {
     setProfile(null); setAdminView(false); setActiveTab('inicio');
   };
 
+  const registrarConquista = async (mensagem) => {
+    if (!profile?.id) return;
+    try {
+      const { data } = await supabase.from('notificacoes').select('id').eq('user_id', profile.id).eq('mensagem', mensagem);
+      if (!data || data.length === 0) {
+        await supabase.from('notificacoes').insert([{ user_id: profile.id, mensagem, lida: false }]);
+        const { count } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', profile.id).eq('lida', false);
+        setNotifCount(count || 0);
+      }
+    } catch (err) { console.error('Erro ao registrar conquista:', err); }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#051109] flex items-center justify-center">
@@ -1415,6 +1665,7 @@ export default function App() {
     reloadProfile: () => session && loadProfile(session.user.id, session.user.email, session.user.user_metadata),
     notifCount, setNotifCount,
     setAdminView,
+    registrarConquista,
   };
 
   return (
