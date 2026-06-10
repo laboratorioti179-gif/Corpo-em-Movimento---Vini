@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
   Home, Dumbbell, ClipboardList, Activity, User, Menu, Bell, ChevronRight,
@@ -18,14 +17,14 @@ let authListeners = [];
 
 const getHeaders = () => ({
   'apikey': supabaseAnonKey,
-  'Authorization': Bearer ${currentSession?.access_token || supabaseAnonKey},
+  'Authorization': `Bearer ${currentSession?.access_token || supabaseAnonKey}`,
   'Content-Type': 'application/json'
 });
 
 class SupabaseQuery {
   constructor(table, isInsert = false, rows = null) {
     this.table = table;
-    this.url = ${supabaseUrl}/rest/v1/${table};
+    this.url = `${supabaseUrl}/rest/v1/${table}`;
     this.isInsert = isInsert;
     this.isUpdate = false;
     this.rows = rows;
@@ -41,11 +40,11 @@ class SupabaseQuery {
       this.headers['Prefer'] = 'count=exact';
       if (options.head) this.method = 'HEAD';
     }
-    this.queryParams.push(select=${encodeURIComponent(columns)});
+    this.queryParams.push(`select=${encodeURIComponent(columns)}`);
     return this;
   }
   eq(field, value) {
-    this.queryParams.push(${field}=eq.${encodeURIComponent(value)});
+    this.queryParams.push(`${field}=eq.${encodeURIComponent(value)}`);
     return this;
   }
   single() {
@@ -65,7 +64,7 @@ class SupabaseQuery {
   async then(resolve, reject) {
     try {
       const finalUrl = this.queryParams.length > 0
-        ? ${this.url}?${this.queryParams.join('&')}
+        ? `${this.url}?${this.queryParams.join('&')}`
         : this.url;
 
       const options = { method: this.method, headers: this.headers };
@@ -124,7 +123,7 @@ export const supabase = {
       if (options && options.data) {
         body.data = options.data;
       }
-      const res = await fetch(${supabaseUrl}/auth/v1/signup, {
+      const res = await fetch(`${supabaseUrl}/auth/v1/signup`, {
         method: 'POST', headers: getHeaders(), body: JSON.stringify(body)
       });
       const data = await res.json();
@@ -132,7 +131,7 @@ export const supabase = {
       return { data, error: null };
     },
     signInWithPassword: async ({ email, password }) => {
-      const res = await fetch(${supabaseUrl}/auth/v1/token?grant_type=password, {
+      const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
         method: 'POST', headers: getHeaders(), body: JSON.stringify({ email, password })
       });
       const data = await res.json();
@@ -143,7 +142,7 @@ export const supabase = {
       return { data: { session: currentSession }, error: null };
     },
     resetPasswordForEmail: async (email) => {
-      const res = await fetch(${supabaseUrl}/auth/v1/recover, {
+      const res = await fetch(`${supabaseUrl}/auth/v1/recover`, {
         method: 'POST', headers: getHeaders(), body: JSON.stringify({ email })
       });
       if (!res.ok) {
@@ -154,7 +153,7 @@ export const supabase = {
     },
     signOut: async () => {
       if (currentSession) {
-        await fetch(${supabaseUrl}/auth/v1/logout, { method: 'POST', headers: getHeaders() }).catch(()=>null);
+        await fetch(`${supabaseUrl}/auth/v1/logout`, { method: 'POST', headers: getHeaders() }).catch(()=>null);
       }
       currentSession = null;
       localStorage.removeItem('sb-session');
@@ -170,11 +169,11 @@ export const supabase = {
   storage: {
     from: (bucket) => ({
       upload: async (path, file) => {
-        const res = await fetch(${supabaseUrl}/storage/v1/object/${bucket}/${path}, {
+        const res = await fetch(`${supabaseUrl}/storage/v1/object/${bucket}/${path}`, {
           method: 'POST',
           headers: {
             'apikey': supabaseAnonKey,
-            'Authorization': Bearer ${currentSession?.access_token || supabaseAnonKey},
+            'Authorization': `Bearer ${currentSession?.access_token || supabaseAnonKey}`,
             'Content-Type': file.type
           },
           body: file
@@ -189,7 +188,7 @@ export const supabase = {
         return { data, error: null };
       },
       getPublicUrl: (path) => {
-        return { data: { publicUrl: ${supabaseUrl}/storage/v1/object/public/${bucket}/${path} } };
+        return { data: { publicUrl: `${supabaseUrl}/storage/v1/object/public/${bucket}/${path}` } };
       }
     })
   }
@@ -586,12 +585,12 @@ const Progresso = () => {
          <div className="flex justify-between items-center mb-4">
            <h4 className="font-medium text-[#D4AF37]">Histórico de Peso (kg)</h4>
            <span className="text-sm font-bold text-white">
-             {historico.length > 0 ? historico[historico.length - 1].peso : '0'} kg
+             {historico.length > 0 ? `${historico[historico.length - 1].peso} kg` : '0 kg'}
            </span>
          </div>
          <div className="h-32 flex items-end gap-2 pt-4 border-b border-[#1A4026] opacity-70">
             {historico.length > 0 ? historico.map((h, i) => (
-              <div key={i} className="flex-1 bg-[#D4AF37] rounded-t-sm" style={{ height: ${Math.min((h.peso / 150) * 100, 100)}% }}></div>
+              <div key={i} className="flex-1 bg-[#D4AF37] rounded-t-sm" style={{ height: `${Math.min((h.peso / 150) * 100, 100)}%` }}></div>
             )) : (
               <div className="flex-1 text-center text-[#A0B3A6] text-xs pb-4">Nenhum dado registrado</div>
             )}
@@ -662,7 +661,7 @@ const Agua = () => {
           <div className="absolute top-1/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
           <div className="absolute top-2/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
           <div className="absolute top-3/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-[800ms] ease-in-out opacity-90" style={{ height: ${fillPercentage}% }}>
+          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-[800ms] ease-in-out opacity-90" style={{ height: `${fillPercentage}%` }}>
             <div className="absolute top-0 left-0 right-0 h-2 bg-cyan-300/60 rounded-t-full"></div>
           </div>
         </div>
@@ -714,7 +713,7 @@ const Perfil = () => {
 
     setStatusMsg('Enviando foto...');
     const fileExt = file.name.split('.').pop();
-    const fileName = ${profile.id}-${Date.now()}.${fileExt};
+    const fileName = `${profile.id}-${Date.now()}.${fileExt}`;
 
     const { error: uploadError } = await supabase.storage.from('avatars').upload(fileName, file);
 
@@ -814,7 +813,7 @@ const Modalidades = () => {
             {profile?.is_admin && <span className="text-[10px] bg-[#D4AF37] text-black px-2 py-1 rounded-full uppercase tracking-wider font-bold">Modo Edição Admin</span>}
           </h3>
           {[...Array(selectedModalidade.fases)].map((_, i) => (
-            <div key={fase-${i}} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex flex-col gap-2">
+            <div key={`fase-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex flex-col gap-2">
               <div className="flex items-center justify-between">
                 <span className="font-medium text-white">Fase {i + 1}</span>
                 {profile?.is_admin && editFase !== i && (
@@ -829,13 +828,13 @@ const Modalidades = () => {
                 <textarea 
                   className="w-full bg-[#051109] border border-[#D4AF37] text-white p-3 rounded-lg mt-2 text-sm min-h-[80px] outline-none"
                   placeholder="Descreva o treino desta fase para os alunos..."
-                  value={treinosLocais[${selectedModalidade.id}-${i}] || ''}
-                  onChange={(e) => setTreinosLocais({...treinosLocais, [${selectedModalidade.id}-${i}]: e.target.value})}
+                  value={treinosLocais[`${selectedModalidade.id}-${i}`] || ''}
+                  onChange={(e) => setTreinosLocais({...treinosLocais, [`${selectedModalidade.id}-${i}`]: e.target.value})}
                   autoFocus
                 />
               ) : (
                 <p className="text-sm text-[#A0B3A6] mt-1 whitespace-pre-line">
-                  {treinosLocais[${selectedModalidade.id}-${i}] || 'Treino padrão da fase. O administrador ainda não personalizou a rotina.'}
+                  {treinosLocais[`${selectedModalidade.id}-${i}`] || 'Treino padrão da fase. O administrador ainda não personalizou a rotina.'}
                 </p>
               )}
             </div>
@@ -843,7 +842,7 @@ const Modalidades = () => {
         </div>
         <div className="space-y-4 mt-8">
           <h3 className="text-[#D4AF37] text-lg font-medium border-b border-[#1A4026] pb-2">Dietas Recomendadas</h3>
-          {[...Array(selectedModalidade.dietas)].map((_, i) => <div key={dieta-${i}} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center gap-3"><ClipboardList className="text-[#D4AF37]" size={20} /><span className="font-medium">Dieta Opção {i + 1}</span></div>)}
+          {[...Array(selectedModalidade.dietas)].map((_, i) => <div key={`dieta-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center gap-3"><ClipboardList className="text-[#D4AF37]" size={20} /><span className="font-medium">Dieta Opção {i + 1}</span></div>)}
         </div>
       </div>
     );
@@ -973,7 +972,7 @@ const AdminPanel = ({ onExitAdmin }) => {
                     <div className="col-span-2"><span className="text-[#A0B3A6] text-[10px] uppercase block">Endereço (Cidade/Estado)</span>{alunoObj.cidade_estado || 'Não informado'}</div>
                     <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Idade</span>{calcularIdade(alunoObj.data_nascimento)} anos</div>
                     <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Modalidade</span>Não definida</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Peso Atual</span>{progressoAluno.length > 0 ? ${progressoAluno[progressoAluno.length - 1].peso} kg : 'N/A'}</div>
+                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Peso Atual</span>{progressoAluno.length > 0 ? `${progressoAluno[progressoAluno.length - 1].peso} kg` : 'N/A'}</div>
                     <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Altura</span>Não informada</div>
                   </div>
                 </div>
@@ -1007,7 +1006,7 @@ const AdminPanel = ({ onExitAdmin }) => {
                     <h4 className="text-[#D4AF37] font-medium mb-3">Gráfico de Evolução Física</h4>
                     <div className="h-40 flex items-end gap-2 pt-4 border-b border-[#1A4026] opacity-80">
                       {progressoAluno.length > 0 ? progressoAluno.map((h, i) => (
-                        <div key={i} className="flex-1 bg-[#D4AF37] rounded-t-sm" style={{ height: ${Math.min((h.peso / 150) * 100, 100)}% }}></div>
+                        <div key={i} className="flex-1 bg-[#D4AF37] rounded-t-sm" style={{ height: `${Math.min((h.peso / 150) * 100, 100)}%` }}></div>
                       )) : (
                         <div className="w-full text-center text-[#A0B3A6] text-xs pb-4">Nenhum dado registrado para este aluno.</div>
                       )}
@@ -1126,7 +1125,7 @@ const AdminPanel = ({ onExitAdmin }) => {
 };
 
 const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
-  <button onClick={onClick} className={flex flex-col items-center justify-center w-14 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}}>
+  <button onClick={onClick} className={`flex flex-col items-center justify-center w-14 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}`}>
     {isActive && <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#D4AF37] rounded-b-md shadow-[0_2px_8px_rgba(212,175,55,0.5)]" />}
     <Icon size={20} strokeWidth={isActive ? 2 : 1.5} className="mb-1" /><span className="text-[9px] font-medium tracking-wide">{label}</span>
   </button>
