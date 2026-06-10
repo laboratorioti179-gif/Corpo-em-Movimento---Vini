@@ -2,7 +2,7 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
   Home, Dumbbell, ClipboardList, Activity, User, Menu, Bell, ChevronRight,
   Target, Flame, Award, Settings, LogOut, ChevronLeft, Droplets, Plus, Minus, ShieldCheck,
-  Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera
+  Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera, RotateCcw
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE REAL (VIA FETCH NATIVO) ---
@@ -671,6 +671,7 @@ const Agua = () => {
         </div>
       </div>
       <div className="flex gap-4">
+        <button onClick={() => setWaterConsumed(0)} className="w-14 h-14 bg-[#0A1A10] border border-red-900/30 rounded-2xl flex items-center justify-center text-red-500 active:scale-95 transition-transform" title="Reiniciar Copo"><RotateCcw size={24} /></button>
         <button onClick={() => setWaterConsumed(prev => Math.max(0, prev - drinkSize))} className="w-14 h-14 bg-[#0A1A10] border border-[#1A4026] rounded-2xl flex items-center justify-center text-white active:scale-95 transition-transform"><Minus size={24} /></button>
         <button onClick={() => setWaterConsumed(prev => prev + drinkSize)} className="flex-1 bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] rounded-2xl flex items-center justify-center gap-2 font-medium active:scale-95 transition-transform"><Plus size={24} /> Tomar {drinkSize}ml</button>
       </div>
@@ -685,13 +686,15 @@ const Agua = () => {
 };
 
 const Perfil = () => {
-  const { profile, handleLogout, setProfile } = useApp();
+  const { profile, handleLogout, setProfile, setAdminView } = useApp();
   const [userData, setUserData] = useState({
     nome: profile?.nome || '',
     phone: profile?.phone || '',
     cpf: profile?.cpf || '',
     data_nascimento: profile?.data_nascimento || '',
-    cidade_estado: profile?.cidade_estado || ''
+    cidade_estado: profile?.cidade_estado || '',
+    altura: profile?.altura || '',
+    peso_atual: profile?.peso_atual || ''
   });
   const [statusMsg, setStatusMsg] = useState('');
 
@@ -781,11 +784,26 @@ const Perfil = () => {
             <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Cidade e Estado</label>
             <input type="text" value={userData.cidade_estado} onChange={e => setUserData({...userData, cidade_estado: e.target.value})} placeholder="Ex: São Paulo, SP" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
           </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Altura (m)</label>
+              <input type="number" step="0.01" value={userData.altura} onChange={e => setUserData({...userData, altura: e.target.value})} placeholder="Ex: 1.75" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
+            </div>
+            <div>
+              <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Peso Atual (kg)</label>
+              <input type="number" step="0.1" value={userData.peso_atual} onChange={e => setUserData({...userData, peso_atual: e.target.value})} placeholder="Ex: 75.5" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
+            </div>
+          </div>
         </div>
         <button onClick={handleSave} className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-2 rounded-xl mt-2 font-medium flex items-center justify-center gap-2 active:scale-95"><Save size={18}/> Salvar Alterações</button>
       </div>
 
       <div className="space-y-2">
+        {profile?.is_admin && (
+          <button onClick={() => setAdminView(true)} className="w-full bg-[#1A3020] border border-[#D4AF37] rounded-xl p-4 flex items-center justify-between transition-all active:scale-[0.98]">
+            <div className="flex items-center gap-3"><ShieldCheck className="text-[#D4AF37]" size={20} /><span className="text-[#D4AF37] font-medium">Acessar Área Administrativa</span></div><ChevronRight className="text-[#D4AF37] opacity-80" size={18} />
+          </button>
+        )}
         <button className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex items-center justify-between transition-all active:scale-[0.98] hover:border-[#2A5036]"><div className="flex items-center gap-3"><Settings className="text-[#D4AF37]" size={20} /><span>Configurações do App</span></div><ChevronRight className="text-[#D4AF37] opacity-80" size={18} /></button>
         <button onClick={handleLogout} className="w-full mt-4 bg-transparent border border-red-900/50 rounded-xl p-4 flex items-center justify-center gap-2 text-red-500 transition-all active:scale-[0.98] hover:bg-red-900/10"><LogOut size={20} /><span>Sair da Conta</span></button>
       </div>
@@ -866,6 +884,59 @@ const Modalidades = () => {
   );
 };
 
+const Notificacoes = () => {
+  const { profile, setNotifCount, setActiveTab } = useApp();
+  const [notificacoes, setNotificacoes] = useState([]);
+
+  useEffect(() => {
+    loadNotificacoes();
+  }, []);
+
+  const loadNotificacoes = async () => {
+    const { data } = await supabase.from('notificacoes').select('*').eq('user_id', profile.id);
+    if (data) {
+      const sorted = data.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+      setNotificacoes(sorted);
+      setNotifCount(sorted.filter(n => !n.lida).length);
+    }
+  };
+
+  const marcarComoLida = async (id) => {
+    const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('id', id);
+    if (!error) {
+      loadNotificacoes();
+    }
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24 text-white pt-4">
+      <button onClick={() => setActiveTab('inicio')} className="flex items-center text-[#D4AF37] mb-4 hover:opacity-80 transition-opacity">
+        <ChevronLeft size={20} /><span>Voltar</span>
+      </button>
+      <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic mb-4">Suas Notificações</h2>
+      
+      {notificacoes.length === 0 ? (
+        <p className="text-[#A0B3A6] text-sm">Nenhuma notificação no momento.</p>
+      ) : (
+        notificacoes.map(n => (
+          <div key={n.id} className={`bg-[#0A1A10] border ${n.lida ? 'border-[#1A4026]' : 'border-[#D4AF37]'} rounded-xl p-4 flex flex-col gap-2 relative`}>
+            {!n.lida && <span className="absolute top-3 right-3 w-2 h-2 bg-[#D4AF37] rounded-full shadow-[0_0_8px_rgba(212,175,55,0.8)]"></span>}
+            <p className="text-sm text-white">{n.mensagem}</p>
+            <div className="flex justify-between items-center mt-2">
+              <span className="text-[10px] text-[#A0B3A6]">
+                {n.created_at ? new Date(n.created_at).toLocaleDateString('pt-BR') : ''}
+              </span>
+              {!n.lida && (
+                <button onClick={() => marcarComoLida(n.id)} className="text-[#D4AF37] text-[10px] uppercase font-bold tracking-wider active:scale-95">Marcar como lida</button>
+              )}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+};
+
 // --- ÁREA ADMINISTRATIVA ---
 const AdminPanel = ({ onExitAdmin }) => {
   const [adminTab, setAdminTab] = useState('evolucao');
@@ -934,6 +1005,7 @@ const AdminPanel = ({ onExitAdmin }) => {
 
   return (
     <div className="flex-1 flex flex-col text-white z-10 w-full h-full relative overflow-hidden bg-[#051109]">
+      <GlobalStyles />
       <div className="px-6 py-4 pt-[calc(1.5rem+env(safe-area-inset-top))] border-b border-[#1A4026] flex items-center justify-between shrink-0">
         <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic">Área Administrativa</h2>
         <button onClick={onExitAdmin} className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95">
@@ -972,8 +1044,8 @@ const AdminPanel = ({ onExitAdmin }) => {
                     <div className="col-span-2"><span className="text-[#A0B3A6] text-[10px] uppercase block">Endereço (Cidade/Estado)</span>{alunoObj.cidade_estado || 'Não informado'}</div>
                     <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Idade</span>{calcularIdade(alunoObj.data_nascimento)} anos</div>
                     <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Modalidade</span>Não definida</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Peso Atual</span>{progressoAluno.length > 0 ? `${progressoAluno[progressoAluno.length - 1].peso} kg` : 'N/A'}</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Altura</span>Não informada</div>
+                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Peso Atual</span>{alunoObj.peso_atual ? `${alunoObj.peso_atual} kg` : (progressoAluno.length > 0 ? `${progressoAluno[progressoAluno.length - 1].peso} kg` : 'Não informado')}</div>
+                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Altura</span>{alunoObj.altura ? `${alunoObj.altura} m` : 'Não informada'}</div>
                   </div>
                 </div>
 
@@ -1176,6 +1248,48 @@ export default function App() {
     }
     metaGoogle.content = 'notranslate';
 
+    // Injetar Ícone e Configurações de PWA (Web/App)
+    const appName = "Corpo em movimento";
+    document.title = appName;
+
+    const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#E2C17D"/><stop offset="50%" stop-color="#B88A44"/><stop offset="100%" stop-color="#805C1B"/></linearGradient></defs><rect width="512" height="512" fill="#1C3022"/><circle cx="256" cy="256" r="170" fill="none" stroke="url(#g)" stroke-width="10"/><circle cx="265" cy="140" r="24" fill="url(#g)"/><path d="M150,110 Q200,160 270,180 Q250,230 270,300 Q290,380 230,480 Q200,380 240,280 Q260,220 220,180 Q180,140 150,110 Z" fill="url(#g)"/><path d="M275,230 Q320,180 380,100 Q330,160 285,250 Z" fill="url(#g)"/></svg>`;
+    const encodedIcon = "data:image/svg+xml;base64," + btoa(svgIcon);
+
+    let linkIcon = document.querySelector("link[rel~='icon']");
+    if (!linkIcon) {
+      linkIcon = document.createElement('link');
+      linkIcon.rel = 'icon';
+      document.head.appendChild(linkIcon);
+    }
+    linkIcon.href = encodedIcon;
+
+    let linkApple = document.querySelector("link[rel='apple-touch-icon']");
+    if (!linkApple) {
+      linkApple = document.createElement('link');
+      linkApple.rel = 'apple-touch-icon';
+      document.head.appendChild(linkApple);
+    }
+    linkApple.href = encodedIcon;
+
+    const manifestContent = {
+      name: appName,
+      short_name: appName,
+      start_url: ".",
+      display: "standalone",
+      background_color: "#051109",
+      theme_color: "#1C3022",
+      icons: [{ src: encodedIcon, sizes: "512x512", type: "image/svg+xml", purpose: "any maskable" }]
+    };
+    const manifestBlob = new Blob([JSON.stringify(manifestContent)], { type: 'application/json' });
+    const manifestUrl = URL.createObjectURL(manifestBlob);
+    let linkManifest = document.querySelector("link[rel='manifest']");
+    if (!linkManifest) {
+      linkManifest = document.createElement('link');
+      linkManifest.rel = 'manifest';
+      document.head.appendChild(linkManifest);
+    }
+    linkManifest.href = manifestUrl;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) loadProfile(session.user.id, session.user.email, session.user.user_metadata);
@@ -1300,6 +1414,7 @@ export default function App() {
     handleLogout,
     reloadProfile: () => session && loadProfile(session.user.id, session.user.email, session.user.user_metadata),
     notifCount, setNotifCount,
+    setAdminView,
   };
 
   return (
@@ -1345,7 +1460,10 @@ export default function App() {
                       <ShieldCheck size={18} />
                     </button>
                   )}
-                  <button className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative">
+                  <button 
+                    onClick={() => setActiveTab('notificacoes')}
+                    className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative transition-transform active:scale-95"
+                  >
                     <Bell size={22} strokeWidth={2} />
                     {notifCount > 0 && (
                       <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#051109]" />
@@ -1361,6 +1479,7 @@ export default function App() {
                 {activeTab === 'progresso' && <Progresso />}
                 {activeTab === 'agua' && <Agua />}
                 {activeTab === 'perfil' && <Perfil />}
+                {activeTab === 'notificacoes' && <Notificacoes />}
               </main>
 
               <NavBar />
