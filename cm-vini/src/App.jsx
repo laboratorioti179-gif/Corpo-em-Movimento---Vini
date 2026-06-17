@@ -367,6 +367,7 @@ const Login = () => {
 const Onboarding = ({ profile, onComplete }) => {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [formData, setFormData] = useState({
     nome: profile?.nome || '',
     genero: '',
@@ -402,7 +403,10 @@ const Onboarding = ({ profile, onComplete }) => {
         termos_aceitos: formData.termos_aceitos
       }]);
     } catch(e) { console.error(e); }
-    onComplete();
+    
+    setTimeout(() => {
+      setShowSuccess(true);
+    }, 2500); // Exibe "Estamos procurando..." por 2.5 segundos
   };
 
   const renderOptions = (field, options, isMulti = false) => (
@@ -499,6 +503,40 @@ const Onboarding = ({ profile, onComplete }) => {
     if (currentStep.multi) return formData[currentStep.id].length > 0;
     return formData[currentStep.id] !== '';
   };
+
+  if (saving || showSuccess) {
+    return (
+      <div className="flex-1 flex flex-col text-white relative z-10 w-full h-full bg-[#051109] px-6 py-8 pt-16">
+        {!showSuccess ? (
+          <div className="flex flex-col items-center justify-center flex-1">
+            <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin mb-8" />
+            <h2 className="text-2xl font-bold text-[#D4AF37] text-center leading-snug">Estamos procurando uma jornada ideal para você...</h2>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-between flex-1 w-full pt-20 pb-4">
+            <div className="flex flex-col items-center mt-16">
+              <div className="w-24 h-24 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(212,175,55,0.2)]">
+                <div className="w-14 h-14 bg-gradient-to-r from-[#CFB375] to-[#AC915B] rounded-full flex items-center justify-center text-[#051109]">
+                  <Check size={32} strokeWidth={3} />
+                </div>
+              </div>
+              <h2 className="text-2xl font-bold text-white text-center px-4 leading-snug">
+                {formData.nome.split(' ')[0] || 'Aluno'}, encontramos seu treino ideal!
+              </h2>
+            </div>
+            <div className="w-full mt-auto">
+              <button 
+                onClick={() => onComplete()}
+                className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+              >
+                Acessar meu treino
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col text-white relative z-10 w-full h-full bg-[#051109] px-6 py-8 pt-16">
