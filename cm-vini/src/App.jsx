@@ -2,13 +2,11 @@ import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
   Home, Dumbbell, ClipboardList, Activity, User, Menu, Bell, ChevronRight,
   Target, Flame, Award, Settings, LogOut, ChevronLeft, Droplets, Plus, Minus, ShieldCheck,
-  Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera, RotateCcw
+  Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera, RotateCcw,
+  Check, X
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE REAL (VIA FETCH NATIVO) ---
-// Utilizamos uma implementação nativa em Fetch para contornar o bloqueio de dependências 
-// externas do ambiente de preview, mantendo a exata mesma API e comunicando
-// diretamente com o seu banco de dados no Supabase!
 export const supabaseUrl = 'https://jaujldyuelyhsqyxyerc.supabase.co';
 export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphdWpsZHl1ZWx5aHNxeXh5ZXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NTU5NDEsImV4cCI6MjA4NzUzMTk0MX0.YluXKJHl0rfJAiwyoN8tFfJIDfeHB_CwV-oFdaLwkvw';
 
@@ -194,7 +192,6 @@ export const supabase = {
   }
 };
 
-// --- CONTEXTO E DADOS ---
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
@@ -214,7 +211,6 @@ const planosData = [
   { id: 3, titulo: 'Manutenção', objetivo: 'Condicionamento', calorias: '2400 kcal' }
 ];
 
-// --- COMPONENTES INJETADOS GLOBALMENTE (SCREENS) ---
 const GlobalStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
@@ -305,74 +301,32 @@ const Login = () => {
         {isSignUp && (
           <div>
             <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Nome Completo</label>
-            <input 
-              type="text" 
-              value={nome}
-              onChange={(e) => setNome(e.target.value)}
-              placeholder="Ex: João da Silva"
-              required
-              className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-            />
+            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João da Silva" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
         )}
 
         <div>
           <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">E-mail</label>
-          <input 
-            type="email" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Ex: seuemail@exemplo.com"
-            required
-            className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-          />
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex: seuemail@exemplo.com" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
         </div>
 
         {isSignUp && (
           <>
             <div>
               <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Telefone</label>
-              <input 
-                type="tel" 
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Ex: (11) 99999-9999"
-                required
-                className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-              />
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex: (11) 99999-9999" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">CPF</label>
-              <input 
-                type="text" 
-                value={cpf}
-                onChange={(e) => setCpf(e.target.value)}
-                placeholder="Ex: 000.000.000-00"
-                required
-                className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-              />
+              <input type="text" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Ex: 000.000.000-00" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
             </div>
             <div>
               <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Data de Nascimento</label>
-              <input 
-                type="date" 
-                value={dataNascimento}
-                onChange={(e) => setDataNascimento(e.target.value)}
-                required
-                className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-                style={{ colorScheme: 'dark' }}
-              />
+              <input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" style={{ colorScheme: 'dark' }} />
             </div>
             <div>
               <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Cidade e Estado</label>
-              <input 
-                type="text" 
-                value={cidadeEstado}
-                onChange={(e) => setCidadeEstado(e.target.value)}
-                placeholder="Ex: São Paulo, SP"
-                required
-                className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-              />
+              <input type="text" value={cidadeEstado} onChange={(e) => setCidadeEstado(e.target.value)} placeholder="Ex: São Paulo, SP" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
             </div>
           </>
         )}
@@ -380,62 +334,196 @@ const Login = () => {
         {!isForgotPassword && (
           <div>
             <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Senha</label>
-            <input 
-              type="password" 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Digite sua senha"
-              required
-              className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Digite sua senha" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
         )}
 
         {isSignUp && (
           <div>
             <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Confirmação de Senha</label>
-            <input 
-              type="password" 
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirme sua senha"
-              required
-              className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" 
-            />
+            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirme sua senha" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
         )}
 
-        <button 
-          type="submit"
-          disabled={loading}
-          className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-3 rounded-xl mt-6 active:scale-95 transition-transform disabled:opacity-50 shrink-0"
-        >
+        <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-3 rounded-xl mt-6 active:scale-95 transition-transform disabled:opacity-50 shrink-0">
           {loading ? 'Aguarde...' : isForgotPassword ? 'Enviar Link' : isSignUp ? 'Criar Conta' : 'Entrar'}
         </button>
         
         <div className="flex flex-col items-center gap-3 mt-4 text-sm text-[#A0B3A6] shrink-0 pb-4">
           {!isForgotPassword && (
-            <button 
-              type="button" 
-              onClick={() => setIsForgotPassword(true)}
-              className="hover:text-[#D4AF37] transition-colors"
-            >
+            <button type="button" onClick={() => setIsForgotPassword(true)} className="hover:text-[#D4AF37] transition-colors">
               Esqueceu a senha?
             </button>
           )}
-          <button 
-            type="button" 
-            onClick={() => {
-              setIsSignUp(!isSignUp);
-              setIsForgotPassword(false);
-              setMessage('');
-            }}
-            className="hover:text-[#D4AF37] transition-colors"
-          >
+          <button type="button" onClick={() => { setIsSignUp(!isSignUp); setIsForgotPassword(false); setMessage(''); }} className="hover:text-[#D4AF37] transition-colors">
             {isSignUp || isForgotPassword ? 'Já tenho uma conta. Fazer login' : 'Não tem conta? Criar uma'}
           </button>
         </div>
       </form>
+    </div>
+  );
+};
+
+const Onboarding = ({ profile, onComplete }) => {
+  const [step, setStep] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [formData, setFormData] = useState({
+    nome: profile?.nome || '',
+    genero: '',
+    objetivo: '',
+    altura: profile?.altura || '',
+    peso_atual: profile?.peso_atual || '',
+    meta_peso: '',
+    nivel_atividade: '',
+    desafios: [],
+    estrutura: '',
+    disponibilidade: [],
+    termos_aceitos: false
+  });
+
+  const handleFinish = async () => {
+    setSaving(true);
+    try {
+      await supabase.from('profiles').update({
+        nome: formData.nome,
+        altura: formData.altura ? Number(formData.altura) : null,
+        peso_atual: formData.peso_atual ? Number(formData.peso_atual) : null
+      }).eq('id', profile.id);
+
+      await supabase.from('onboarding_respostas').insert([{
+        user_id: profile.id,
+        genero: formData.genero,
+        objetivo: formData.objetivo,
+        meta_peso: formData.meta_peso ? Number(formData.meta_peso) : null,
+        nivel_atividade: formData.nivel_atividade,
+        desafios: formData.desafios,
+        estrutura: formData.estrutura,
+        disponibilidade: formData.disponibilidade,
+        termos_aceitos: formData.termos_aceitos
+      }]);
+    } catch(e) { console.error(e); }
+    onComplete();
+  };
+
+  const renderOptions = (field, options, isMulti = false) => (
+    <div className="space-y-3">
+      {options.map(opt => {
+        const isSelected = isMulti ? formData[field].includes(opt) : formData[field] === opt;
+        return (
+          <button 
+            key={opt}
+            onClick={() => {
+              if (isMulti) {
+                 const curr = formData[field];
+                 if (curr.includes(opt)) setFormData({...formData, [field]: curr.filter(x => x !== opt)});
+                 else setFormData({...formData, [field]: [...curr, opt]});
+              } else {
+                 setFormData({...formData, [field]: opt});
+              }
+            }}
+            className={`w-full p-4 rounded-xl border text-left flex justify-between items-center transition-all active:scale-[0.98] ${isSelected ? 'border-[#D4AF37] bg-[#D4AF37]/10' : 'border-[#1A4026] bg-[#0A1A10]'}`}
+          >
+            <span className={`font-medium ${isSelected ? 'text-[#D4AF37]' : 'text-white'}`}>{opt}</span>
+            {isSelected && <Check size={20} className="text-[#D4AF37]" />}
+          </button>
+        )
+      })}
+    </div>
+  );
+
+  const steps = [
+    {
+      id: 'nome',
+      title: 'Como vamos te chamar?',
+      render: () => (
+        <input type="text" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Seu nome ou apelido" />
+      )
+    },
+    { id: 'genero', title: 'Qual seu gênero?', options: ['Feminino', 'Masculino', 'Prefiro não dizer'] },
+    { id: 'objetivo', title: 'Seu principal objetivo?', options: ['Perder peso', 'Manter peso', 'Ganhar peso', 'Ganhar massa muscular', 'Ter estilo de vida mais ativo', 'Melhorar desempenho na corrida'] },
+    {
+      id: 'altura',
+      title: 'Qual sua altura (m)?',
+      render: () => (
+        <input type="number" step="0.01" value={formData.altura} onChange={e => setFormData({...formData, altura: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Ex: 1.75" />
+      )
+    },
+    {
+      id: 'peso_atual',
+      title: 'Quanto você pesa (kg)?',
+      render: () => (
+        <input type="number" step="0.1" value={formData.peso_atual} onChange={e => setFormData({...formData, peso_atual: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Ex: 75.5" />
+      )
+    },
+    {
+      id: 'meta_peso',
+      title: 'Qual sua meta de peso (kg)?',
+      render: () => (
+        <input type="number" step="0.1" value={formData.meta_peso} onChange={e => setFormData({...formData, meta_peso: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Ex: 70.0" />
+      )
+    },
+    { id: 'nivel_atividade', title: 'Qual seu nível de atividade atual?', options: ['Não muito ativo', 'Levemente ativo', 'Ativo', 'Bastante ativo'] },
+    { id: 'desafios', title: 'Quais desafios te impediram de atingir seus objetivos?', options: ['Falta de tempo', 'Dificuldade em seguir o treino', 'Dificuldade em seguir a dieta', 'Falta de progresso', 'Custo da alimentação saudável', 'Falta de organização com tempo', 'Falta de organização de dieta'], multi: true },
+    { id: 'estrutura', title: 'Qual estrutura você tem disponível?', options: ['Academia', 'Exercícios livres', 'Academia c/ poucos aparelhos'] },
+    { id: 'disponibilidade', title: 'Disponibilidade para treinar?', options: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'], multi: true },
+    {
+      id: 'termos',
+      title: 'Termos e Condições',
+      render: () => (
+        <div className="space-y-4">
+          <div className="bg-[#0A1A10] border border-[#1A4026] p-4 rounded-xl text-sm text-[#A0B3A6] h-48 overflow-y-auto custom-scrollbar">
+            <p className="mb-2"><strong className="text-white">Termos de Uso e Política de Privacidade (LGPD)</strong></p>
+            <p className="mb-2">Ao continuar, você concorda que o Corpo em Movimento colete e processe seus dados de saúde (como peso, altura, metas e histórico de treinos) para personalizar sua experiência, montar seus treinos e acompanhar sua evolução.</p>
+            <p>Seus dados são confidenciais e protegidos de acordo com a Lei Geral de Proteção de Dados (LGPD). Você pode solicitar a exclusão da sua conta e dos seus dados a qualquer momento.</p>
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer p-2">
+            <div className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 ${formData.termos_aceitos ? 'bg-[#D4AF37] border-[#D4AF37]' : 'border-[#1A4026] bg-[#0A1A10]'}`}>
+              {formData.termos_aceitos && <Check size={16} className="text-[#051109]" />}
+            </div>
+            <span className="text-sm text-white flex-1 leading-tight">Eu li e concordo com os Termos e Condições e a Política de Privacidade (LGPD).</span>
+            <input type="checkbox" className="hidden" checked={formData.termos_aceitos} onChange={e => setFormData({...formData, termos_aceitos: e.target.checked})} />
+          </label>
+        </div>
+      )
+    }
+  ];
+
+  const currentStep = steps[step];
+  
+  const canAdvance = () => {
+    if (currentStep.id === 'nome') return formData.nome.length > 2;
+    if (currentStep.id === 'altura') return formData.altura !== '';
+    if (currentStep.id === 'peso_atual') return formData.peso_atual !== '';
+    if (currentStep.id === 'meta_peso') return formData.meta_peso !== '';
+    if (currentStep.id === 'termos') return formData.termos_aceitos;
+    if (currentStep.multi) return formData[currentStep.id].length > 0;
+    return formData[currentStep.id] !== '';
+  };
+
+  return (
+    <div className="flex-1 flex flex-col text-white relative z-10 w-full h-full bg-[#051109] px-6 py-8 pt-16">
+      <div className="w-full bg-[#1A4026] h-1.5 rounded-full mb-8 overflow-hidden">
+        <div className="bg-[#D4AF37] h-full transition-all duration-300" style={{width: `${((step + 1) / steps.length) * 100}%`}}></div>
+      </div>
+      
+      <button onClick={() => setStep(Math.max(0, step - 1))} className={`text-[#D4AF37] flex items-center gap-1 mb-6 transition-opacity ${step === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <ChevronLeft size={20} /> Voltar
+      </button>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar pb-24">
+        <h2 className="text-2xl font-bold text-[#D4AF37] mb-8 pr-4">{currentStep.title}</h2>
+        {currentStep.render ? currentStep.render() : renderOptions(currentStep.id, currentStep.options, currentStep.multi)}
+      </div>
+
+      <div className="pt-4 mt-auto">
+        <button 
+          onClick={step === steps.length - 1 ? handleFinish : () => setStep(step + 1)}
+          disabled={!canAdvance() || saving}
+          className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-4 rounded-xl active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100 shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+        >
+          {saving ? 'Salvando...' : step === steps.length - 1 ? 'Concluir' : 'Continuar'}
+        </button>
+      </div>
     </div>
   );
 };
@@ -463,7 +551,6 @@ const Inicio = () => {
           return dData.getMonth() === hoje.getMonth() && dData.getFullYear() === hoje.getFullYear();
         });
 
-        // Cálculo real de sequência (dias consecutivos de treino)
         const datasUnicas = [...new Set(data.map(d => {
           const dt = new Date(d.created_at);
           return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
@@ -475,11 +562,11 @@ const Inicio = () => {
         if (datasUnicas.length > 0) {
           if (datasUnicas[0] === dataReferencia) {
             seqReal = 1;
-            dataReferencia -= 86400000; // 1 dia em milissegundos
+            dataReferencia -= 86400000;
             for (let i = 1; i < datasUnicas.length; i++) {
               if (datasUnicas[i] === dataReferencia) { seqReal++; dataReferencia -= 86400000; } else break;
             }
-          } else if (datasUnicas[0] === dataReferencia - 86400000) { // Ontem
+          } else if (datasUnicas[0] === dataReferencia - 86400000) {
             seqReal = 1;
             dataReferencia -= 86400000 * 2;
             for (let i = 1; i < datasUnicas.length; i++) {
@@ -488,11 +575,7 @@ const Inicio = () => {
           }
         }
 
-        setEstatisticas({
-          sequencia: seqReal,
-          treinosMes: mesAtual.length,
-          metaMes: 20
-        });
+        setEstatisticas({ sequencia: seqReal, treinosMes: mesAtual.length, metaMes: 20 });
 
         if (seqReal === 1 && data.length === 1) registrarConquista("🎉 Conquista: Primeiro treino realizado!");
         if (seqReal === 5) registrarConquista("🔥 Conquista: 5 dias seguidos!");
@@ -566,7 +649,6 @@ const Inicio = () => {
         </button>
       </div>
 
-      {/* Seção Mundo Fit (Dicas) */}
       <div className="mt-8">
         <h3 className="text-[#D4AF37] text-sm font-semibold mb-3 border-l-2 border-[#D4AF37] pl-2">Mundo Fit - Dicas</h3>
         <div ref={scrollRef} className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-2 pr-2 snap-x snap-mandatory scroll-smooth">
@@ -662,7 +744,6 @@ const Progresso = () => {
         <h3 className="text-white text-lg font-medium mb-1">Seu Progresso Pessoal</h3>
       </div>
       
-      {/* Gráfico Visual Dinâmico */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
          <div className="flex justify-between items-center mb-4">
            <h4 className="font-medium text-[#D4AF37]">Histórico de Peso (kg)</h4>
@@ -685,7 +766,6 @@ const Progresso = () => {
          </div>
       </div>
 
-      {/* Registro de Medidas pelo Aluno */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
         <div className="flex justify-between items-center mb-2">
           <h4 className="font-medium text-[#D4AF37] flex items-center gap-2"><Edit2 size={16}/> Atualizar Medidas</h4>
@@ -739,7 +819,7 @@ const Agua = () => {
       registrarConquista("💧 Conquista: Meta de água diária concluída!");
       setConquistaRegistrada(true);
     } else if (fillPercentage < 100) {
-      setConquistaRegistrada(false); // Reinicia a conquista se a meta for aumentada ou a água zerada
+      setConquistaRegistrada(false); 
     }
   }, [fillPercentage, conquistaRegistrada, registrarConquista]);
 
@@ -849,7 +929,6 @@ const Perfil = () => {
         <span className="mt-2 bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">{profile?.is_admin ? 'Administrador' : 'Aluno PRO'}</span>
       </div>
 
-      {/* Informações Completas do Aluno */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
         <div className="flex justify-between items-center border-b border-[#1A4026] pb-2">
           <h4 className="text-[#D4AF37] font-medium flex items-center gap-2">Dados Pessoais <Edit2 size={14}/></h4>
@@ -1330,7 +1409,7 @@ const AdminPanel = ({ onExitAdmin }) => {
             {gestaoView === 'menu' && (
               <div className="space-y-3">
                 <button onClick={() => setGestaoView('desempenho')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
-                  <div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas</p></div><Activity className="text-[#D4AF37]" size={20} />
+                  <div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas reais</p></div><Activity className="text-[#D4AF37]" size={20} />
                 </button>
                 <button onClick={() => { setAdminTab('evolucao'); setAlunoSelecionado(''); }} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
                   <div className="text-left"><h4 className="font-medium">Histórico Individual</h4><p className="text-xs text-[#A0B3A6]">Fichas de cada aluno</p></div><User className="text-[#D4AF37]" size={20} />
@@ -1464,6 +1543,7 @@ const NavBar = () => {
   );
 };
 
+
 // --- O SEU COMPONENTE APP ORIGINAL ---
 export default function App() {
   const [session, setSession] = useState(null);
@@ -1473,6 +1553,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [adminView, setAdminView] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
+  const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false);
 
   useEffect(() => {
     // Define o idioma e bloqueia a tradução automática do navegador
@@ -1553,15 +1634,14 @@ export default function App() {
 
       if (error && error.code !== 'PGRST116' && !isMissingTable) throw error;
 
+      let is_admin = userEmail === 'corpoemmovimento.adm@gmail.com';
+
       if (!data || isMissingTable) {
         const nome = userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário';
         const phone = userMetadata?.phone || null;
         const cpf = userMetadata?.cpf || null;
         const data_nascimento = userMetadata?.data_nascimento || null;
         const cidade_estado = userMetadata?.cidade_estado || null;
-        
-        // Define 'corpoemmovimento.adm@gmail.com' como admin para testar facilmente
-        const is_admin = userEmail === 'corpoemmovimento.adm@gmail.com';
 
         const localProfile = { 
             id: userId, 
@@ -1596,10 +1676,26 @@ export default function App() {
       } else {
         if (userEmail === 'corpoemmovimento.adm@gmail.com') {
           data.is_admin = true;
+          is_admin = true;
         }
         setProfile(data);
         if (data && data.is_admin) setAdminView(true);
       }
+
+      // Check onboarding completion
+      let hasOnboarding = false;
+      try {
+        const { data: onboardingData } = await supabase
+          .from('onboarding_respostas')
+          .select('id')
+          .eq('user_id', userId)
+          .single();
+          
+        if (onboardingData) hasOnboarding = true;
+      } catch(e) {
+        hasOnboarding = false;
+      }
+      setIsOnboardingCompleted(hasOnboarding || is_admin || userMetadata?.onboarding_completed);
 
       const { count, error: notifError } = await supabase
         .from('notificacoes')
@@ -1623,6 +1719,7 @@ export default function App() {
       };
       setProfile(fallbackProfile);
       if (fallbackProfile.is_admin) setAdminView(true);
+      setIsOnboardingCompleted(fallbackProfile.is_admin);
     } finally {
       setLoading(false);
     }
@@ -1681,6 +1778,8 @@ export default function App() {
             <Login />
           ) : profile?.is_admin && adminView ? (
             <AdminPanel onExitAdmin={() => setAdminView(false)} />
+          ) : !isOnboardingCompleted && !profile?.is_admin ? (
+            <Onboarding profile={profile} onComplete={() => setIsOnboardingCompleted(true)} />
           ) : (
             <>
               <header className="flex justify-between items-center px-6 py-4 pt-[calc(1rem+env(safe-area-inset-top))] relative z-10 flex-shrink-0">
