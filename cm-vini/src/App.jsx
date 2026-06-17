@@ -403,6 +403,9 @@ const Onboarding = ({ profile, onComplete }) => {
         termos_aceitos: formData.termos_aceitos
       }]);
     } catch(e) { console.error(e); }
+
+    // Salva localmente para não pedir o questionário de novo ao recarregar a página
+    localStorage.setItem(`onboarding_completed_${profile.id}`, 'true');
     
     setTimeout(() => {
       setShowSuccess(true);
@@ -1721,6 +1724,7 @@ export default function App() {
       }
 
       // Check onboarding completion
+      const localOnboardingCompleted = localStorage.getItem(`onboarding_completed_${userId}`) === 'true';
       let hasOnboarding = false;
       try {
         const { data: onboardingData } = await supabase
@@ -1729,11 +1733,12 @@ export default function App() {
           .eq('user_id', userId)
           .single();
           
-        if (onboardingData) hasOnboarding = true;
+        if (onboardingData && !Array.isArray(onboardingData)) hasOnboarding = true;
+        if (Array.isArray(onboardingData) && onboardingData.length > 0) hasOnboarding = true;
       } catch(e) {
         hasOnboarding = false;
       }
-      setIsOnboardingCompleted(hasOnboarding || is_admin || userMetadata?.onboarding_completed);
+      setIsOnboardingCompleted(hasOnboarding || localOnboardingCompleted || is_admin || userMetadata?.onboarding_completed);
 
       const { count, error: notifError } = await supabase
         .from('notificacoes')
@@ -1757,7 +1762,8 @@ export default function App() {
       };
       setProfile(fallbackProfile);
       if (fallbackProfile.is_admin) setAdminView(true);
-      setIsOnboardingCompleted(fallbackProfile.is_admin);
+      const localOnboardingCompleted = localStorage.getItem(`onboarding_completed_${userId}`) === 'true';
+      setIsOnboardingCompleted(fallbackProfile.is_admin || localOnboardingCompleted);
     } finally {
       setLoading(false);
     }
