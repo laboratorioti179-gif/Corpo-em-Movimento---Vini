@@ -1,9 +1,9 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
-  Home, Dumbbell, ClipboardList, Activity, User, Menu, Bell, ChevronRight,
+  Home, Dumbbell, ClipboardList, Activity, User, Bell, ChevronRight,
   Target, Flame, Award, Settings, LogOut, ChevronLeft, Droplets, Plus, Minus, ShieldCheck,
   Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera, RotateCcw,
-  Check, X
+  MessageCircle, Send, Heart, MoreVertical, X, CheckCircle
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO SUPABASE REAL (VIA FETCH NATIVO) ---
@@ -112,6 +112,14 @@ export const supabase = {
       }
       return { data: { session: null }, error: null };
     },
+    updateUser: async (attributes) => {
+      const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+        method: 'PUT', headers: getHeaders(), body: JSON.stringify(attributes)
+      });
+      const data = await res.json();
+      if (!res.ok) return { error: new Error(data.msg || 'Erro ao atualizar user') };
+      return { data, error: null };
+    },
     onAuthStateChange: (cb) => {
       authListeners.push(cb);
       return { data: { subscription: { unsubscribe: () => { authListeners = authListeners.filter(l => l !== cb); } } } };
@@ -162,7 +170,12 @@ export const supabase = {
   from: (table) => ({
     select: (columns = '*', options = {}) => new SupabaseQuery(table).select(columns, options),
     insert: (rows) => new SupabaseQuery(table, true, rows),
-    update: (rows) => new SupabaseQuery(table).update(rows)
+    update: (rows) => new SupabaseQuery(table).update(rows),
+    delete: () => {
+      const query = new SupabaseQuery(table);
+      query.method = 'DELETE';
+      return query;
+    }
   }),
   storage: {
     from: (bucket) => ({
@@ -192,6 +205,7 @@ export const supabase = {
   }
 };
 
+// --- CONTEXTO E DADOS ---
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
@@ -205,11 +219,7 @@ const modalidadesData = [
   { id: 6, titulo: 'Body Builders', categoria: 'HOMEM - Mens / Classic\nMULHER - Figure / Wellness', fases: 10, dietas: 2, icon: Dumbbell }
 ];
 
-const planosData = [
-  { id: 1, titulo: 'Cutting Intenso', objetivo: 'Perda de Gordura', calorias: '1800 kcal' },
-  { id: 2, titulo: 'Bulking Limpo', objetivo: 'Ganho de Massa', calorias: '3200 kcal' },
-  { id: 3, titulo: 'Manutenção', objetivo: 'Condicionamento', calorias: '2400 kcal' }
-];
+// --- COMPONENTES ---
 
 const GlobalStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -247,28 +257,13 @@ const Login = () => {
         if (error) throw error;
         setMessage('Link de recuperação enviado para seu e-mail!');
       } else if (isSignUp) {
-        if (password !== confirmPassword) {
-          throw new Error('As senhas não coincidem.');
-        }
+        if (password !== confirmPassword) throw new Error('As senhas não coincidem.');
         const { error } = await supabase.auth.signUp({ 
-          email, 
-          password,
-          options: {
-            data: {
-              nome,
-              phone,
-              cpf,
-              data_nascimento: dataNascimento,
-              cidade_estado: cidadeEstado
-            }
-          }
+          email, password, options: { data: { nome, phone, cpf, data_nascimento: dataNascimento, cidade_estado: cidadeEstado } }
         });
         if (error) throw error;
         setMessage('Conta criada com sucesso! Você já pode entrar.');
-        setIsSignUp(false);
-        setPassword('');
-        setConfirmPassword('');
-        setPhone('');
+        setIsSignUp(false); setPassword(''); setConfirmPassword(''); setPhone('');
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -292,69 +287,36 @@ const Login = () => {
         </p>
       </div>
       <form className="w-full space-y-4 overflow-y-auto max-h-[60vh] custom-scrollbar pr-2" onSubmit={handleAuth}>
-        {message && (
-          <div className="bg-[#1A3020] border border-[#D4AF37]/50 text-[#D4AF37] p-3 rounded-xl text-center text-sm">
-            {message}
-          </div>
-        )}
-        
+        {message && <div className="bg-[#1A3020] border border-[#D4AF37]/50 text-[#D4AF37] p-3 rounded-xl text-center text-sm">{message}</div>}
         {isSignUp && (
           <div>
             <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Nome Completo</label>
-            <input type="text" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: João da Silva" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
+            <input type="text" value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: João da Silva" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
           </div>
         )}
-
         <div>
           <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">E-mail</label>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex: seuemail@exemplo.com" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Ex: seuemail@exemplo.com" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
         </div>
-
         {isSignUp && (
           <>
-            <div>
-              <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Telefone</label>
-              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex: (11) 99999-9999" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
-            </div>
-            <div>
-              <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">CPF</label>
-              <input type="text" value={cpf} onChange={(e) => setCpf(e.target.value)} placeholder="Ex: 000.000.000-00" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
-            </div>
-            <div>
-              <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Data de Nascimento</label>
-              <input type="date" value={dataNascimento} onChange={(e) => setDataNascimento(e.target.value)} required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" style={{ colorScheme: 'dark' }} />
-            </div>
-            <div>
-              <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Cidade e Estado</label>
-              <input type="text" value={cidadeEstado} onChange={(e) => setCidadeEstado(e.target.value)} placeholder="Ex: São Paulo, SP" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
-            </div>
+            <div><label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Telefone</label><input type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Ex: (11) 99999-9999" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" /></div>
+            <div><label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">CPF</label><input type="text" value={cpf} onChange={e => setCpf(e.target.value)} placeholder="Ex: 000.000.000-00" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" /></div>
+            <div><label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Data de Nascimento</label><input type="date" value={dataNascimento} onChange={e => setDataNascimento(e.target.value)} required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" style={{ colorScheme: 'dark' }}/></div>
+            <div><label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Cidade e Estado</label><input type="text" value={cidadeEstado} onChange={e => setCidadeEstado(e.target.value)} placeholder="Ex: São Paulo, SP" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" /></div>
           </>
         )}
-
         {!isForgotPassword && (
-          <div>
-            <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Senha</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Digite sua senha" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
-          </div>
+          <div><label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Senha</label><input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Digite sua senha" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" /></div>
         )}
-
         {isSignUp && (
-          <div>
-            <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Confirmação de Senha</label>
-            <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Confirme sua senha" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" />
-          </div>
+          <div><label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Confirmação de Senha</label><input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Confirme sua senha" required className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] transition-colors" /></div>
         )}
-
         <button type="submit" disabled={loading} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-3 rounded-xl mt-6 active:scale-95 transition-transform disabled:opacity-50 shrink-0">
           {loading ? 'Aguarde...' : isForgotPassword ? 'Enviar Link' : isSignUp ? 'Criar Conta' : 'Entrar'}
         </button>
-        
         <div className="flex flex-col items-center gap-3 mt-4 text-sm text-[#A0B3A6] shrink-0 pb-4">
-          {!isForgotPassword && (
-            <button type="button" onClick={() => setIsForgotPassword(true)} className="hover:text-[#D4AF37] transition-colors">
-              Esqueceu a senha?
-            </button>
-          )}
+          {!isForgotPassword && <button type="button" onClick={() => setIsForgotPassword(true)} className="hover:text-[#D4AF37] transition-colors">Esqueceu a senha?</button>}
           <button type="button" onClick={() => { setIsSignUp(!isSignUp); setIsForgotPassword(false); setMessage(''); }} className="hover:text-[#D4AF37] transition-colors">
             {isSignUp || isForgotPassword ? 'Já tenho uma conta. Fazer login' : 'Não tem conta? Criar uma'}
           </button>
@@ -364,425 +326,614 @@ const Login = () => {
   );
 };
 
-const Onboarding = ({ profile, onComplete }) => {
-  const [step, setStep] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const [showWaitScreen, setShowWaitScreen] = useState(false);
-  
+const Onboarding = ({ profile, onClose, onComplete }) => {
+  const [step, setStep] = useState(1);
+  const totalSteps = 11;
   const [formData, setFormData] = useState({
     nome: profile?.nome || '',
     genero: '',
     objetivo: '',
-    altura: profile?.altura || '',
-    peso_atual: profile?.peso_atual || '',
-    meta_peso: '',
-    nivel_atividade: '',
+    altura: '',
+    peso: '',
+    meta: '',
+    nivel: '',
     desafios: [],
     estrutura: '',
-    disponibilidade: [],
-    termos_aceitos: false
+    dias: [],
+    termos: false
   });
 
-  const toggleArrayItem = (field, value) => {
-    setFormData(prev => {
-      const arr = prev[field];
-      if (arr.includes(value)) return { ...prev, [field]: arr.filter(i => i !== value) };
-      return { ...prev, [field]: [...arr, value] };
-    });
-  };
-
-  const steps = [
-    {
-      title: 'Como vamos te chamar?',
-      component: (
-        <div className="space-y-4">
-          <input type="text" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} placeholder="Seu nome ou apelido" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
-        </div>
-      )
-    },
-    {
-      title: 'Qual seu gênero?',
-      component: (
-        <div className="space-y-3">
-          {['Feminino', 'Masculino', 'Prefiro não dizer'].map(opt => (
-            <button key={opt} onClick={() => setFormData({...formData, genero: opt})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.genero === opt ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
-              <div className="flex justify-between items-center"><span>{opt}</span>{formData.genero === opt && <Check size={18}/>}</div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: 'Seu principal objetivo?',
-      component: (
-        <div className="space-y-3">
-          {[
-            { id: 'perder_peso', label: 'Perder peso', desc: 'Diminuindo o percentual de gordura' },
-            { id: 'manter_peso', label: 'Manter peso', desc: 'Focar em saúde e bem-estar' },
-            { id: 'ganhar_peso', label: 'Ganhar peso', desc: 'Aumento de volume geral' },
-            { id: 'massa_muscular', label: 'Ganhar massa muscular', desc: 'Foco em hipertrofia' },
-            { id: 'vida_ativa', label: 'Ter estilo de vida mais ativo', desc: 'Sair do sedentarismo' },
-            { id: 'corrida', label: 'Melhorar desempenho na corrida', desc: 'Foco em cardio e resistência' }
-          ].map(opt => (
-            <button key={opt.id} onClick={() => setFormData({...formData, objetivo: opt.label})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.objetivo === opt.label ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
-              <div className="flex justify-between items-center">
-                <div><span className="font-medium block">{opt.label}</span><span className="text-[10px] opacity-70 block mt-1">{opt.desc}</span></div>
-                {formData.objetivo === opt.label && <Check size={18}/>}
-              </div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: 'Qual sua altura? (m)',
-      component: (
-        <div className="space-y-4">
-          <input type="number" step="0.01" value={formData.altura} onChange={e => setFormData({...formData, altura: e.target.value})} placeholder="Ex: 1.75" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
-        </div>
-      )
-    },
-    {
-      title: 'Quanto você pesa? (kg)',
-      component: (
-        <div className="space-y-4">
-          <input type="number" step="0.1" value={formData.peso_atual} onChange={e => setFormData({...formData, peso_atual: e.target.value})} placeholder="Ex: 75.5" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
-        </div>
-      )
-    },
-    {
-      title: 'Qual sua meta de peso? (kg)',
-      component: (
-        <div className="space-y-4">
-          <input type="number" step="0.1" value={formData.meta_peso} onChange={e => setFormData({...formData, meta_peso: e.target.value})} placeholder="Ex: 70.0" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
-        </div>
-      )
-    },
-    {
-      title: 'Nível de atividade atual?',
-      component: (
-        <div className="space-y-3">
-          {['Não muito ativo', 'Levemente ativo', 'Ativo', 'Bastante ativo'].map(opt => (
-            <button key={opt} onClick={() => setFormData({...formData, nivel_atividade: opt})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.nivel_atividade === opt ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
-              <div className="flex justify-between items-center"><span>{opt}</span>{formData.nivel_atividade === opt && <Check size={18}/>}</div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: 'Desafios anteriores?',
-      component: (
-        <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
-          <p className="text-[#A0B3A6] text-xs mb-2">Selecione todos que se aplicam:</p>
-          {['Falta de tempo', 'Dificuldade em seguir o treino', 'Dificuldade em seguir a dieta', 'Falta de progresso', 'Custo da alimentação saudável', 'Falta de organização com tempo', 'Falta de organização de dieta'].map(opt => (
-            <button key={opt} onClick={() => toggleArrayItem('desafios', opt)} className={`w-full p-3 rounded-xl border text-left transition-all ${formData.desafios.includes(opt) ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
-              <div className="flex justify-between items-center text-sm"><span>{opt}</span>{formData.desafios.includes(opt) && <Check size={16}/>}</div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: 'Estrutura disponível?',
-      component: (
-        <div className="space-y-3">
-          {['Academia Completa', 'Academia c/ poucos aparelhos', 'Exercícios livres (Em casa)'].map(opt => (
-            <button key={opt} onClick={() => setFormData({...formData, estrutura: opt})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.estrutura === opt ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
-              <div className="flex justify-between items-center"><span>{opt}</span>{formData.estrutura === opt && <Check size={18}/>}</div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: 'Disponibilidade (Dias/Semana)?',
-      component: (
-        <div className="space-y-2">
-          <p className="text-[#A0B3A6] text-xs mb-2">Selecione os dias que pretende treinar:</p>
-          {['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'].map(opt => (
-            <button key={opt} onClick={() => toggleArrayItem('disponibilidade', opt)} className={`w-full p-3 rounded-xl border text-left transition-all ${formData.disponibilidade.includes(opt) ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
-              <div className="flex justify-between items-center text-sm"><span>{opt}</span>{formData.disponibilidade.includes(opt) && <Check size={16}/>}</div>
-            </button>
-          ))}
-        </div>
-      )
-    },
-    {
-      title: 'Termos de Uso (LGPD)',
-      component: (
-        <div className="space-y-4">
-          <div className="bg-[#0A1A10] border border-[#1A4026] p-4 rounded-xl h-48 overflow-y-auto custom-scrollbar text-xs text-[#A0B3A6]">
-            <p className="mb-2"><strong>Política de Privacidade e Proteção de Dados (LGPD)</strong></p>
-            <p className="mb-2">A sua privacidade é importante para nós. Coletamos essas informações exclusivamente para personalizar sua experiência no aplicativo "Corpo em Movimento", fornecendo treinos e planos alimentares adequados aos seus objetivos e biotipo.</p>
-            <p>Concordando com nossos termos, você autoriza o processamento desses dados. Você pode solicitar a exclusão da sua conta e de todos os dados vinculados a qualquer momento pelas configurações do perfil.</p>
-          </div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input type="checkbox" checked={formData.termos_aceitos} onChange={e => setFormData({...formData, termos_aceitos: e.target.checked})} className="w-5 h-5 accent-[#D4AF37]" />
-            <span className="text-sm">Eu li e aceito os termos e condições.</span>
-          </label>
-        </div>
-      )
-    }
-  ];
-
-  const canAdvance = () => {
-    switch(step) {
-      case 0: return formData.nome.trim() !== '';
-      case 1: return formData.genero !== '';
-      case 2: return formData.objetivo !== '';
-      case 3: return formData.altura !== '';
-      case 4: return formData.peso_atual !== '';
-      case 5: return formData.meta_peso !== '';
-      case 6: return formData.nivel_atividade !== '';
-      case 7: return formData.desafios.length > 0;
-      case 8: return formData.estrutura !== '';
-      case 9: return formData.disponibilidade.length > 0;
-      case 10: return formData.termos_aceitos;
-      default: return true;
-    }
-  };
-
-  const handleNext = () => {
-    if (canAdvance()) {
-      if (step < steps.length - 1) setStep(step + 1);
-      else handleFinish();
-    }
-  };
-
-  const handleFinish = async () => {
-    setSaving(true);
-    setShowWaitScreen(true);
-    
-    // 1. Atualizar Profile
-    await supabase.from('profiles').update({
-      nome: formData.nome,
-      altura: formData.altura ? Number(formData.altura) : null,
-      peso_atual: formData.peso_atual ? Number(formData.peso_atual) : null
-    }).eq('id', profile.id);
-
-    // 2. Salvar questionário na nova tabela onboarding_respostas
-    await supabase.from('onboarding_respostas').insert([{
-      user_id: profile.id,
-      genero: formData.genero,
-      objetivo: formData.objetivo,
-      meta_peso: formData.meta_peso ? Number(formData.meta_peso) : null,
-      nivel_atividade: formData.nivel_atividade,
-      desafios: formData.desafios,
-      estrutura: formData.estrutura,
-      disponibilidade: formData.disponibilidade,
-      termos_aceitos: formData.termos_aceitos
-    }]);
-
-    // Grava localmente para NUNCA mais exibir no aparelho
-    localStorage.setItem(`onboarding_completed_${profile.id}`, 'true');
-
-    // Aguarda um tempo para simular a montagem do treino e visualização da tela de espera
-    setTimeout(() => {
-      onComplete(formData);
-    }, 3000);
-  };
-
-  if (showWaitScreen) {
-    return (
-      <div className="absolute inset-0 z-50 bg-[#F5F5F5] flex flex-col items-center justify-center p-6" style={{ fontFamily: 'sans-serif' }}>
-        <div className="flex-1 flex flex-col items-center justify-center w-full">
-          <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-6 text-orange-500 animate-pulse">
-            <Check size={32} strokeWidth={2.5} />
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 text-center leading-tight mb-2">
-            {formData.nome.split(' ')[0]}, encontramos seu<br/>treino ideal!
-          </h2>
-        </div>
-        <div className="w-full pb-8">
-          <button 
-            onClick={() => onComplete(formData)}
-            className="w-full bg-[#FF4500] text-white font-bold py-4 rounded-xl active:scale-95 transition-transform text-lg shadow-lg"
-          >
-            Acessar meu treino
-          </button>
-        </div>
-      </div>
-    );
-  }
+  const nextStep = () => setStep(s => Math.min(s + 1, totalSteps));
+  const prevStep = () => setStep(s => Math.max(s - 1, 1));
+  const handleFinish = () => onComplete(formData);
+  const toggleArray = (arr, item) => arr.includes(item) ? arr.filter(i => i !== item) : [...arr, item];
 
   return (
-    <div className="flex-1 flex flex-col p-6 text-white relative z-20 bg-[#051109] h-full pt-12">
-      {/* Header com X e Progresso */}
-      <div className="flex items-center justify-between mb-8">
-        <button onClick={() => { localStorage.setItem(`onboarding_completed_${profile.id}`, 'true'); onComplete(formData); }} className="text-[#A0B3A6] hover:text-white transition-colors">
-          <X size={24} />
-        </button>
-        <span className="text-[#A0B3A6] text-xs font-medium bg-[#1A3020] px-3 py-1 rounded-full">
-          {step + 1} de {steps.length}
-        </span>
+    <div className="absolute inset-0 bg-[#051109] z-50 flex flex-col text-white">
+      <div className="flex items-center justify-between p-6 pb-2 border-b border-[#1A4026]">
+        <button onClick={onClose} className="text-[#A0B3A6] hover:text-white p-1"><X size={24} /></button>
+        <div className="text-sm font-medium text-[#D4AF37]">{step} de {totalSteps}</div>
+      </div>
+      <div className="h-1 bg-[#1A3020] w-full">
+         <div className="h-full bg-[#D4AF37] transition-all duration-300" style={{ width: `${(step / totalSteps) * 100}%` }}></div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar pr-2">
-        <h2 className="text-2xl font-bold text-[#D4AF37] mb-6 leading-tight">
-          {steps[step].title}
-        </h2>
-        {steps[step].component}
-      </div>
-
-      <div className="pt-4 border-t border-[#1A4026] flex gap-3 pb-8 shrink-0">
-        {step > 0 && (
-          <button onClick={() => setStep(step - 1)} className="w-14 h-14 rounded-xl border border-[#1A4026] flex items-center justify-center text-[#A0B3A6] active:scale-95">
-            <ChevronLeft size={24} />
-          </button>
+      <div className="flex-1 overflow-y-auto p-6 flex flex-col custom-scrollbar">
+        {step === 1 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Como vamos te chamar?</h2>
+             <input type="text" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} placeholder="Seu nome" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus/>
+          </div>
         )}
-        <button 
-          onClick={handleNext} 
-          disabled={!canAdvance() || saving}
-          className="flex-1 bg-[#D4AF37] text-[#051109] font-bold text-lg rounded-xl flex items-center justify-center active:scale-95 disabled:opacity-50 transition-all"
-        >
-          {saving ? 'Registrando...' : (step === steps.length - 1 ? 'Concluir Cadastro' : 'Continuar')}
-        </button>
+        {step === 2 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Qual seu gênero?</h2>
+             {['Feminino', 'Masculino', 'Prefiro não dizer'].map(op => (
+               <button key={op} onClick={() => { setFormData({...formData, genero: op}); nextStep(); }} className={`w-full p-4 rounded-xl border text-lg font-medium transition-colors ${formData.genero === op ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+                 {op}
+               </button>
+             ))}
+          </div>
+        )}
+        {step === 3 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Seu principal objetivo?</h2>
+             {['Perder peso', 'Manter peso', 'Ganhar peso', 'Ganhar massa muscular', 'Ter estilo de vida mais ativo', 'Melhorar desempenho na corrida'].map(op => (
+               <button key={op} onClick={() => { setFormData({...formData, objetivo: op}); nextStep(); }} className={`w-full p-4 rounded-xl border text-sm font-medium transition-colors ${formData.objetivo === op ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+                 {op}
+               </button>
+             ))}
+          </div>
+        )}
+        {step === 4 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Qual sua altura? (cm)</h2>
+             <input type="number" value={formData.altura} onChange={e => setFormData({...formData, altura: e.target.value})} placeholder="Ex: 170" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-xl" autoFocus/>
+          </div>
+        )}
+        {step === 5 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Quanto você pesa? (kg)</h2>
+             <input type="number" value={formData.peso} onChange={e => setFormData({...formData, peso: e.target.value})} placeholder="Ex: 75.5" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-xl" autoFocus/>
+          </div>
+        )}
+        {step === 6 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Qual sua meta de peso? (kg)</h2>
+             <input type="number" value={formData.meta} onChange={e => setFormData({...formData, meta: e.target.value})} placeholder="Ex: 68.0" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-xl" autoFocus/>
+          </div>
+        )}
+        {step === 7 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Qual seu nível de atividade atual?</h2>
+             {['Não muito ativo', 'Levemente ativo', 'Ativo', 'Bastante ativo'].map(op => (
+               <button key={op} onClick={() => { setFormData({...formData, nivel: op}); nextStep(); }} className={`w-full p-4 rounded-xl border text-base font-medium transition-colors ${formData.nivel === op ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+                 {op}
+               </button>
+             ))}
+          </div>
+        )}
+        {step === 8 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Quais desafios te impediram de atingir seus objetivos?</h2>
+             <p className="text-center text-[#A0B3A6] text-xs -mt-4 mb-4">Selecione todos que se aplicam</p>
+             {['Falta de tempo', 'Dificuldade em seguir o treino', 'Dificuldade em seguir a dieta', 'Falta de progresso', 'Custo da alimentação saudável', 'Falta de organização com tempo', 'Falta de organização de dieta'].map(op => {
+               const isSel = formData.desafios.includes(op);
+               return (
+                 <button key={op} onClick={() => setFormData({...formData, desafios: toggleArray(formData.desafios, op)})} className={`w-full p-3 rounded-xl border text-sm font-medium transition-colors ${isSel ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+                   {op}
+                 </button>
+               )
+             })}
+          </div>
+        )}
+        {step === 9 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Qual estrutura você tem disponível?</h2>
+             {['Academia', 'Exercícios livres', 'Academia c/ poucos aparelhos'].map(op => (
+               <button key={op} onClick={() => { setFormData({...formData, estrutura: op}); nextStep(); }} className={`w-full p-4 rounded-xl border text-base font-medium transition-colors ${formData.estrutura === op ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+                 {op}
+               </button>
+             ))}
+          </div>
+        )}
+        {step === 10 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-6 text-center">Disponibilidade para treinar?</h2>
+             <p className="text-center text-[#A0B3A6] text-xs -mt-4 mb-4">Selecione os dias da semana</p>
+             <div className="grid grid-cols-2 gap-3">
+               {['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'].map(op => {
+                 const isSel = formData.dias.includes(op);
+                 return (
+                   <button key={op} onClick={() => setFormData({...formData, dias: toggleArray(formData.dias, op)})} className={`p-3 rounded-xl border text-sm font-medium transition-colors ${isSel ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+                     {op}
+                   </button>
+                 )
+               })}
+             </div>
+          </div>
+        )}
+        {step === 11 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <div className="bg-[#0A1A10] border border-[#1A4026] p-6 rounded-2xl">
+               <ShieldCheck size={40} className="text-[#D4AF37] mb-4 mx-auto" />
+               <h2 className="text-xl font-bold mb-4 text-center">Termos e Condições (LGPD)</h2>
+               <p className="text-[#A0B3A6] text-xs text-justify mb-6">
+                 Para oferecermos uma experiência personalizada, precisamos coletar e armazenar seus dados físicos, objetivos e preferências. 
+                 Suas informações estão seguras conosco e não serão compartilhadas com terceiros sem seu consentimento explícito.
+               </p>
+               <label className="flex items-start gap-3 cursor-pointer group">
+                 <div className={`w-6 h-6 rounded flex items-center justify-center border mt-0.5 flex-shrink-0 transition-colors ${formData.termos ? 'bg-[#D4AF37] border-[#D4AF37]' : 'bg-[#051109] border-[#1A4026] group-hover:border-[#D4AF37]'}`}>
+                   {formData.termos && <CheckCircle size={16} className="text-[#051109]" />}
+                 </div>
+                 <span className="text-sm font-medium">Eu li e aceito os Termos e Condições e concordo com o processamento dos dados.</span>
+               </label>
+             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="p-6 border-t border-[#1A4026] flex gap-4">
+         {step > 1 && (
+           <button onClick={prevStep} className="w-14 h-14 rounded-xl border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform shrink-0">
+             <ChevronLeft size={24} />
+           </button>
+         )}
+         {(step === 1 || step === 4 || step === 5 || step === 6 || step === 8 || step === 10 || step === 11) && (
+           <button 
+             onClick={step === totalSteps ? handleFinish : nextStep} 
+             disabled={
+               (step === 1 && !formData.nome) || 
+               (step === 4 && !formData.altura) || 
+               (step === 5 && !formData.peso) || 
+               (step === 6 && !formData.meta) || 
+               (step === 8 && formData.desafios.length === 0) || 
+               (step === 10 && formData.dias.length === 0) || 
+               (step === 11 && !formData.termos)
+             }
+             className="flex-1 bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
+           >
+             {step === totalSteps ? 'Concluir Cadastro' : 'Continuar'}
+           </button>
+         )}
       </div>
     </div>
   );
 };
 
-const Inicio = () => {
-  const { profile, setActiveTab, setSelectedModalidade, registrarConquista } = useApp();
-  const [onboardingData, setOnboardingData] = useState(null);
+const OnboardingTransition = ({ nome, onDone }) => {
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOnboarding = async () => {
-      if (!profile?.id) return;
-      const { data } = await supabase.from('onboarding_respostas').select('*').eq('user_id', profile.id).single();
-      if (data) {
-        setOnboardingData(data);
-      }
-    };
-    fetchOnboarding();
-  }, [profile]);
-
-  // Cálculo base simulado usando os dados do Onboarding
-  const caloriasMeta = onboardingData?.objetivo?.toLowerCase().includes('perder') ? 1500 : onboardingData?.objetivo?.toLowerCase().includes('massa') ? 2800 : 2000;
-  const pesoAtual = profile?.peso_atual || '--';
-  const metaPeso = onboardingData?.meta_peso || '--';
+    const timer = setTimeout(() => { setLoading(false); }, 2500);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24 text-white">
-      {/* Cabeçalho "Hoje" */}
-      <div className="flex justify-between items-center mt-4 mb-2">
-        <h2 className="text-3xl font-bold text-white tracking-tight">Hoje</h2>
-        <button className="text-[#D4AF37] text-xs font-bold uppercase tracking-wider bg-[#1A3020] px-4 py-1.5 rounded-full active:scale-95 transition-transform">
-          Editar
-        </button>
+    <div className="flex-1 flex items-center justify-center bg-[#051109] text-white absolute inset-0 z-50">
+      {loading ? (
+        <div className="flex flex-col items-center animate-in fade-in duration-500">
+           <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin mb-6"></div>
+           <h2 className="text-xl font-medium text-center px-6">Estamos procurando uma jornada ideal para você...</h2>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center animate-in zoom-in duration-500 w-full px-8">
+           <div className="w-20 h-20 bg-[#1A3020] border-2 border-[#D4AF37] rounded-full flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(212,175,55,0.4)]">
+              <CheckCircle size={40} className="text-[#D4AF37]" />
+           </div>
+           <h2 className="text-2xl font-bold text-center mb-10">{nome || 'Aluno'}, encontramos seu treino ideal!</h2>
+           <button onClick={onDone} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-4 rounded-full text-lg active:scale-95 transition-transform">
+             Acessar meu treino
+           </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const Inicio = () => {
+  const { profile } = useApp();
+  const [onbData, setOnbData] = useState(null);
+  const [stats, setStats] = useState({ treinos: 0 });
+
+  useEffect(() => {
+    const loadInfo = async () => {
+       const { data } = await supabase.from('onboarding_respostas').select('*').eq('user_id', profile.id).single();
+       if (data) setOnbData(data);
+
+       const { data: treinos } = await supabase.from('treinos_realizados').select('*').eq('user_id', profile.id);
+       if (treinos) setStats({ treinos: treinos.length });
+    };
+    if (profile?.id) loadInfo();
+  }, [profile]);
+
+  let goalCals = 2000;
+  if (onbData?.objetivo === 'Perder peso') goalCals = 1500;
+  if (onbData?.objetivo === 'Ganhar massa muscular') goalCals = 2500;
+  
+  const burnedCals = stats.treinos * 300; 
+  const remaining = goalCals - 0 + burnedCals; 
+
+  return (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white pt-4">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-2xl font-bold text-white">Hoje</h2>
+        <button className="text-[#D4AF37] text-sm font-medium">Editar</button>
       </div>
 
-      {/* Card Principal: Calorias */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
-        <div className="mb-5">
-          <h3 className="text-white font-bold text-lg leading-none mb-1">Calorias</h3>
-          <p className="text-[#A0B3A6] text-[10px]">Restantes = Meta - Alimentos + Exercício</p>
-        </div>
+      {/* Calories Card */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-5 shadow-lg">
+        <h3 className="text-white font-semibold mb-1">Calorias</h3>
+        <p className="text-[#A0B3A6] text-[10px] mb-4">Restantes = Meta - Alimentos + Exercício</p>
         
         <div className="flex items-center justify-between">
-          {/* Gráfico Circular */}
-          <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
-            <svg className="w-full h-full transform -rotate-90">
-              <circle cx="56" cy="56" r="48" stroke="#1A3020" strokeWidth="8" fill="none" />
-              <circle cx="56" cy="56" r="48" stroke="#D4AF37" strokeWidth="8" fill="none" strokeDasharray="301" strokeDashoffset="0" strokeLinecap="round" />
-            </svg>
-            <div className="absolute flex flex-col items-center justify-center mt-1">
-              <span className="text-2xl font-bold text-white leading-none">{caloriasMeta}</span>
-              <span className="text-[10px] text-[#A0B3A6] uppercase font-medium mt-1">Restantes</span>
-            </div>
+          <div className="relative w-28 h-28 flex items-center justify-center">
+             <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+               <circle cx="56" cy="56" r="48" stroke="#1A3020" strokeWidth="8" fill="none" />
+               <circle cx="56" cy="56" r="48" stroke="#D4AF37" strokeWidth="8" fill="none" strokeDasharray="300" strokeDashoffset="50" />
+             </svg>
+             <div className="text-center">
+               <span className="text-2xl font-bold text-white">{remaining}</span>
+               <span className="block text-[10px] text-[#A0B3A6]">Restantes</span>
+             </div>
           </div>
-
-          {/* Estatísticas (Lado Direito) */}
-          <div className="flex-1 ml-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <Target size={18} className="text-[#A0B3A6]" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-[#A0B3A6] font-medium leading-none mb-1">Meta base</span>
-                <span className="font-bold text-sm text-white leading-none">{caloriasMeta}</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <ClipboardList size={18} className="text-[#D4AF37]" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-[#A0B3A6] font-medium leading-none mb-1">Alimentos</span>
-                <span className="font-bold text-sm text-white leading-none">0</span>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <Flame size={18} className="text-orange-500" />
-              <div className="flex flex-col">
-                <span className="text-[10px] text-[#A0B3A6] font-medium leading-none mb-1">Exercício</span>
-                <span className="font-bold text-sm text-white leading-none">0</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Banner / Dica */}
-      <div className="bg-gradient-to-r from-[#CFB375] to-[#AC915B] rounded-2xl p-3.5 flex flex-col justify-center text-[#051109] shadow-md my-2">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="bg-[#051109] text-[#D4AF37] text-[8px] font-extrabold px-2 py-0.5 rounded-sm uppercase tracking-widest">DICA FIT</span>
-        </div>
-        <h4 className="font-bold text-sm leading-tight">Foque no seu objetivo: {onboardingData?.objetivo || 'Saúde'}</h4>
-        <p className="text-[11px] font-medium opacity-80 leading-tight mt-0.5">Seus desafios incluem: {onboardingData?.desafios?.slice(0, 1).join(', ') || 'Nenhum'}. Mantenha o foco!</p>
-      </div>
-
-      {/* Cards Menores (Atividade e Exercício) */}
-      <div className="grid grid-cols-2 gap-4">
-        {/* Card Atividade */}
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-4 flex flex-col justify-between shadow-lg h-32">
-          <div className="flex justify-between items-start">
-            <h4 className="text-white font-bold text-sm">Atividade</h4>
-            <Activity size={18} className="text-pink-500" />
-          </div>
-          <div className="mt-2">
-            <p className="text-[#A0B3A6] text-[10px] uppercase font-medium mb-0.5">Seu Nível</p>
-            <p className="text-[#D4AF37] text-xs font-bold leading-tight line-clamp-2">
-              {onboardingData?.nivel_atividade || 'Não definido'}
-            </p>
-          </div>
-          <button className="text-[10px] text-[#A0B3A6] flex items-center gap-1 mt-auto font-medium">
-            Ver detalhes <ChevronRight size={12} />
-          </button>
-        </div>
-
-        {/* Card Exercício */}
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-4 flex flex-col shadow-lg relative h-32">
-          <button className="absolute top-3 right-3 text-[#D4AF37] hover:bg-[#1A3020] p-1 rounded-full transition-colors">
-            <Plus size={18} />
-          </button>
-          <h4 className="text-white font-bold text-sm mb-auto">Exercício</h4>
           
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Flame size={16} className="text-orange-500" />
-              <span className="text-white text-sm font-bold leading-none">0 <span className="text-[#A0B3A6] text-xs font-normal">cal</span></span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-[#D4AF37]" />
-              <span className="text-white text-sm font-bold leading-none">0:00 <span className="text-[#A0B3A6] text-xs font-normal">h</span></span>
-            </div>
+          <div className="flex flex-col gap-3 flex-1 ml-6">
+             <div className="flex justify-between items-center">
+               <div className="flex items-center gap-2 text-[#A0B3A6]">
+                 <Target size={16} /> <span className="text-xs">Meta base</span>
+               </div>
+               <span className="font-bold text-sm">{goalCals}</span>
+             </div>
+             <div className="flex justify-between items-center">
+               <div className="flex items-center gap-2 text-[#A0B3A6]">
+                 <span className="text-blue-400">🍽️</span> <span className="text-xs">Alimentos</span>
+               </div>
+               <span className="font-bold text-sm">0</span>
+             </div>
+             <div className="flex justify-between items-center">
+               <div className="flex items-center gap-2 text-[#A0B3A6]">
+                 <Flame size={16} className="text-orange-500" /> <span className="text-xs">Exercício</span>
+               </div>
+               <span className="font-bold text-sm">{burnedCals}</span>
+             </div>
           </div>
         </div>
       </div>
 
-      {/* Card Peso */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 flex items-center justify-between shadow-lg">
-        <div className="flex flex-col">
-          <h4 className="text-white font-bold text-base mb-1">Peso</h4>
-          <p className="text-xs text-[#A0B3A6] font-medium mb-1">Atual: <span className="text-white">{pesoAtual} kg</span></p>
-          <span className="text-xs text-[#D4AF37] font-bold">Meta: {metaPeso} kg</span>
+      {/* Passos & Exercício */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center justify-between shadow-lg active:scale-95 transition-transform cursor-pointer">
+          <div>
+            <h4 className="text-sm font-semibold mb-1">Passos</h4>
+            <div className="flex items-center gap-2 text-[#A0B3A6] text-xs">
+               <span className="text-pink-500">👟</span> Conecte-se...
+            </div>
+          </div>
+          <ChevronRight size={18} className="text-[#A0B3A6]" />
         </div>
-        <button 
-          onClick={() => setActiveTab('progresso')} 
-          className="w-12 h-12 rounded-full bg-[#1A3020] text-[#D4AF37] flex items-center justify-center active:scale-95 transition-transform hover:bg-[#2A5036]"
-        >
-          <Plus size={24} />
-        </button>
+        
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg flex flex-col justify-between">
+          <div className="flex justify-between items-center mb-2">
+             <h4 className="text-sm font-semibold">Exercício</h4>
+             <Plus size={16} className="text-[#D4AF37]" />
+          </div>
+          <div className="space-y-1">
+             <div className="flex items-center gap-2 text-sm"><Flame size={14} className="text-orange-500" /> <span className="font-bold">{burnedCals}</span> <span className="text-[#A0B3A6] text-xs">cal</span></div>
+             <div className="flex items-center gap-2 text-sm"><Activity size={14} className="text-blue-400" /> <span className="font-bold">0:00</span> <span className="text-[#A0B3A6] text-xs">h</span></div>
+          </div>
+        </div>
       </div>
 
+      {/* Peso */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg flex justify-between items-center">
+         <div>
+           <h4 className="text-sm font-semibold mb-1">Peso</h4>
+           <p className="text-xs text-[#A0B3A6]">Últimos 90 dias</p>
+         </div>
+         <div className="flex items-center gap-4">
+           <span className="text-lg font-bold">{profile?.peso_atual ? `${profile.peso_atual} kg` : '-- kg'}</span>
+           <Plus size={20} className="text-[#D4AF37]" />
+         </div>
+      </div>
+      
+      {/* Meta */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg">
+         <h4 className="text-sm font-semibold mb-2 text-[#D4AF37]">Seu Objetivo</h4>
+         <p className="text-sm text-white">{onbData?.objetivo || 'Não definido'}</p>
+         <p className="text-xs text-[#A0B3A6] mt-1">Meta de Peso: {onbData?.meta_peso ? `${onbData.meta_peso} kg` : 'Não definido'}</p>
+      </div>
+    </div>
+  )
+};
+
+const Feed = () => {
+  const { profile } = useApp();
+  const [feedTab, setFeedTab] = useState('populares');
+  const [isPosting, setIsPosting] = useState(false);
+  const [newPostText, setNewPostText] = useState('');
+  const [newPostImage, setNewPostImage] = useState(null);
+  const [activeComment, setActiveComment] = useState(null);
+  const [commentText, setCommentText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState([]);
+  const [openMenuId, setOpenMenuId] = useState(null);
+
+  useEffect(() => {
+    if (profile?.id) loadPosts();
+  }, [profile, feedTab]);
+
+  const loadPosts = async () => {
+    setLoading(true);
+    const { data: postsData } = await supabase.from('feed_posts').select('*');
+    const { data: profilesData } = await supabase.from('profiles').select('*');
+    const { data: likesData } = await supabase.from('feed_likes').select('*');
+    const { data: commentsData } = await supabase.from('feed_comments').select('*');
+
+    if (postsData) {
+      let mergedPosts = postsData.map(p => {
+        const prof = (profilesData || []).find(pr => pr.id === p.user_id);
+        const postLikes = (likesData || []).filter(l => l.post_id === p.id);
+        const postComments = (commentsData || []).filter(c => c.post_id === p.id).map(c => {
+           const cProf = (profilesData || []).find(pr => pr.id === c.user_id);
+           return { ...c, user_nome: cProf?.nome || 'Usuário', user_avatar: cProf?.foto_url };
+        });
+        const isLiked = postLikes.some(l => l.user_id === profile.id);
+        
+        return {
+          ...p,
+          user: prof?.nome || 'Usuário',
+          avatar: prof?.foto_url || null,
+          likes: postLikes.length,
+          commentsList: postComments.sort((a,b) => new Date(a.created_at) - new Date(b.created_at)),
+          comments: postComments.length,
+          isLiked
+        };
+      });
+
+      if (feedTab === 'minhas postagens') {
+         mergedPosts = mergedPosts.filter(p => p.user_id === profile.id);
+      }
+
+      mergedPosts.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+      setPosts(mergedPosts);
+    }
+    setLoading(false);
+  };
+
+  const handlePost = async () => {
+    if (!newPostText.trim() && !newPostImage) return;
+    
+    let imageUrl = null;
+    if (newPostImage) {
+      const fileExt = newPostImage.name.split('.').pop();
+      const fileName = `${profile.id}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, newPostImage);
+      if (!uploadError) {
+         const { data } = supabase.storage.from('feed_images').getPublicUrl(fileName);
+         imageUrl = data.publicUrl;
+      }
+    }
+
+    await supabase.from('feed_posts').insert([{
+      user_id: profile.id,
+      content: newPostText,
+      image_url: imageUrl,
+      tag: feedTab === 'populares' ? 'Geral' : feedTab
+    }]);
+
+    setNewPostText('');
+    setNewPostImage(null);
+    setIsPosting(false);
+    loadPosts();
+  };
+
+  const handleLike = async (id, isLiked) => {
+    if (isLiked) {
+       await fetch(`${supabaseUrl}/rest/v1/feed_likes?post_id=eq.${id}&user_id=eq.${profile.id}`, {
+         method: 'DELETE',
+         headers: {
+           'apikey': supabaseAnonKey,
+           'Authorization': `Bearer ${currentSession?.access_token || supabaseAnonKey}`
+         }
+       });
+    } else {
+       await supabase.from('feed_likes').insert([{ post_id: id, user_id: profile.id }]);
+    }
+    loadPosts();
+  };
+
+  const handleAddComment = async (id) => {
+    if (!commentText.trim()) return;
+    await supabase.from('feed_comments').insert([{
+       post_id: id,
+       user_id: profile.id,
+       content: commentText
+    }]);
+    setCommentText('');
+    loadPosts();
+  };
+
+  const handleShare = (post) => {
+    setNewPostText(`Compartilhado de ${post.user}:\n\n"${post.content}"`);
+    setNewPostImage(null);
+    setIsPosting(true);
+  };
+
+  const handleDeletePost = async (id) => {
+    await supabase.from('feed_posts').delete().eq('id', id);
+    setOpenMenuId(null);
+    loadPosts();
+  };
+
+  const formatTime = (dateStr) => {
+    if (!dateStr) return 'Agora';
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+  };
+
+  return (
+    <div className="flex-1 flex flex-col relative text-white h-full -mx-6 px-6">
+      <div className="sticky top-0 z-20 bg-[#051109] pt-4 pb-2 border-b border-[#1A4026]">
+        <div className="flex gap-4 overflow-x-auto custom-scrollbar pb-2">
+          {['populares', 'minhas postagens', 'seguindo'].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFeedTab(tab)}
+              className={`pb-1 text-sm font-medium whitespace-nowrap transition-colors border-b-2 ${
+                feedTab === tab 
+                  ? 'border-[#D4AF37] text-[#D4AF37]' 
+                  : 'border-transparent text-[#A0B3A6] hover:text-white'
+              }`}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar py-4 space-y-6 pb-32">
+        {loading ? (
+          <div className="text-center text-[#A0B3A6] py-10">Carregando feed...</div>
+        ) : posts.length === 0 ? (
+          <div className="text-center text-[#A0B3A6] py-10">Nenhuma postagem encontrada. Seja o primeiro a postar!</div>
+        ) : posts.map((post) => (
+           <div key={post.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+             <div className="flex justify-between items-start mb-3">
+               <div className="flex gap-3 items-center">
+                 <div className="w-10 h-10 rounded-full overflow-hidden border border-[#D4AF37]/30 flex-shrink-0 bg-[#1A3020]">
+                   {post.avatar ? (
+                     <img src={post.avatar} alt={post.user} className="w-full h-full object-cover" />
+                   ) : (
+                     <User size={20} className="m-auto mt-2 text-[#D4AF37]" />
+                   )}
+                 </div>
+                 <div>
+                   <h4 className="font-bold text-white leading-tight">{post.user}</h4>
+                   <span className="text-[10px] text-[#A0B3A6]">{formatTime(post.created_at)} • {post.tag}</span>
+                 </div>
+               </div>
+               <div className="relative">
+                 <button onClick={() => setOpenMenuId(openMenuId === post.id ? null : post.id)} className="text-[#A0B3A6] hover:text-[#D4AF37] p-1">
+                   <MoreVertical size={18} />
+                 </button>
+                 {openMenuId === post.id && post.user_id === profile.id && (
+                   <div className="absolute right-0 mt-1 w-24 bg-[#051109] border border-[#1A4026] rounded-xl shadow-lg z-10 overflow-hidden">
+                     <button onClick={() => handleDeletePost(post.id)} className="w-full text-left px-4 py-2 text-xs text-red-500 hover:bg-[#1A3020] transition-colors">Excluir</button>
+                   </div>
+                 )}
+               </div>
+             </div>
+
+             <p className="text-sm leading-relaxed mb-3 whitespace-pre-line text-gray-200">{post.content}</p>
+             
+             {post.image_url && (
+               <div className="mb-3 rounded-xl overflow-hidden border border-[#1A4026] bg-[#051109]">
+                 <img src={post.image_url} alt="Publicação" className="w-full max-h-80 object-cover" />
+               </div>
+             )}
+
+             <div className="flex items-center gap-6 pt-3 border-t border-[#1A4026]/50 text-[#A0B3A6]">
+               <button onClick={() => handleLike(post.id, post.isLiked)} className={`flex items-center gap-1.5 transition-colors ${post.isLiked ? 'text-[#D4AF37]' : 'hover:text-[#A0B3A6]'}`}>
+                 <Heart size={18} fill={post.isLiked ? '#D4AF37' : 'none'} className={post.isLiked ? 'text-[#D4AF37]' : ''} />
+                 <span className="text-xs font-medium">{post.likes}</span>
+               </button>
+               <button onClick={() => setActiveComment(activeComment === post.id ? null : post.id)} className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors">
+                 <MessageCircle size={18} />
+                 <span className="text-xs font-medium">{post.comments}</span>
+               </button>
+               <button onClick={() => handleShare(post)} className="flex items-center gap-1.5 hover:text-[#D4AF37] transition-colors ml-auto">
+                 <Send size={18} />
+               </button>
+             </div>
+
+             {activeComment === post.id && (
+               <div className="pt-4 flex flex-col gap-3 animate-in slide-in-from-top-2">
+                 <div className="max-h-48 overflow-y-auto custom-scrollbar flex flex-col gap-3 pr-1">
+                   {post.commentsList?.map(c => (
+                     <div key={c.id} className="flex gap-2 items-start">
+                       <div className="w-8 h-8 rounded-full bg-[#1A3020] flex-shrink-0 overflow-hidden border border-[#D4AF37]/20">
+                         {c.user_avatar ? <img src={c.user_avatar} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-1.5 text-[#D4AF37]" />}
+                       </div>
+                       <div className="flex-1 relative pt-0.5">
+                         <span className="text-[#D4AF37] text-[11px] font-bold mr-2">{c.user_nome}</span>
+                         <span className="text-gray-300 text-xs break-words">{c.content}</span>
+                       </div>
+                     </div>
+                   ))}
+                   {post.commentsList?.length === 0 && <p className="text-[#A0B3A6] text-xs text-center pb-2">Nenhum comentário ainda. Seja o primeiro!</p>}
+                 </div>
+                 
+                 <div className="flex gap-2 items-center mt-2">
+                   <div className="w-8 h-8 rounded-full bg-[#1A3020] flex-shrink-0 overflow-hidden border border-[#D4AF37]/20 hidden sm:block">
+                     {profile?.foto_url ? <img src={profile.foto_url} className="w-full h-full object-cover" /> : <User size={16} className="m-auto mt-1.5 text-[#D4AF37]" />}
+                   </div>
+                   <input
+                     type="text"
+                     value={commentText}
+                     onChange={(e) => setCommentText(e.target.value)}
+                     placeholder="Escreva um comentário..."
+                     className="flex-1 bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-full text-xs outline-none focus:border-[#D4AF37]"
+                     autoFocus
+                     onKeyDown={(e) => e.key === 'Enter' && handleAddComment(post.id)}
+                   />
+                   <button
+                     onClick={() => handleAddComment(post.id)}
+                     disabled={!commentText.trim()}
+                     className="bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-50 active:scale-95 flex-shrink-0"
+                   >
+                     <Send size={14} className="ml-0.5" />
+                   </button>
+                 </div>
+               </div>
+             )}
+           </div>
+         ))}
+       </div>
+
+       <button 
+         onClick={() => setIsPosting(true)}
+         className="absolute bottom-20 right-6 w-14 h-14 bg-gradient-to-r from-[#CFB375] to-[#AC915B] rounded-full flex items-center justify-center text-[#051109] shadow-[0_0_20px_rgba(212,175,55,0.4)] active:scale-95 transition-transform z-30"
+       >
+         <Edit2 size={24} />
+       </button>
+
+       {isPosting && (
+         <div className="absolute inset-0 z-50 bg-[#051109]/95 backdrop-blur-sm flex flex-col p-6 animate-in fade-in zoom-in-95 duration-200">
+           <div className="flex items-center justify-between mb-6 pt-4">
+             <h3 className="text-xl font-bold text-[#D4AF37] playfair italic">Nova Postagem</h3>
+             <button onClick={() => { setIsPosting(false); setNewPostImage(null); setNewPostText(''); }} className="text-[#A0B3A6] hover:text-white p-2 bg-[#1A3020] rounded-full">
+               <X size={18} />
+             </button>
+           </div>
+           
+           <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4">
+             <textarea
+               value={newPostText}
+               onChange={(e) => setNewPostText(e.target.value)}
+               placeholder="Compartilhe suas conquistas, dúvidas ou pensamentos..."
+               className="w-full h-48 bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:outline-none focus:border-[#D4AF37] resize-none text-sm custom-scrollbar"
+               autoFocus
+             />
+             
+             <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-[#1A4026] bg-[#0A1A10] p-6 rounded-xl text-[#A0B3A6] cursor-pointer hover:border-[#D4AF37] hover:text-[#D4AF37] transition-colors">
+               <ImageIcon size={28} />
+               <span className="text-sm font-medium text-center">
+                 {newPostImage ? newPostImage.name : 'Clique aqui para adicionar uma foto'}
+               </span>
+               <input type="file" accept="image/*" className="hidden" onChange={(e) => setNewPostImage(e.target.files[0])} />
+             </label>
+           </div>
+
+           <button
+             onClick={handlePost}
+             disabled={!newPostText.trim() && !newPostImage}
+             className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-3 rounded-xl mt-4 mb-16 active:scale-95 transition-transform disabled:opacity-50"
+           >
+             Publicar no Feed
+           </button>
+         </div>
+       )}
     </div>
   );
 };
@@ -1234,9 +1385,7 @@ const Notificacoes = () => {
 
   const marcarComoLida = async (id) => {
     const { error } = await supabase.from('notificacoes').update({ lida: true }).eq('id', id);
-    if (!error) {
-      loadNotificacoes();
-    }
+    if (!error) loadNotificacoes();
   };
 
   return (
@@ -1268,7 +1417,6 @@ const Notificacoes = () => {
   );
 };
 
-// --- ÁREA ADMINISTRATIVA ---
 const AdminPanel = ({ onExitAdmin }) => {
   const [adminTab, setAdminTab] = useState('evolucao');
   const [gestaoView, setGestaoView] = useState('menu');
@@ -1310,18 +1458,8 @@ const AdminPanel = ({ onExitAdmin }) => {
       return;
     }
     setStatusMsg('Enviando...');
-    const { error } = await supabase.from('notificacoes').insert([{
-      user_id: alunoSelecionado,
-      mensagem: mensagem,
-      lida: false
-    }]);
-    
-    if (!error) {
-      setStatusMsg('Mensagem enviada!');
-      setMensagem('');
-    } else {
-      setStatusMsg('Erro ao enviar.');
-    }
+    const { error } = await supabase.from('notificacoes').insert([{ user_id: alunoSelecionado, mensagem: mensagem, lida: false }]);
+    if (!error) { setStatusMsg('Mensagem enviada!'); setMensagem(''); } else { setStatusMsg('Erro ao enviar.'); }
     setTimeout(() => setStatusMsg(''), 3000);
   };
 
@@ -1373,28 +1511,18 @@ const AdminPanel = ({ onExitAdmin }) => {
       <GlobalStyles />
       <div className="px-6 py-4 pt-[calc(1.5rem+env(safe-area-inset-top))] border-b border-[#1A4026] flex items-center justify-between shrink-0">
         <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic">Área Administrativa</h2>
-        <button onClick={onExitAdmin} className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95">
-          <LogOut size={18} />
-        </button>
+        <button onClick={onExitAdmin} className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95"><LogOut size={18} /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar pb-24">
-        {/* TAB: EVOLUÇÃO DE ALUNO */}
         {adminTab === 'evolucao' && (
           <div className="space-y-6">
             <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Evolução de Aluno</h3>
-            
             <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
               <label className="text-xs text-[#A0B3A6] mb-2 block">Selecione o Aluno</label>
-              <select
-                className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg focus:border-[#D4AF37] outline-none"
-                value={alunoSelecionado}
-                onChange={(e) => setAlunoSelecionado(e.target.value)}
-              >
+              <select className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg focus:border-[#D4AF37] outline-none" value={alunoSelecionado} onChange={(e) => setAlunoSelecionado(e.target.value)}>
                 <option value="">Selecione um aluno...</option>
-                {alunos.map(a => (
-                  <option key={a.id} value={a.id}>{a.nome || a.email}</option>
-                ))}
+                {alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}
               </select>
             </div>
 
@@ -1419,13 +1547,7 @@ const AdminPanel = ({ onExitAdmin }) => {
                     <div>
                       <Edit2 className="mx-auto text-[#D4AF37] mb-2" size={24} />
                       <span className="text-sm font-medium block text-center mb-2">Enviar Mensagem</span>
-                      <textarea 
-                        value={mensagem}
-                        onChange={e => setMensagem(e.target.value)}
-                        placeholder="Digite a mensagem..."
-                        className="w-full bg-[#051109] border border-[#1A4026] text-white p-2 rounded-lg text-xs outline-none resize-none mb-2 custom-scrollbar"
-                        rows="2"
-                      />
+                      <textarea value={mensagem} onChange={e => setMensagem(e.target.value)} placeholder="Digite a mensagem..." className="w-full bg-[#051109] border border-[#1A4026] text-white p-2 rounded-lg text-xs outline-none resize-none mb-2 custom-scrollbar" rows="2" />
                     </div>
                     <div>
                       <button onClick={handleEnviarMensagem} className="w-full bg-[#D4AF37] text-[#051109] font-bold py-1.5 rounded-lg text-xs active:scale-95">Enviar</button>
@@ -1461,28 +1583,23 @@ const AdminPanel = ({ onExitAdmin }) => {
           </div>
         )}
 
-        {/* TAB: HISTÓRICO */}
         {adminTab === 'historico' && (
           <div className="space-y-6">
             <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Histórico de Alunos</h3>
             <div className="space-y-3">
               <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Histórico de Treinos</h4><p className="text-xs text-[#A0B3A6]">Consultar treinos realizados</p></div>
-                <ChevronRight className="text-[#D4AF37]" size={20} />
+                <div><h4 className="font-medium">Histórico de Treinos</h4><p className="text-xs text-[#A0B3A6]">Consultar treinos realizados</p></div><ChevronRight className="text-[#D4AF37]" size={20} />
               </div>
               <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Histórico Alimentar/Dieta</h4><p className="text-xs text-[#A0B3A6]">Revisão de planos da nutrição</p></div>
-                <ChevronRight className="text-[#D4AF37]" size={20} />
+                <div><h4 className="font-medium">Histórico Alimentar/Dieta</h4><p className="text-xs text-[#A0B3A6]">Revisão de planos da nutrição</p></div><ChevronRight className="text-[#D4AF37]" size={20} />
               </div>
               <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Consulta de Registros Anteriores</h4><p className="text-xs text-[#A0B3A6]">Avaliação geral</p></div>
-                <ChevronRight className="text-[#D4AF37]" size={20} />
+                <div><h4 className="font-medium">Consulta de Registros Anteriores</h4><p className="text-xs text-[#A0B3A6]">Avaliação geral</p></div><ChevronRight className="text-[#D4AF37]" size={20} />
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB: GESTÃO FINANCEIRA */}
         {adminTab === 'financeiro' && (
           <div className="space-y-6">
             <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Gestão Financeira</h3>
@@ -1513,7 +1630,6 @@ const AdminPanel = ({ onExitAdmin }) => {
           </div>
         )}
 
-        {/* TAB: ACOMPANHAMENTO (GESTÃO DE TREINOS E ALUNOS) */}
         {adminTab === 'acompanhamento' && (
           <div className="space-y-6">
             <div className="flex items-center justify-between mb-4 border-l-2 border-[#D4AF37] pl-3">
@@ -1526,7 +1642,7 @@ const AdminPanel = ({ onExitAdmin }) => {
             {gestaoView === 'menu' && (
               <div className="space-y-3">
                 <button onClick={() => setGestaoView('desempenho')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
-                  <div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas reais</p></div><Activity className="text-[#D4AF37]" size={20} />
+                  <div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas</p></div><Activity className="text-[#D4AF37]" size={20} />
                 </button>
                 <button onClick={() => { setAdminTab('evolucao'); setAlunoSelecionado(''); }} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
                   <div className="text-left"><h4 className="font-medium">Histórico Individual</h4><p className="text-xs text-[#A0B3A6]">Fichas de cada aluno</p></div><User className="text-[#D4AF37]" size={20} />
@@ -1608,7 +1724,6 @@ const AdminPanel = ({ onExitAdmin }) => {
         )}
       </div>
 
-      {/* Menu Inferior (Padrão do App) */}
       <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-4 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <div className="flex justify-between items-center max-w-md mx-auto h-14">
           {[
@@ -1617,13 +1732,7 @@ const AdminPanel = ({ onExitAdmin }) => {
             { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
             { id: 'acompanhamento', label: 'Gestão', icon: FileText },
           ].map(tab => (
-            <NavItem 
-              key={tab.id} 
-              icon={tab.icon} 
-              label={tab.label} 
-              isActive={adminTab === tab.id} 
-              onClick={() => { setAdminTab(tab.id); setGestaoView('menu'); }} 
-            />
+            <NavItem key={tab.id} icon={tab.icon} label={tab.label} isActive={adminTab === tab.id} onClick={() => { setAdminTab(tab.id); setGestaoView('menu'); }} />
           ))}
         </div>
       </nav>
@@ -1643,7 +1752,7 @@ const NavBar = () => {
   const navItems = [
     { id: 'inicio', icon: Home, label: 'Início' },
     { id: 'modalidades', icon: Dumbbell, label: 'Treinos' },
-    { id: 'planos', icon: ClipboardList, label: 'Planos' },
+    { id: 'feed', icon: MessageCircle, label: 'Feed' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
     { id: 'agua', icon: Droplets, label: 'Água' },
     { id: 'perfil', icon: User, label: 'Perfil' }
@@ -1660,8 +1769,6 @@ const NavBar = () => {
   );
 };
 
-
-// --- O SEU COMPONENTE APP ORIGINAL ---
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -1670,10 +1777,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [adminView, setAdminView] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
-  const [isOnboardingCompleted, setIsOnboardingCompleted] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [showTransition, setShowTransition] = useState(false);
 
   useEffect(() => {
-    // Define o idioma e bloqueia a tradução automática do navegador
     document.documentElement.lang = 'pt-BR';
     document.documentElement.setAttribute('translate', 'no');
     let metaGoogle = document.querySelector('meta[name="google"]');
@@ -1684,7 +1791,6 @@ export default function App() {
     }
     metaGoogle.content = 'notranslate';
 
-    // Injetar Ícone e Configurações de PWA (Web/App)
     const appName = "Corpo em movimento";
     document.title = appName;
 
@@ -1743,10 +1849,7 @@ export default function App() {
 
   const loadProfile = async (userId, userEmail, userMetadata = {}) => {
     try {
-      const { data, error } = await supabase
-        .from('profiles').select('*').eq('id', userId).single();
-
-      // Verifica se a tabela não existe (PGRST205) ou erro similar
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).single();
       const isMissingTable = error?.code === 'PGRST205' || error?.message?.includes('not find the table') || error?.code === '404';
 
       if (error && error.code !== 'PGRST116' && !isMissingTable) throw error;
@@ -1757,92 +1860,77 @@ export default function App() {
         const cpf = userMetadata?.cpf || null;
         const data_nascimento = userMetadata?.data_nascimento || null;
         const cidade_estado = userMetadata?.cidade_estado || null;
-        
-        // Define 'corpoemmovimento.adm@gmail.com' como admin para testar facilmente
         const is_admin = userEmail === 'corpoemmovimento.adm@gmail.com';
 
-        const localProfile = { 
-            id: userId, 
-            email: userEmail || '', 
-            nome,
-            phone,
-            cpf,
-            data_nascimento,
-            cidade_estado,
-            is_admin
-        };
+        const localProfile = { id: userId, email: userEmail || '', nome, phone, cpf, data_nascimento, cidade_estado, is_admin };
 
         if (!isMissingTable) {
-          // Tabela existe mas usuário não, tenta inserir
-          const { data: np, error: insertError } = await supabase
-            .from('profiles')
-            .insert([localProfile])
-            .select().single();
-            
-          if (!insertError && np) {
-            setProfile(np);
-            if (np.is_admin) setAdminView(true);
-          } else {
-            setProfile(localProfile);
-            if (localProfile.is_admin) setAdminView(true);
-          }
+          const { data: np, error: insertError } = await supabase.from('profiles').insert([localProfile]).select().single();
+          if (!insertError && np) { setProfile(np); if (np.is_admin) setAdminView(true); } 
+          else { setProfile(localProfile); if (localProfile.is_admin) setAdminView(true); }
         } else {
-          // Tabela não existe, usa os dados do metadata em memória para não travar o app
-          setProfile(localProfile);
-          if (localProfile.is_admin) setAdminView(true);
+          setProfile(localProfile); if (localProfile.is_admin) setAdminView(true);
         }
       } else {
-        if (userEmail === 'corpoemmovimento.adm@gmail.com') {
-          data.is_admin = true;
-        }
+        if (userEmail === 'corpoemmovimento.adm@gmail.com') data.is_admin = true;
         setProfile(data);
         if (data && data.is_admin) setAdminView(true);
       }
 
-      // Check onboarding completion
-      const localOnboardingCompleted = localStorage.getItem(`onboarding_completed_${userId}`) === 'true';
-      let hasOnboarding = false;
-      try {
-        const { data: onboardingData } = await supabase
-          .from('onboarding_respostas')
-          .select('id')
-          .eq('user_id', userId)
-          .single();
-          
-        if (onboardingData && !Array.isArray(onboardingData)) hasOnboarding = true;
-        if (Array.isArray(onboardingData) && onboardingData.length > 0) hasOnboarding = true;
-      } catch(e) {
-        hasOnboarding = false;
-      }
-      setIsOnboardingCompleted(hasOnboarding || localOnboardingCompleted || (userEmail === 'corpoemmovimento.adm@gmail.com') || userMetadata?.onboarding_completed);
-
-      const { count, error: notifError } = await supabase
-        .from('notificacoes')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId).eq('lida', false);
-        
-      if (!notifError) {
-        setNotifCount(count || 0);
+      const storedOnboarding = localStorage.getItem(`onboarding_${userId}`);
+      if (storedOnboarding) {
+        setNeedsOnboarding(false);
       } else {
-        setNotifCount(0); // Ignora se a tabela não existir
+        const { data: onbData } = await supabase.from('onboarding_respostas').select('id').eq('user_id', userId).single();
+        if (onbData) {
+          localStorage.setItem(`onboarding_${userId}`, 'true');
+          setNeedsOnboarding(false);
+        } else {
+          setNeedsOnboarding(true);
+        }
       }
+
+      const { count, error: notifError } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('lida', false);
+      if (!notifError) setNotifCount(count || 0); else setNotifCount(0);
+      
     } catch (err) {
       console.error('Erro ao carregar perfil:', err);
-      // Fallback final para não bloquear o acesso
-      const fallbackProfile = {
-        id: userId, 
-        email: userEmail || '', 
-        nome: userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário',
-        phone: userMetadata?.phone || null,
-        is_admin: userEmail === 'corpoemmovimento.adm@gmail.com'
-      };
+      const fallbackProfile = { id: userId, email: userEmail || '', nome: userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário', phone: userMetadata?.phone || null, is_admin: userEmail === 'corpoemmovimento.adm@gmail.com' };
       setProfile(fallbackProfile);
       if (fallbackProfile.is_admin) setAdminView(true);
-      const localOnboardingCompleted = localStorage.getItem(`onboarding_completed_${userId}`) === 'true';
-      setIsOnboardingCompleted(fallbackProfile.is_admin || localOnboardingCompleted);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFinishOnboarding = async (data) => {
+    setNeedsOnboarding(false);
+    setShowTransition(true);
+    localStorage.setItem(`onboarding_${profile.id}`, 'true');
+
+    await supabase.from('onboarding_respostas').insert([{
+      user_id: profile.id,
+      genero: data.genero,
+      objetivo: data.objetivo,
+      meta_peso: data.meta ? Number(data.meta) : null,
+      nivel_atividade: data.nivel,
+      desafios: data.desafios,
+      estrutura: data.estrutura,
+      disponibilidade: data.dias,
+      termos_aceitos: data.termos
+    }]);
+
+    await supabase.from('profiles').update({
+      nome: data.nome,
+      altura: data.altura ? Number(data.altura) : null,
+      peso_atual: data.peso ? Number(data.peso) : null
+    }).eq('id', profile.id);
+
+    setProfile({ ...profile, nome: data.nome, altura: data.altura, peso_atual: data.peso });
+
+    setTimeout(() => {
+      setShowTransition(false);
+    }, 3000);
   };
 
   const handleLogout = async () => {
@@ -1889,55 +1977,29 @@ export default function App() {
     <AppContext.Provider value={ctx}>
       <div className="min-h-screen bg-[#051109] flex items-center justify-center sm:p-4">
         <div className="w-full h-screen sm:h-[852px] sm:max-w-[393px] flex flex-col relative overflow-hidden sm:rounded-[3rem] sm:border-[8px] sm:border-black shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-[#051109] text-white">
-
-          <div className="absolute inset-0 z-0 opacity-10 pointer-events-none bg-cover bg-center"
-               style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop")' }} />
+          <div className="absolute inset-0 z-0 opacity-10 pointer-events-none bg-cover bg-center" style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop")' }} />
           <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#143B21] to-transparent opacity-50 pointer-events-none z-0" />
 
           {!session ? (
             <Login />
+          ) : needsOnboarding ? (
+            <Onboarding profile={profile} onClose={() => setNeedsOnboarding(false)} onComplete={handleFinishOnboarding} />
+          ) : showTransition ? (
+            <OnboardingTransition nome={profile?.nome} onDone={() => setShowTransition(false)} />
           ) : profile?.is_admin && adminView ? (
             <AdminPanel onExitAdmin={() => setAdminView(false)} />
-          ) : !isOnboardingCompleted && !profile?.is_admin ? (
-            <Onboarding profile={profile} onComplete={() => setIsOnboardingCompleted(true)} />
           ) : (
             <>
               <header className="flex justify-between items-center px-6 py-4 pt-[calc(1rem+env(safe-area-inset-top))] relative z-10 flex-shrink-0">
-                <button
-                  className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95"
-                  onClick={() => { setActiveTab('perfil'); setSelectedModalidade(null); }}
-                >
-                  {profile?.foto_url ? (
-                    <img src={profile.foto_url} alt="Perfil" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-                      <User size={20} strokeWidth={1.5} />
-                    </div>
-                  )}
+                <button className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95" onClick={() => { setActiveTab('perfil'); setSelectedModalidade(null); }}>
+                  {profile?.foto_url ? <img src={profile.foto_url} alt="Perfil" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><User size={20} strokeWidth={1.5} /></div>}
                 </button>
-
-                <h1 className="text-xl text-center leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold">
-                  Corpo em<br />Movimento
-                </h1>
-
+                <h1 className="text-xl text-center leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold">Corpo em<br />Movimento</h1>
                 <div className="flex items-center gap-2">
-                  {profile?.is_admin && (
-                    <button
-                      onClick={() => setAdminView(true)}
-                      title="Área Administrativa"
-                      className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95 transition-transform"
-                    >
-                      <ShieldCheck size={18} />
-                    </button>
-                  )}
-                  <button 
-                    onClick={() => setActiveTab('notificacoes')}
-                    className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative transition-transform active:scale-95"
-                  >
+                  {profile?.is_admin && <button onClick={() => setAdminView(true)} title="Área Administrativa" className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95 transition-transform"><ShieldCheck size={18} /></button>}
+                  <button onClick={() => setActiveTab('notificacoes')} className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative transition-transform active:scale-95">
                     <Bell size={22} strokeWidth={2} />
-                    {notifCount > 0 && (
-                      <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#051109]" />
-                    )}
+                    {notifCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#051109]" />}
                   </button>
                 </div>
               </header>
@@ -1945,13 +2007,13 @@ export default function App() {
               <main className="flex-1 px-6 relative z-10 flex flex-col overflow-hidden">
                 {activeTab === 'inicio' && <Inicio />}
                 {activeTab === 'modalidades' && <Modalidades />}
+                {activeTab === 'feed' && <Feed />}
                 {activeTab === 'planos' && <Planos />}
                 {activeTab === 'progresso' && <Progresso />}
                 {activeTab === 'agua' && <Agua />}
                 {activeTab === 'perfil' && <Perfil />}
                 {activeTab === 'notificacoes' && <Notificacoes />}
               </main>
-
               <NavBar />
             </>
           )}
