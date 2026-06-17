@@ -367,7 +367,8 @@ const Login = () => {
 const Onboarding = ({ profile, onComplete }) => {
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [showWaitScreen, setShowWaitScreen] = useState(false);
+  
   const [formData, setFormData] = useState({
     nome: profile?.nome || '',
     genero: '',
@@ -382,193 +383,260 @@ const Onboarding = ({ profile, onComplete }) => {
     termos_aceitos: false
   });
 
-  const handleFinish = async () => {
-    setSaving(true);
-    try {
-      await supabase.from('profiles').update({
-        nome: formData.nome,
-        altura: formData.altura ? Number(formData.altura) : null,
-        peso_atual: formData.peso_atual ? Number(formData.peso_atual) : null
-      }).eq('id', profile.id);
-
-      await supabase.from('onboarding_respostas').insert([{
-        user_id: profile.id,
-        genero: formData.genero,
-        objetivo: formData.objetivo,
-        meta_peso: formData.meta_peso ? Number(formData.meta_peso) : null,
-        nivel_atividade: formData.nivel_atividade,
-        desafios: formData.desafios,
-        estrutura: formData.estrutura,
-        disponibilidade: formData.disponibilidade,
-        termos_aceitos: formData.termos_aceitos
-      }]);
-    } catch(e) { console.error(e); }
-
-    // Salva localmente para não pedir o questionário de novo ao recarregar a página
-    localStorage.setItem(`onboarding_completed_${profile.id}`, 'true');
-    
-    setTimeout(() => {
-      setShowSuccess(true);
-    }, 2500); // Exibe "Estamos procurando..." por 2.5 segundos
+  const toggleArrayItem = (field, value) => {
+    setFormData(prev => {
+      const arr = prev[field];
+      if (arr.includes(value)) return { ...prev, [field]: arr.filter(i => i !== value) };
+      return { ...prev, [field]: [...arr, value] };
+    });
   };
-
-  const renderOptions = (field, options, isMulti = false) => (
-    <div className="space-y-3">
-      {options.map(opt => {
-        const isSelected = isMulti ? formData[field].includes(opt) : formData[field] === opt;
-        return (
-          <button 
-            key={opt}
-            onClick={() => {
-              if (isMulti) {
-                 const curr = formData[field];
-                 if (curr.includes(opt)) setFormData({...formData, [field]: curr.filter(x => x !== opt)});
-                 else setFormData({...formData, [field]: [...curr, opt]});
-              } else {
-                 setFormData({...formData, [field]: opt});
-              }
-            }}
-            className={`w-full p-4 rounded-xl border text-left flex justify-between items-center transition-all active:scale-[0.98] ${isSelected ? 'border-[#D4AF37] bg-[#D4AF37]/10' : 'border-[#1A4026] bg-[#0A1A10]'}`}
-          >
-            <span className={`font-medium ${isSelected ? 'text-[#D4AF37]' : 'text-white'}`}>{opt}</span>
-            {isSelected && <Check size={20} className="text-[#D4AF37]" />}
-          </button>
-        )
-      })}
-    </div>
-  );
 
   const steps = [
     {
-      id: 'nome',
       title: 'Como vamos te chamar?',
-      render: () => (
-        <input type="text" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Seu nome ou apelido" />
-      )
-    },
-    { id: 'genero', title: 'Qual seu gênero?', options: ['Feminino', 'Masculino', 'Prefiro não dizer'] },
-    { id: 'objetivo', title: 'Seu principal objetivo?', options: ['Perder peso', 'Manter peso', 'Ganhar peso', 'Ganhar massa muscular', 'Ter estilo de vida mais ativo', 'Melhorar desempenho na corrida'] },
-    {
-      id: 'altura',
-      title: 'Qual sua altura (m)?',
-      render: () => (
-        <input type="number" step="0.01" value={formData.altura} onChange={e => setFormData({...formData, altura: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Ex: 1.75" />
-      )
-    },
-    {
-      id: 'peso_atual',
-      title: 'Quanto você pesa (kg)?',
-      render: () => (
-        <input type="number" step="0.1" value={formData.peso_atual} onChange={e => setFormData({...formData, peso_atual: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Ex: 75.5" />
-      )
-    },
-    {
-      id: 'meta_peso',
-      title: 'Qual sua meta de peso (kg)?',
-      render: () => (
-        <input type="number" step="0.1" value={formData.meta_peso} onChange={e => setFormData({...formData, meta_peso: e.target.value})} className="w-full bg-[#0A1A10] border border-[#1A4026] text-white px-4 py-4 rounded-xl focus:border-[#D4AF37] outline-none text-lg" placeholder="Ex: 70.0" />
-      )
-    },
-    { id: 'nivel_atividade', title: 'Qual seu nível de atividade atual?', options: ['Não muito ativo', 'Levemente ativo', 'Ativo', 'Bastante ativo'] },
-    { id: 'desafios', title: 'Quais desafios te impediram de atingir seus objetivos?', options: ['Falta de tempo', 'Dificuldade em seguir o treino', 'Dificuldade em seguir a dieta', 'Falta de progresso', 'Custo da alimentação saudável', 'Falta de organização com tempo', 'Falta de organização de dieta'], multi: true },
-    { id: 'estrutura', title: 'Qual estrutura você tem disponível?', options: ['Academia', 'Exercícios livres', 'Academia c/ poucos aparelhos'] },
-    { id: 'disponibilidade', title: 'Disponibilidade para treinar?', options: ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado'], multi: true },
-    {
-      id: 'termos',
-      title: 'Termos e Condições',
-      render: () => (
+      component: (
         <div className="space-y-4">
-          <div className="bg-[#0A1A10] border border-[#1A4026] p-4 rounded-xl text-sm text-[#A0B3A6] h-48 overflow-y-auto custom-scrollbar">
-            <p className="mb-2"><strong className="text-white">Termos de Uso e Política de Privacidade (LGPD)</strong></p>
-            <p className="mb-2">Ao continuar, você concorda que o Corpo em Movimento colete e processe seus dados de saúde (como peso, altura, metas e histórico de treinos) para personalizar sua experiência, montar seus treinos e acompanhar sua evolução.</p>
-            <p>Seus dados são confidenciais e protegidos de acordo com a Lei Geral de Proteção de Dados (LGPD). Você pode solicitar a exclusão da sua conta e dos seus dados a qualquer momento.</p>
+          <input type="text" value={formData.nome} onChange={e => setFormData({...formData, nome: e.target.value})} placeholder="Seu nome ou apelido" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
+        </div>
+      )
+    },
+    {
+      title: 'Qual seu gênero?',
+      component: (
+        <div className="space-y-3">
+          {['Feminino', 'Masculino', 'Prefiro não dizer'].map(opt => (
+            <button key={opt} onClick={() => setFormData({...formData, genero: opt})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.genero === opt ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+              <div className="flex justify-between items-center"><span>{opt}</span>{formData.genero === opt && <Check size={18}/>}</div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: 'Seu principal objetivo?',
+      component: (
+        <div className="space-y-3">
+          {[
+            { id: 'perder_peso', label: 'Perder peso', desc: 'Diminuindo o percentual de gordura' },
+            { id: 'manter_peso', label: 'Manter peso', desc: 'Focar em saúde e bem-estar' },
+            { id: 'ganhar_peso', label: 'Ganhar peso', desc: 'Aumento de volume geral' },
+            { id: 'massa_muscular', label: 'Ganhar massa muscular', desc: 'Foco em hipertrofia' },
+            { id: 'vida_ativa', label: 'Ter estilo de vida mais ativo', desc: 'Sair do sedentarismo' },
+            { id: 'corrida', label: 'Melhorar desempenho na corrida', desc: 'Foco em cardio e resistência' }
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setFormData({...formData, objetivo: opt.label})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.objetivo === opt.label ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+              <div className="flex justify-between items-center">
+                <div><span className="font-medium block">{opt.label}</span><span className="text-[10px] opacity-70 block mt-1">{opt.desc}</span></div>
+                {formData.objetivo === opt.label && <Check size={18}/>}
+              </div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: 'Qual sua altura? (m)',
+      component: (
+        <div className="space-y-4">
+          <input type="number" step="0.01" value={formData.altura} onChange={e => setFormData({...formData, altura: e.target.value})} placeholder="Ex: 1.75" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
+        </div>
+      )
+    },
+    {
+      title: 'Quanto você pesa? (kg)',
+      component: (
+        <div className="space-y-4">
+          <input type="number" step="0.1" value={formData.peso_atual} onChange={e => setFormData({...formData, peso_atual: e.target.value})} placeholder="Ex: 75.5" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
+        </div>
+      )
+    },
+    {
+      title: 'Qual sua meta de peso? (kg)',
+      component: (
+        <div className="space-y-4">
+          <input type="number" step="0.1" value={formData.meta_peso} onChange={e => setFormData({...formData, meta_peso: e.target.value})} placeholder="Ex: 70.0" className="w-full bg-[#0A1A10] border border-[#1A4026] text-white p-4 rounded-xl focus:border-[#D4AF37] outline-none text-center text-lg" autoFocus />
+        </div>
+      )
+    },
+    {
+      title: 'Nível de atividade atual?',
+      component: (
+        <div className="space-y-3">
+          {['Não muito ativo', 'Levemente ativo', 'Ativo', 'Bastante ativo'].map(opt => (
+            <button key={opt} onClick={() => setFormData({...formData, nivel_atividade: opt})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.nivel_atividade === opt ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+              <div className="flex justify-between items-center"><span>{opt}</span>{formData.nivel_atividade === opt && <Check size={18}/>}</div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: 'Desafios anteriores?',
+      component: (
+        <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+          <p className="text-[#A0B3A6] text-xs mb-2">Selecione todos que se aplicam:</p>
+          {['Falta de tempo', 'Dificuldade em seguir o treino', 'Dificuldade em seguir a dieta', 'Falta de progresso', 'Custo da alimentação saudável', 'Falta de organização com tempo', 'Falta de organização de dieta'].map(opt => (
+            <button key={opt} onClick={() => toggleArrayItem('desafios', opt)} className={`w-full p-3 rounded-xl border text-left transition-all ${formData.desafios.includes(opt) ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+              <div className="flex justify-between items-center text-sm"><span>{opt}</span>{formData.desafios.includes(opt) && <Check size={16}/>}</div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: 'Estrutura disponível?',
+      component: (
+        <div className="space-y-3">
+          {['Academia Completa', 'Academia c/ poucos aparelhos', 'Exercícios livres (Em casa)'].map(opt => (
+            <button key={opt} onClick={() => setFormData({...formData, estrutura: opt})} className={`w-full p-4 rounded-xl border text-left transition-all ${formData.estrutura === opt ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+              <div className="flex justify-between items-center"><span>{opt}</span>{formData.estrutura === opt && <Check size={18}/>}</div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: 'Disponibilidade (Dias/Semana)?',
+      component: (
+        <div className="space-y-2">
+          <p className="text-[#A0B3A6] text-xs mb-2">Selecione os dias que pretende treinar:</p>
+          {['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo'].map(opt => (
+            <button key={opt} onClick={() => toggleArrayItem('disponibilidade', opt)} className={`w-full p-3 rounded-xl border text-left transition-all ${formData.disponibilidade.includes(opt) ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}>
+              <div className="flex justify-between items-center text-sm"><span>{opt}</span>{formData.disponibilidade.includes(opt) && <Check size={16}/>}</div>
+            </button>
+          ))}
+        </div>
+      )
+    },
+    {
+      title: 'Termos de Uso (LGPD)',
+      component: (
+        <div className="space-y-4">
+          <div className="bg-[#0A1A10] border border-[#1A4026] p-4 rounded-xl h-48 overflow-y-auto custom-scrollbar text-xs text-[#A0B3A6]">
+            <p className="mb-2"><strong>Política de Privacidade e Proteção de Dados (LGPD)</strong></p>
+            <p className="mb-2">A sua privacidade é importante para nós. Coletamos essas informações exclusivamente para personalizar sua experiência no aplicativo "Corpo em Movimento", fornecendo treinos e planos alimentares adequados aos seus objetivos e biotipo.</p>
+            <p>Concordando com nossos termos, você autoriza o processamento desses dados. Você pode solicitar a exclusão da sua conta e de todos os dados vinculados a qualquer momento pelas configurações do perfil.</p>
           </div>
-          <label className="flex items-center gap-3 cursor-pointer p-2">
-            <div className={`w-6 h-6 rounded border flex items-center justify-center shrink-0 ${formData.termos_aceitos ? 'bg-[#D4AF37] border-[#D4AF37]' : 'border-[#1A4026] bg-[#0A1A10]'}`}>
-              {formData.termos_aceitos && <Check size={16} className="text-[#051109]" />}
-            </div>
-            <span className="text-sm text-white flex-1 leading-tight">Eu li e concordo com os Termos e Condições e a Política de Privacidade (LGPD).</span>
-            <input type="checkbox" className="hidden" checked={formData.termos_aceitos} onChange={e => setFormData({...formData, termos_aceitos: e.target.checked})} />
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input type="checkbox" checked={formData.termos_aceitos} onChange={e => setFormData({...formData, termos_aceitos: e.target.checked})} className="w-5 h-5 accent-[#D4AF37]" />
+            <span className="text-sm">Eu li e aceito os termos e condições.</span>
           </label>
         </div>
       )
     }
   ];
 
-  const currentStep = steps[step];
-  
   const canAdvance = () => {
-    if (currentStep.id === 'nome') return formData.nome.length > 2;
-    if (currentStep.id === 'altura') return formData.altura !== '';
-    if (currentStep.id === 'peso_atual') return formData.peso_atual !== '';
-    if (currentStep.id === 'meta_peso') return formData.meta_peso !== '';
-    if (currentStep.id === 'termos') return formData.termos_aceitos;
-    if (currentStep.multi) return formData[currentStep.id].length > 0;
-    return formData[currentStep.id] !== '';
+    switch(step) {
+      case 0: return formData.nome.trim() !== '';
+      case 1: return formData.genero !== '';
+      case 2: return formData.objetivo !== '';
+      case 3: return formData.altura !== '';
+      case 4: return formData.peso_atual !== '';
+      case 5: return formData.meta_peso !== '';
+      case 6: return formData.nivel_atividade !== '';
+      case 7: return formData.desafios.length > 0;
+      case 8: return formData.estrutura !== '';
+      case 9: return formData.disponibilidade.length > 0;
+      case 10: return formData.termos_aceitos;
+      default: return true;
+    }
   };
 
-  if (saving || showSuccess) {
+  const handleNext = () => {
+    if (canAdvance()) {
+      if (step < steps.length - 1) setStep(step + 1);
+      else handleFinish();
+    }
+  };
+
+  const handleFinish = async () => {
+    setSaving(true);
+    setShowWaitScreen(true);
+    
+    // 1. Atualizar Profile
+    await supabase.from('profiles').update({
+      nome: formData.nome,
+      altura: formData.altura ? Number(formData.altura) : null,
+      peso_atual: formData.peso_atual ? Number(formData.peso_atual) : null
+    }).eq('id', profile.id);
+
+    // 2. Salvar questionário na nova tabela onboarding_respostas
+    await supabase.from('onboarding_respostas').insert([{
+      user_id: profile.id,
+      genero: formData.genero,
+      objetivo: formData.objetivo,
+      meta_peso: formData.meta_peso ? Number(formData.meta_peso) : null,
+      nivel_atividade: formData.nivel_atividade,
+      desafios: formData.desafios,
+      estrutura: formData.estrutura,
+      disponibilidade: formData.disponibilidade,
+      termos_aceitos: formData.termos_aceitos
+    }]);
+
+    // Grava localmente para NUNCA mais exibir no aparelho
+    localStorage.setItem(`onboarding_completed_${profile.id}`, 'true');
+
+    // Aguarda um tempo para simular a montagem do treino e visualização da tela de espera
+    setTimeout(() => {
+      onComplete(formData);
+    }, 3000);
+  };
+
+  if (showWaitScreen) {
     return (
-      <div className="flex-1 flex flex-col text-white relative z-10 w-full h-full bg-[#051109] px-6 py-8 pt-16">
-        {!showSuccess ? (
-          <div className="flex flex-col items-center justify-center flex-1">
-            <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin mb-8" />
-            <h2 className="text-2xl font-bold text-[#D4AF37] text-center leading-snug">Estamos procurando uma jornada ideal para você...</h2>
+      <div className="absolute inset-0 z-50 bg-[#F5F5F5] flex flex-col items-center justify-center p-6" style={{ fontFamily: 'sans-serif' }}>
+        <div className="flex-1 flex flex-col items-center justify-center w-full">
+          <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center mb-6 text-orange-500 animate-pulse">
+            <Check size={32} strokeWidth={2.5} />
           </div>
-        ) : (
-          <div className="flex flex-col items-center justify-between flex-1 w-full pt-20 pb-4">
-            <div className="flex flex-col items-center mt-16">
-              <div className="w-24 h-24 bg-[#D4AF37]/10 rounded-full flex items-center justify-center mb-6 shadow-[0_0_50px_rgba(212,175,55,0.2)]">
-                <div className="w-14 h-14 bg-gradient-to-r from-[#CFB375] to-[#AC915B] rounded-full flex items-center justify-center text-[#051109]">
-                  <Check size={32} strokeWidth={3} />
-                </div>
-              </div>
-              <h2 className="text-2xl font-bold text-white text-center px-4 leading-snug">
-                {formData.nome.split(' ')[0] || 'Aluno'}, encontramos seu treino ideal!
-              </h2>
-            </div>
-            <div className="w-full mt-auto">
-              <button 
-                onClick={() => onComplete()}
-                className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-4 rounded-xl active:scale-95 transition-transform shadow-[0_0_20px_rgba(212,175,55,0.3)]"
-              >
-                Acessar meu treino
-              </button>
-            </div>
-          </div>
-        )}
+          <h2 className="text-2xl font-bold text-gray-900 text-center leading-tight mb-2">
+            {formData.nome.split(' ')[0]}, encontramos seu<br/>treino ideal!
+          </h2>
+        </div>
+        <div className="w-full pb-8">
+          <button 
+            onClick={() => onComplete(formData)}
+            className="w-full bg-[#FF4500] text-white font-bold py-4 rounded-xl active:scale-95 transition-transform text-lg shadow-lg"
+          >
+            Acessar meu treino
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col text-white relative z-10 w-full h-full bg-[#051109] px-6 py-8 pt-16">
-      <div className="flex items-center justify-between mb-4">
-        <button onClick={() => setStep(Math.max(0, step - 1))} className={`text-[#D4AF37] flex items-center gap-1 transition-opacity ${step === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-          <ChevronLeft size={20} /> Voltar
-        </button>
-        <span className="text-[#A0B3A6] text-sm font-medium">{step + 1} de {steps.length}</span>
-        <button onClick={() => onComplete()} className="text-[#A0B3A6] hover:text-[#D4AF37] transition-colors" title="Fechar questionário">
+    <div className="flex-1 flex flex-col p-6 text-white relative z-20 bg-[#051109] h-full pt-12">
+      {/* Header com X e Progresso */}
+      <div className="flex items-center justify-between mb-8">
+        <button onClick={() => { localStorage.setItem(`onboarding_completed_${profile.id}`, 'true'); onComplete(formData); }} className="text-[#A0B3A6] hover:text-white transition-colors">
           <X size={24} />
         </button>
+        <span className="text-[#A0B3A6] text-xs font-medium bg-[#1A3020] px-3 py-1 rounded-full">
+          {step + 1} de {steps.length}
+        </span>
       </div>
 
-      <div className="w-full bg-[#1A4026] h-1.5 rounded-full mb-8 overflow-hidden shrink-0">
-        <div className="bg-[#D4AF37] h-full transition-all duration-300" style={{width: `${((step + 1) / steps.length) * 100}%`}}></div>
+      <div className="flex-1 overflow-y-auto pb-20 custom-scrollbar pr-2">
+        <h2 className="text-2xl font-bold text-[#D4AF37] mb-6 leading-tight">
+          {steps[step].title}
+        </h2>
+        {steps[step].component}
       </div>
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar pb-24">
-        <h2 className="text-2xl font-bold text-[#D4AF37] mb-8 pr-4">{currentStep.title}</h2>
-        {currentStep.render ? currentStep.render() : renderOptions(currentStep.id, currentStep.options, currentStep.multi)}
-      </div>
-
-      <div className="pt-4 mt-auto">
+      <div className="pt-4 border-t border-[#1A4026] flex gap-3 pb-8 shrink-0">
+        {step > 0 && (
+          <button onClick={() => setStep(step - 1)} className="w-14 h-14 rounded-xl border border-[#1A4026] flex items-center justify-center text-[#A0B3A6] active:scale-95">
+            <ChevronLeft size={24} />
+          </button>
+        )}
         <button 
-          onClick={step === steps.length - 1 ? handleFinish : () => setStep(step + 1)}
+          onClick={handleNext} 
           disabled={!canAdvance() || saving}
-          className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-4 rounded-xl active:scale-95 transition-transform disabled:opacity-50 disabled:scale-100 shadow-[0_0_20px_rgba(212,175,55,0.3)]"
+          className="flex-1 bg-[#D4AF37] text-[#051109] font-bold text-lg rounded-xl flex items-center justify-center active:scale-95 disabled:opacity-50 transition-all"
         >
-          {saving ? 'Salvando...' : step === steps.length - 1 ? 'Concluir' : 'Continuar'}
+          {saving ? 'Registrando...' : (step === steps.length - 1 ? 'Concluir Cadastro' : 'Continuar')}
         </button>
       </div>
     </div>
@@ -577,142 +645,144 @@ const Onboarding = ({ profile, onComplete }) => {
 
 const Inicio = () => {
   const { profile, setActiveTab, setSelectedModalidade, registrarConquista } = useApp();
-  const scrollRef = React.useRef(null);
-  const [estatisticas, setEstatisticas] = useState({ sequencia: 0, treinosMes: 0, metaMes: 20 });
-
-  const dicasFit = [
-    { id: 1, titulo: "Nova descoberta sobre hipertrofia e descanso", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
-    { id: 2, titulo: "Alimentação pré-treino: O que realmente funciona?", img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&auto=format&fit=crop&q=60" },
-    { id: 3, titulo: "Os benefícios ocultos da hidratação constante", img: "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=500&auto=format&fit=crop&q=60" }
-  ];
+  const [onboardingData, setOnboardingData] = useState(null);
 
   useEffect(() => {
-    const fetchTreinos = async () => {
+    const fetchOnboarding = async () => {
       if (!profile?.id) return;
-      const { data, error } = await supabase.from('treinos_realizados').select('*').eq('user_id', profile.id);
-      
-      if (!error && data) {
-        const hoje = new Date();
-        const mesAtual = data.filter(d => {
-          const dData = new Date(d.created_at);
-          return dData.getMonth() === hoje.getMonth() && dData.getFullYear() === hoje.getFullYear();
-        });
-
-        const datasUnicas = [...new Set(data.map(d => {
-          const dt = new Date(d.created_at);
-          return new Date(dt.getFullYear(), dt.getMonth(), dt.getDate()).getTime();
-        }))].sort((a, b) => b - a);
-
-        let seqReal = 0;
-        let dataReferencia = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
-        
-        if (datasUnicas.length > 0) {
-          if (datasUnicas[0] === dataReferencia) {
-            seqReal = 1;
-            dataReferencia -= 86400000;
-            for (let i = 1; i < datasUnicas.length; i++) {
-              if (datasUnicas[i] === dataReferencia) { seqReal++; dataReferencia -= 86400000; } else break;
-            }
-          } else if (datasUnicas[0] === dataReferencia - 86400000) {
-            seqReal = 1;
-            dataReferencia -= 86400000 * 2;
-            for (let i = 1; i < datasUnicas.length; i++) {
-              if (datasUnicas[i] === dataReferencia) { seqReal++; dataReferencia -= 86400000; } else break;
-            }
-          }
-        }
-
-        setEstatisticas({ sequencia: seqReal, treinosMes: mesAtual.length, metaMes: 20 });
-
-        if (seqReal === 1 && data.length === 1) registrarConquista("🎉 Conquista: Primeiro treino realizado!");
-        if (seqReal === 5) registrarConquista("🔥 Conquista: 5 dias seguidos!");
-        if (seqReal === 15) registrarConquista("🔥 Conquista: 15 dias seguidos!");
-        if (seqReal === 25) registrarConquista("🔥 Conquista: 25 dias seguidos!");
-        if (mesAtual.length >= 20) registrarConquista("🏆 Conquista: Meta mensal concluída!");
+      const { data } = await supabase.from('onboarding_respostas').select('*').eq('user_id', profile.id).single();
+      if (data) {
+        setOnboardingData(data);
       }
     };
-    fetchTreinos();
-  }, [profile, registrarConquista]);
+    fetchOnboarding();
+  }, [profile]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (scrollRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-        if (scrollLeft >= scrollWidth - clientWidth - 10) {
-          scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          scrollRef.current.scrollBy({ left: 216, behavior: 'smooth' });
-        }
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+  // Cálculo base simulado usando os dados do Onboarding
+  const caloriasMeta = onboardingData?.objetivo?.toLowerCase().includes('perder') ? 1500 : onboardingData?.objetivo?.toLowerCase().includes('massa') ? 2800 : 2000;
+  const pesoAtual = profile?.peso_atual || '--';
+  const metaPeso = onboardingData?.meta_peso || '--';
 
   return (
-    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
-      <div className="mb-4 pt-4">
-        <h2 className="text-[#D4AF37] text-xl font-serif mb-2">Bem-vindo de volta!</h2>
-        <p className="text-[#A0B3A6] text-sm">Pronto para superar seus limites hoje?</p>
-      </div>
-      
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-          <Flame size={28} className="text-[#D4AF37] mb-1" />
-          <span className="text-xl font-bold">{estatisticas.sequencia}</span>
-          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Sequência (Dias)</span>
-        </div>
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-          <Target size={28} className="text-[#D4AF37] mb-1" />
-          <span className="text-xl font-bold">{Math.min(Math.round((estatisticas.treinosMes / estatisticas.metaMes) * 100), 100)}%</span>
-          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Meta do Mês</span>
-        </div>
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-          <ClipboardList size={28} className="text-[#D4AF37] mb-1" />
-          <span className="text-xl font-bold">{estatisticas.treinosMes}/{estatisticas.metaMes}</span>
-          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Treinos Realizados</span>
-        </div>
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex flex-col items-center justify-center text-center">
-          <Activity size={28} className="text-[#D4AF37] mb-1" />
-          <span className="text-xl font-bold">{profile?.peso_atual ? `${profile.peso_atual} kg` : 'N/A'}</span>
-          <span className="text-[#A0B3A6] text-[10px] uppercase tracking-wider">Peso Atual</span>
-        </div>
-      </div>
-
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3">Próximo Treino</h3>
-        <div className="flex items-center gap-4 mb-3">
-          <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-            <Dumbbell size={24} />
-          </div>
-          <div>
-            <h4 className="font-medium">Modalidade Recomendada</h4>
-            <p className="text-[#A0B3A6] text-xs">Acesse para iniciar a fase</p>
-          </div>
-        </div>
-        <button onClick={() => {
-            setActiveTab('modalidades');
-        }} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2">
-            Ver Treinos <ChevronRight size={18} />
+    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24 text-white">
+      {/* Cabeçalho "Hoje" */}
+      <div className="flex justify-between items-center mt-4 mb-2">
+        <h2 className="text-3xl font-bold text-white tracking-tight">Hoje</h2>
+        <button className="text-[#D4AF37] text-xs font-bold uppercase tracking-wider bg-[#1A3020] px-4 py-1.5 rounded-full active:scale-95 transition-transform">
+          Editar
         </button>
       </div>
 
-      <div className="mt-8">
-        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3 border-l-2 border-[#D4AF37] pl-2">Mundo Fit - Dicas</h3>
-        <div ref={scrollRef} className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-2 pr-2 snap-x snap-mandatory scroll-smooth">
-          {dicasFit.map(dica => (
-            <div key={dica.id} className="min-w-[200px] w-[200px] bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden flex-shrink-0 snap-start">
-              <div className="h-28 w-full relative">
-                <img src={dica.img} alt={dica.titulo} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0A1A10] to-transparent"></div>
-              </div>
-              <div className="p-3">
-                <h4 className="text-sm font-medium text-white line-clamp-2 leading-snug">{dica.titulo}</h4>
-                <p className="text-[#D4AF37] text-[10px] mt-2">Ver dica completa</p>
+      {/* Card Principal: Calorias */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 shadow-[0_4px_20px_rgba(0,0,0,0.4)]">
+        <div className="mb-5">
+          <h3 className="text-white font-bold text-lg leading-none mb-1">Calorias</h3>
+          <p className="text-[#A0B3A6] text-[10px]">Restantes = Meta - Alimentos + Exercício</p>
+        </div>
+        
+        <div className="flex items-center justify-between">
+          {/* Gráfico Circular */}
+          <div className="relative w-28 h-28 flex items-center justify-center shrink-0">
+            <svg className="w-full h-full transform -rotate-90">
+              <circle cx="56" cy="56" r="48" stroke="#1A3020" strokeWidth="8" fill="none" />
+              <circle cx="56" cy="56" r="48" stroke="#D4AF37" strokeWidth="8" fill="none" strokeDasharray="301" strokeDashoffset="0" strokeLinecap="round" />
+            </svg>
+            <div className="absolute flex flex-col items-center justify-center mt-1">
+              <span className="text-2xl font-bold text-white leading-none">{caloriasMeta}</span>
+              <span className="text-[10px] text-[#A0B3A6] uppercase font-medium mt-1">Restantes</span>
+            </div>
+          </div>
+
+          {/* Estatísticas (Lado Direito) */}
+          <div className="flex-1 ml-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <Target size={18} className="text-[#A0B3A6]" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-[#A0B3A6] font-medium leading-none mb-1">Meta base</span>
+                <span className="font-bold text-sm text-white leading-none">{caloriasMeta}</span>
               </div>
             </div>
-          ))}
+            <div className="flex items-center gap-3">
+              <ClipboardList size={18} className="text-[#D4AF37]" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-[#A0B3A6] font-medium leading-none mb-1">Alimentos</span>
+                <span className="font-bold text-sm text-white leading-none">0</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <Flame size={18} className="text-orange-500" />
+              <div className="flex flex-col">
+                <span className="text-[10px] text-[#A0B3A6] font-medium leading-none mb-1">Exercício</span>
+                <span className="font-bold text-sm text-white leading-none">0</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Banner / Dica */}
+      <div className="bg-gradient-to-r from-[#CFB375] to-[#AC915B] rounded-2xl p-3.5 flex flex-col justify-center text-[#051109] shadow-md my-2">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="bg-[#051109] text-[#D4AF37] text-[8px] font-extrabold px-2 py-0.5 rounded-sm uppercase tracking-widest">DICA FIT</span>
+        </div>
+        <h4 className="font-bold text-sm leading-tight">Foque no seu objetivo: {onboardingData?.objetivo || 'Saúde'}</h4>
+        <p className="text-[11px] font-medium opacity-80 leading-tight mt-0.5">Seus desafios incluem: {onboardingData?.desafios?.slice(0, 1).join(', ') || 'Nenhum'}. Mantenha o foco!</p>
+      </div>
+
+      {/* Cards Menores (Atividade e Exercício) */}
+      <div className="grid grid-cols-2 gap-4">
+        {/* Card Atividade */}
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-4 flex flex-col justify-between shadow-lg h-32">
+          <div className="flex justify-between items-start">
+            <h4 className="text-white font-bold text-sm">Atividade</h4>
+            <Activity size={18} className="text-pink-500" />
+          </div>
+          <div className="mt-2">
+            <p className="text-[#A0B3A6] text-[10px] uppercase font-medium mb-0.5">Seu Nível</p>
+            <p className="text-[#D4AF37] text-xs font-bold leading-tight line-clamp-2">
+              {onboardingData?.nivel_atividade || 'Não definido'}
+            </p>
+          </div>
+          <button className="text-[10px] text-[#A0B3A6] flex items-center gap-1 mt-auto font-medium">
+            Ver detalhes <ChevronRight size={12} />
+          </button>
+        </div>
+
+        {/* Card Exercício */}
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-4 flex flex-col shadow-lg relative h-32">
+          <button className="absolute top-3 right-3 text-[#D4AF37] hover:bg-[#1A3020] p-1 rounded-full transition-colors">
+            <Plus size={18} />
+          </button>
+          <h4 className="text-white font-bold text-sm mb-auto">Exercício</h4>
+          
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Flame size={16} className="text-orange-500" />
+              <span className="text-white text-sm font-bold leading-none">0 <span className="text-[#A0B3A6] text-xs font-normal">cal</span></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Calendar size={16} className="text-[#D4AF37]" />
+              <span className="text-white text-sm font-bold leading-none">0:00 <span className="text-[#A0B3A6] text-xs font-normal">h</span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card Peso */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 flex items-center justify-between shadow-lg">
+        <div className="flex flex-col">
+          <h4 className="text-white font-bold text-base mb-1">Peso</h4>
+          <p className="text-xs text-[#A0B3A6] font-medium mb-1">Atual: <span className="text-white">{pesoAtual} kg</span></p>
+          <span className="text-xs text-[#D4AF37] font-bold">Meta: {metaPeso} kg</span>
+        </div>
+        <button 
+          onClick={() => setActiveTab('progresso')} 
+          className="w-12 h-12 rounded-full bg-[#1A3020] text-[#D4AF37] flex items-center justify-center active:scale-95 transition-transform hover:bg-[#2A5036]"
+        >
+          <Plus size={24} />
+        </button>
+      </div>
+
     </div>
   );
 };
@@ -1681,14 +1751,15 @@ export default function App() {
 
       if (error && error.code !== 'PGRST116' && !isMissingTable) throw error;
 
-      let is_admin = userEmail === 'corpoemmovimento.adm@gmail.com';
-
       if (!data || isMissingTable) {
         const nome = userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário';
         const phone = userMetadata?.phone || null;
         const cpf = userMetadata?.cpf || null;
         const data_nascimento = userMetadata?.data_nascimento || null;
         const cidade_estado = userMetadata?.cidade_estado || null;
+        
+        // Define 'corpoemmovimento.adm@gmail.com' como admin para testar facilmente
+        const is_admin = userEmail === 'corpoemmovimento.adm@gmail.com';
 
         const localProfile = { 
             id: userId, 
@@ -1723,7 +1794,6 @@ export default function App() {
       } else {
         if (userEmail === 'corpoemmovimento.adm@gmail.com') {
           data.is_admin = true;
-          is_admin = true;
         }
         setProfile(data);
         if (data && data.is_admin) setAdminView(true);
@@ -1744,7 +1814,7 @@ export default function App() {
       } catch(e) {
         hasOnboarding = false;
       }
-      setIsOnboardingCompleted(hasOnboarding || localOnboardingCompleted || is_admin || userMetadata?.onboarding_completed);
+      setIsOnboardingCompleted(hasOnboarding || localOnboardingCompleted || (userEmail === 'corpoemmovimento.adm@gmail.com') || userMetadata?.onboarding_completed);
 
       const { count, error: notifError } = await supabase
         .from('notificacoes')
