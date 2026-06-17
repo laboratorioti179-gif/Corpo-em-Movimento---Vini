@@ -543,13 +543,19 @@ const Onboarding = ({ profile, onComplete }) => {
 
   return (
     <div className="flex-1 flex flex-col text-white relative z-10 w-full h-full bg-[#051109] px-6 py-8 pt-16">
-      <div className="w-full bg-[#1A4026] h-1.5 rounded-full mb-8 overflow-hidden">
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={() => setStep(Math.max(0, step - 1))} className={`text-[#D4AF37] flex items-center gap-1 transition-opacity ${step === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <ChevronLeft size={20} /> Voltar
+        </button>
+        <span className="text-[#A0B3A6] text-sm font-medium">{step + 1} de {steps.length}</span>
+        <button onClick={() => onComplete()} className="text-[#A0B3A6] hover:text-[#D4AF37] transition-colors" title="Fechar questionário">
+          <X size={24} />
+        </button>
+      </div>
+
+      <div className="w-full bg-[#1A4026] h-1.5 rounded-full mb-8 overflow-hidden shrink-0">
         <div className="bg-[#D4AF37] h-full transition-all duration-300" style={{width: `${((step + 1) / steps.length) * 100}%`}}></div>
       </div>
-      
-      <button onClick={() => setStep(Math.max(0, step - 1))} className={`text-[#D4AF37] flex items-center gap-1 mb-6 transition-opacity ${step === 0 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-        <ChevronLeft size={20} /> Voltar
-      </button>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pb-24">
         <h2 className="text-2xl font-bold text-[#D4AF37] mb-8 pr-4">{currentStep.title}</h2>
