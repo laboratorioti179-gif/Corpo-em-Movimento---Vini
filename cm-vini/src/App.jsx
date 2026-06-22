@@ -532,9 +532,10 @@ const OnboardingTransition = ({ nome, onDone }) => {
 };
 
 const Inicio = () => {
-  const { profile } = useApp();
+  const { profile, setActiveTab, setSelectedModalidade } = useApp();
   const [onbData, setOnbData] = useState(null);
   const [stats, setStats] = useState({ treinos: 0 });
+  const scrollRef = React.useRef(null);
 
   useEffect(() => {
     const loadInfo = async () => {
@@ -547,6 +548,20 @@ const Inicio = () => {
     if (profile?.id) loadInfo();
   }, [profile]);
 
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (scrollRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
+        if (scrollLeft >= scrollWidth - clientWidth - 10) {
+          scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          scrollRef.current.scrollBy({ left: 216, behavior: 'smooth' });
+        }
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, []);
+
   let goalCals = 2000;
   if (onbData?.objetivo === 'Perder peso') goalCals = 1500;
   if (onbData?.objetivo === 'Ganhar massa muscular') goalCals = 2500;
@@ -554,16 +569,21 @@ const Inicio = () => {
   const burnedCals = stats.treinos * 300; 
   const remaining = goalCals - 0 + burnedCals; 
 
+  const noticiasFit = [
+    { id: 1, titulo: "Nova descoberta sobre hipertrofia e descanso", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
+    { id: 2, titulo: "Alimentação pré-treino: O que realmente funciona?", img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&auto=format&fit=crop&q=60" },
+    { id: 3, titulo: "Os benefícios ocultos da hidratação constante", img: "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=500&auto=format&fit=crop&q=60" }
+  ];
+
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white pt-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold text-white">Hoje</h2>
-        <button className="text-[#D4AF37] text-sm font-medium">Editar</button>
       </div>
 
-      {/* Calories Card */}
+      {/* Medição nutritiva */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-5 shadow-lg">
-        <h3 className="text-white font-semibold mb-1">Calorias</h3>
+        <h3 className="text-[#D4AF37] font-semibold mb-1">Medição Nutritiva</h3>
         <p className="text-[#A0B3A6] text-[10px] mb-4">Restantes = Meta - Alimentos + Exercício</p>
         
         <div className="flex items-center justify-between">
@@ -601,47 +621,57 @@ const Inicio = () => {
         </div>
       </div>
 
-      {/* Passos & Exercício */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center justify-between shadow-lg active:scale-95 transition-transform cursor-pointer">
-          <div>
-            <h4 className="text-sm font-semibold mb-1">Passos</h4>
-            <div className="flex items-center gap-2 text-[#A0B3A6] text-xs">
-               <span className="text-pink-500">👟</span> Conecte-se...
-            </div>
-          </div>
-          <ChevronRight size={18} className="text-[#A0B3A6]" />
-        </div>
-        
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg flex flex-col justify-between">
-          <div className="flex justify-between items-center mb-2">
-             <h4 className="text-sm font-semibold">Exercício</h4>
-             <Plus size={16} className="text-[#D4AF37]" />
-          </div>
-          <div className="space-y-1">
-             <div className="flex items-center gap-2 text-sm"><Flame size={14} className="text-orange-500" /> <span className="font-bold">{burnedCals}</span> <span className="text-[#A0B3A6] text-xs">cal</span></div>
-             <div className="flex items-center gap-2 text-sm"><Activity size={14} className="text-blue-400" /> <span className="font-bold">0:00</span> <span className="text-[#A0B3A6] text-xs">h</span></div>
-          </div>
-        </div>
+      {/* Sugestão de treino */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg">
+         <h4 className="text-sm font-semibold mb-3 text-[#D4AF37]">Sugestão de Treino</h4>
+         <div className="flex items-center gap-4 mb-3">
+           <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+             <Dumbbell size={24} />
+           </div>
+           <div>
+             <h4 className="font-medium text-white">{onbData?.objetivo === 'Ganhar massa muscular' ? 'Body Builders' : 'Treino Funcional'}</h4>
+             <p className="text-[#A0B3A6] text-xs">Baseado no seu objetivo: {onbData?.objetivo || 'Saúde e bem-estar'}</p>
+           </div>
+         </div>
+         <button onClick={() => setActiveTab('modalidades')} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
+            Acessar Modalidades <ChevronRight size={16} />
+         </button>
       </div>
 
-      {/* Peso */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg flex justify-between items-center">
-         <div>
-           <h4 className="text-sm font-semibold mb-1">Peso</h4>
-           <p className="text-xs text-[#A0B3A6]">Últimos 90 dias</p>
-         </div>
-         <div className="flex items-center gap-4">
-           <span className="text-lg font-bold">{profile?.peso_atual ? `${profile.peso_atual} kg` : '-- kg'}</span>
-           <Plus size={20} className="text-[#D4AF37]" />
-         </div>
-      </div>
-      
-      {/* Meta */}
+      {/* Sugestão de nutrição */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg">
-         <h4 className="text-sm font-semibold mb-2 text-[#D4AF37]">Seu Objetivo</h4>
-         <p className="text-sm text-white">{onbData?.objetivo || 'Não definido'}</p>
-         <p className="text-xs text-[#A0B3A6] mt-1">Meta de Peso: {onbData?.meta_peso ? `${onbData.meta_peso} kg` : 'Não definido'}</p>
+         <h4 className="text-sm font-semibold mb-3 text-[#D4AF37]">Sugestão de Nutrição</h4>
+         <div className="flex items-center gap-4 mb-3">
+           <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+             <ClipboardList size={24} />
+           </div>
+           <div>
+             <h4 className="font-medium text-white">{onbData?.objetivo === 'Perder peso' ? 'Dieta de Déficit Calórico' : (onbData?.objetivo === 'Ganhar massa muscular' ? 'Dieta Hipercalórica' : 'Dieta de Manutenção')}</h4>
+             <p className="text-[#A0B3A6] text-xs">Meta diária recomendada: {goalCals} kcal</p>
+           </div>
+         </div>
+         <button onClick={() => setActiveTab('planos')} className="w-full bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
+            Ver Planos Alimentares <ChevronRight size={16} />
+         </button>
+      </div>
+
+      {/* Notícias */}
+      <div className="mt-8">
+        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3 border-l-2 border-[#D4AF37] pl-2">Mundo Fit - Notícias</h3>
+        <div ref={scrollRef} className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-2 pr-2 snap-x snap-mandatory scroll-smooth">
+          {noticiasFit.map(noticia => (
+            <div key={noticia.id} className="min-w-[200px] w-[200px] bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden flex-shrink-0 snap-start">
+              <div className="h-28 w-full relative">
+                <img src={noticia.img} alt={noticia.titulo} className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0A1A10] to-transparent"></div>
+              </div>
+              <div className="p-3">
+                <h4 className="text-sm font-medium text-white line-clamp-2 leading-snug">{noticia.titulo}</h4>
+                <p className="text-[#D4AF37] text-[10px] mt-2">Ler artigo</p>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -1073,12 +1103,14 @@ const Progresso = () => {
 };
 
 const Agua = () => {
-  const { registrarConquista } = useApp();
-  const [waterGoal, setWaterGoal] = useState(2000);
-  const [waterConsumed, setWaterConsumed] = useState(0);
-  const [waterInterval, setWaterInterval] = useState(60);
-  const [drinkSize, setDrinkSize] = useState(250);
-  const [conquistaRegistrada, setConquistaRegistrada] = useState(false);
+  const { 
+    registrarConquista,
+    waterGoal, setWaterGoal,
+    waterConsumed, setWaterConsumed,
+    waterInterval, setWaterInterval,
+    drinkSize, setDrinkSize,
+    conquistaRegistrada, setConquistaRegistrada
+  } = useApp();
   
   const fillPercentage = Math.min((waterConsumed / waterGoal) * 100, 100);
 
@@ -1760,8 +1792,8 @@ const NavBar = () => {
   return (
     <>
       <GlobalStyles />
-      <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-4 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-        <div className="flex justify-between items-center max-w-md mx-auto h-14">
+      <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-1 sm:px-4 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+        <div className="flex justify-between items-center max-w-md mx-auto h-14 min-w-[320px]">
           {navItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} isActive={activeTab === item.id} onClick={() => { setActiveTab(item.id); setSelectedModalidade(null); }} />)}
         </div>
       </nav>
@@ -1769,6 +1801,8 @@ const NavBar = () => {
   );
 };
 
+
+// --- O SEU COMPONENTE APP ORIGINAL ---
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
@@ -1779,6 +1813,12 @@ export default function App() {
   const [notifCount, setNotifCount] = useState(0);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
   const [showTransition, setShowTransition] = useState(false);
+  
+  const [waterGoal, setWaterGoal] = useState(2000);
+  const [waterConsumed, setWaterConsumed] = useState(0);
+  const [waterInterval, setWaterInterval] = useState(60);
+  const [drinkSize, setDrinkSize] = useState(250);
+  const [conquistaRegistrada, setConquistaRegistrada] = useState(false);
 
   useEffect(() => {
     document.documentElement.lang = 'pt-BR';
@@ -1971,6 +2011,11 @@ export default function App() {
     notifCount, setNotifCount,
     setAdminView,
     registrarConquista,
+    waterGoal, setWaterGoal,
+    waterConsumed, setWaterConsumed,
+    waterInterval, setWaterInterval,
+    drinkSize, setDrinkSize,
+    conquistaRegistrada, setConquistaRegistrada
   };
 
   return (
