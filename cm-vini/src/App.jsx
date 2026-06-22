@@ -633,8 +633,8 @@ const Inicio = () => {
              <p className="text-[#A0B3A6] text-xs">Baseado no seu objetivo: {onbData?.objetivo || 'Saúde e bem-estar'}</p>
            </div>
          </div>
-         <button onClick={() => setActiveTab('modalidades')} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
-            Acessar Modalidades <ChevronRight size={16} />
+         <button onClick={() => setActiveTab('planos')} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
+            Acessar Planos <ChevronRight size={16} />
          </button>
       </div>
 
@@ -968,15 +968,39 @@ const Feed = () => {
   );
 };
 
-const Planos = () => (
-  <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24 text-center flex flex-col items-center justify-center h-full pt-20">
-    <ClipboardList size={64} className="text-[#1A4026] mb-4" />
-    <h2 className="text-[#D4AF37] text-xl font-serif mb-2">Planos Alimentares</h2>
-    <p className="text-[#A0B3A6] text-sm max-w-[250px]">
-      Nenhum plano disponível no momento. Em breve novidades.
-    </p>
-  </div>
-);
+const Planos = () => {
+  const planosList = [
+    { id: 1, titulo: 'Plano Movimento', icon: Activity },
+    { id: 2, titulo: 'Plano Evolução', icon: TrendingUp },
+    { id: 3, titulo: 'Plano Performance', icon: Flame }
+  ];
+
+  return (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24 pt-4 text-white">
+      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
+        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Planos</h2>
+        <h3 className="text-white text-lg font-medium mb-1">Escolha seu plano</h3>
+        <p className="text-[#A0B3A6] text-xs max-w-[280px]">
+          Selecione o plano ideal para iniciar sua jornada e atingir seus objetivos.
+        </p>
+      </div>
+      
+      {planosList.map((plano) => (
+        <button key={plano.id} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center gap-4 transition-all active:scale-[0.98] hover:border-[#2A5036]">
+          <div className="w-14 h-14 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]">
+            <plano.icon size={26} strokeWidth={1.5} />
+          </div>
+          <div className="flex-1 text-left">
+            <h4 className="text-white text-base font-medium">{plano.titulo}</h4>
+          </div>
+          <div className="text-[#D4AF37] ml-2 opacity-80">
+            <ChevronRight size={18} strokeWidth={2} />
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+};
 
 const Progresso = () => {
   const { profile } = useApp();
@@ -1783,7 +1807,7 @@ const NavBar = () => {
   const { activeTab, setActiveTab, setSelectedModalidade } = useApp();
   const navItems = [
     { id: 'inicio', icon: Home, label: 'Início' },
-    { id: 'modalidades', icon: Dumbbell, label: 'Treinos' },
+    { id: 'planos', icon: Dumbbell, label: 'Planos' },
     { id: 'feed', icon: MessageCircle, label: 'Feed' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
     { id: 'agua', icon: Droplets, label: 'Água' },
