@@ -1108,6 +1108,7 @@ const Progresso = () => {
   const [progressoUser, setProgressoUser] = useState({ mes: '', peso: '', braco: '', cintura: '', coxa: '' });
   const [historico, setHistorico] = useState([]);
   const [statusMsg, setStatusMsg] = useState('');
+  const [humorSemanal, setHumorSemanal] = useState('');
 
   useEffect(() => {
     if (profile?.id) loadHistorico();
@@ -1160,16 +1161,30 @@ const Progresso = () => {
     setTimeout(() => setStatusMsg(''), 3000);
   };
 
+  const compartilharInstagram = () => {
+     // Apenas a funcionalidade nativa do dispositivo ativará compartilhamento externo real em PWA.
+     // Em Web View, este botão utiliza a Web Share API, se disponível.
+     if (navigator.share) {
+       navigator.share({
+         title: 'Minha Evolução - Corpo em Movimento',
+         text: 'Acabei de concluir mais um desafio no app Corpo em Movimento! 🏆💪'
+       }).catch(console.error);
+     } else {
+       alert("Compartilhamento nativo não suportado neste navegador. Salve a imagem ou tire print!");
+     }
+  };
+
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
       <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Evolução</h2>
         <h3 className="text-white text-lg font-medium mb-1">Seu Progresso Pessoal</h3>
       </div>
-      
+
+      {/* --- GRÁFICOS (Evolução de Peso) --- */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
          <div className="flex justify-between items-center mb-4">
-           <h4 className="font-medium text-[#D4AF37]">Histórico de Peso (kg)</h4>
+           <h4 className="font-medium text-[#D4AF37]">Gráficos - Histórico de Peso (kg)</h4>
            <span className="text-sm font-bold text-white">
              {historico.length > 0 ? `${historico[historico.length - 1].peso} kg` : '0 kg'}
            </span>
@@ -1189,9 +1204,87 @@ const Progresso = () => {
          </div>
       </div>
 
+      {/* --- CONTABILIZADORES (Movimento, Nutrição, Recuperação) --- */}
+      <div className="grid grid-cols-3 gap-3">
+         {/* Movimento */}
+         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 flex flex-col items-center justify-center text-center">
+            <Activity className="text-[#D4AF37] mb-2" size={24} />
+            <span className="text-sm font-bold">14 hrs</span>
+            <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Movimento</span>
+         </div>
+         
+         {/* Nutrição */}
+         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 flex flex-col items-center justify-center text-center">
+            <span className="text-[#D4AF37] text-2xl mb-1">🍽️</span>
+            <span className="text-sm font-bold">12k kcal</span>
+            <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Nutrição</span>
+         </div>
+         
+         {/* Recuperação (Sono) */}
+         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 flex flex-col items-center justify-center text-center">
+            <span className="text-[#D4AF37] text-2xl mb-1">🌙</span>
+            <span className="text-sm font-bold">48 hrs</span>
+            <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Recuperação</span>
+         </div>
+      </div>
+
+      {/* --- MENTALIDADE --- */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+        <h4 className="font-medium text-[#D4AF37] mb-3">Mentalidade da Semana</h4>
+        <div className="flex justify-between items-center gap-2">
+          {['Empolgada', 'Feliz', 'Triste'].map((humor) => (
+             <button 
+               key={humor}
+               onClick={() => setHumorSemanal(humor)}
+               className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
+                 humorSemanal === humor ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#051109] border-[#1A4026] text-[#A0B3A6] hover:border-[#D4AF37]/50'
+               }`}
+             >
+               {humor === 'Empolgada' ? '🤩' : humor === 'Feliz' ? '😊' : '😔'} {humor}
+             </button>
+          ))}
+        </div>
+      </div>
+
+      {/* --- DESAFIOS SEMANAIS E MEDALHAS --- */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+        <h4 className="font-medium text-[#D4AF37] mb-1">Desafios da Semana</h4>
+        <p className="text-[#A0B3A6] text-[10px] mb-4">Complete as metas e compartilhe sua vitória!</p>
+        
+        <div className="space-y-3">
+           <div className="flex items-center justify-between p-3 bg-[#051109] border border-[#D4AF37]/30 rounded-xl">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center border border-[#D4AF37]">
+                 <Award className="text-[#D4AF37]" size={20} />
+               </div>
+               <div>
+                 <p className="text-sm font-bold text-white">4 Dias de Treino</p>
+                 <p className="text-[10px] text-[#A0B3A6]">Concluído 4/4</p>
+               </div>
+             </div>
+             <button onClick={compartilharInstagram} className="bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] text-[10px] font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform">
+               COMPARTILHAR
+             </button>
+           </div>
+           
+           <div className="flex items-center justify-between p-3 bg-[#051109] border border-[#1A4026] rounded-xl opacity-60">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center border border-[#1A4026]">
+                 <Droplets className="text-[#A0B3A6]" size={20} />
+               </div>
+               <div>
+                 <p className="text-sm font-bold text-white">10L de Água na Semana</p>
+                 <p className="text-[10px] text-[#A0B3A6]">Pendente 6/10 L</p>
+               </div>
+             </div>
+             <span className="text-[10px] text-[#A0B3A6]">EM ANDAMENTO</span>
+           </div>
+        </div>
+      </div>
+
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
         <div className="flex justify-between items-center mb-2">
-          <h4 className="font-medium text-[#D4AF37] flex items-center gap-2"><Edit2 size={16}/> Atualizar Medidas</h4>
+          <h4 className="font-medium text-[#D4AF37] flex items-center gap-2"><Edit2 size={16}/> Atualizar Medidas Físicas</h4>
           {statusMsg && <span className="text-[#D4AF37] text-xs font-medium">{statusMsg}</span>}
         </div>
         <div className="grid grid-cols-2 gap-4">
