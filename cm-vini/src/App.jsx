@@ -1002,6 +1002,107 @@ const Planos = () => {
   );
 };
 
+const Diario = () => {
+  const [moduloAtivo, setModuloAtivo] = useState('musculacao');
+  const [isRunning, setIsRunning] = useState(false);
+  const [time, setTime] = useState(0);
+
+  useEffect(() => {
+    let intervalId;
+    if (isRunning) {
+      intervalId = setInterval(() => setTime(time + 1), 10);
+    }
+    return () => clearInterval(intervalId);
+  }, [isRunning, time]);
+
+  const hours = Math.floor(time / 360000);
+  const minutes = Math.floor((time % 360000) / 6000);
+  const seconds = Math.floor((time % 6000) / 100);
+
+  return (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white pt-4">
+      <div className="mb-4 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
+        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Diário</h2>
+        <h3 className="text-white text-lg font-medium mb-1">Acompanhe seu dia a dia</h3>
+        <p className="text-[#A0B3A6] text-xs">Anote o seu progresso diário de treino.</p>
+      </div>
+
+      <div className="flex bg-[#0A1A10] rounded-xl border border-[#1A4026] p-1">
+        <button
+          onClick={() => setModuloAtivo('musculacao')}
+          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'musculacao' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
+        >
+          Musculação
+        </button>
+        <button
+          onClick={() => setModuloAtivo('corrida')}
+          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'corrida' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
+        >
+          Corrida
+        </button>
+      </div>
+
+      {moduloAtivo === 'musculacao' && (
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+                <Dumbbell size={20} />
+             </div>
+             <div>
+                <h4 className="font-medium text-white">Treino de Força</h4>
+                <p className="text-xs text-[#A0B3A6]">Registre suas séries e cargas de hoje</p>
+             </div>
+          </div>
+          <div>
+            <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Grupo Muscular Principal</label>
+            <input type="text" placeholder="Ex: Peito e Tríceps" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2.5 rounded-xl focus:outline-none focus:border-[#D4AF37] text-sm" />
+          </div>
+          <div>
+            <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Anotações do Treino</label>
+            <textarea placeholder="Ex: Supino 4x10 - 60kg, voador 3x12 - 25kg..." rows="4" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2.5 rounded-xl focus:outline-none focus:border-[#D4AF37] text-sm resize-none custom-scrollbar" />
+          </div>
+          <button className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-2.5 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm">
+             <Save size={16} /> Salvar Treino
+          </button>
+        </div>
+      )}
+
+      {moduloAtivo === 'corrida' && (
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 flex flex-col items-center justify-center animate-in fade-in">
+          <Activity size={40} className="text-[#D4AF37] mb-4" />
+          <h4 className="text-sm text-[#A0B3A6] uppercase tracking-widest mb-2 font-medium">Cronômetro de Corrida</h4>
+          
+          <div className="text-5xl font-bold font-mono tracking-wider text-white mb-8 mt-2">
+            {hours.toString().padStart(2, "0")}:
+            {minutes.toString().padStart(2, "0")}:
+            {seconds.toString().padStart(2, "0")}
+          </div>
+
+          <div className="flex gap-4 w-full px-4">
+            <button
+              onClick={() => setIsRunning(!isRunning)}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all ${
+                isRunning 
+                  ? 'bg-transparent border-2 border-red-900/50 text-red-500' 
+                  : 'bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109]'
+              }`}
+            >
+              {isRunning ? "Pausar" : "Iniciar"}
+            </button>
+            <button
+              onClick={() => { setIsRunning(false); setTime(0); }}
+              disabled={time === 0 && !isRunning}
+              className="px-5 bg-[#1A3020] text-white rounded-xl font-medium text-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center"
+            >
+               <RotateCcw size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Progresso = () => {
   const { profile } = useApp();
   const [progressoUser, setProgressoUser] = useState({ mes: '', peso: '', braco: '', cintura: '', coxa: '' });
@@ -1807,8 +1908,8 @@ const NavBar = () => {
   const { activeTab, setActiveTab, setSelectedModalidade } = useApp();
   const navItems = [
     { id: 'inicio', icon: Home, label: 'Início' },
-    { id: 'planos', icon: Dumbbell, label: 'Planos' },
-    { id: 'feed', icon: MessageCircle, label: 'Feed' },
+    { id: 'diario', icon: Calendar, label: 'Diário' },
+    { id: 'planos', icon: ClipboardList, label: 'Planos' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
     { id: 'agua', icon: Droplets, label: 'Água' },
     { id: 'perfil', icon: User, label: 'Perfil' }
@@ -2076,6 +2177,7 @@ export default function App() {
               <main className="flex-1 px-6 relative z-10 flex flex-col overflow-hidden">
                 {activeTab === 'inicio' && <Inicio />}
                 {activeTab === 'modalidades' && <Modalidades />}
+                {activeTab === 'diario' && <Diario />}
                 {activeTab === 'feed' && <Feed />}
                 {activeTab === 'planos' && <Planos />}
                 {activeTab === 'progresso' && <Progresso />}
@@ -2083,6 +2185,7 @@ export default function App() {
                 {activeTab === 'perfil' && <Perfil />}
                 {activeTab === 'notificacoes' && <Notificacoes />}
               </main>
+
               <NavBar />
             </>
           )}
