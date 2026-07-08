@@ -1149,17 +1149,69 @@ const Progresso = () => {
     setTimeout(() => setStatusMsg(''), 3000);
   };
 
-  const compartilharInstagram = () => {
-     // Apenas a funcionalidade nativa do dispositivo ativará compartilhamento externo real em PWA.
-     // Em Web View, este botão utiliza a Web Share API, se disponível.
-     if (navigator.share) {
-       navigator.share({
-         title: 'Minha Evolução - Corpo em Movimento',
-         text: 'Acabei de concluir mais um desafio no app Corpo em Movimento! 🏆💪'
-       }).catch(console.error);
-     } else {
-       alert("Compartilhamento nativo não suportado neste navegador. Salve a imagem ou tire print!");
-     }
+  const compartilharInstagram = async (conquistaNome) => {
+       const canvas = document.createElement('canvas');
+       canvas.width = 1080;
+       canvas.height = 1080;
+       const ctx = canvas.getContext('2d');
+
+       const gradient = ctx.createLinearGradient(0, 0, 1080, 1080);
+       gradient.addColorStop(0, '#0A1A10');
+       gradient.addColorStop(1, '#051109');
+       ctx.fillStyle = gradient;
+       ctx.fillRect(0, 0, 1080, 1080);
+
+       ctx.strokeStyle = '#D4AF37';
+       ctx.lineWidth = 15;
+       ctx.strokeRect(30, 30, 1020, 1020);
+
+       ctx.fillStyle = '#D4AF37';
+       ctx.font = 'italic bold 80px "Playfair Display", serif';
+       ctx.textAlign = 'center';
+       ctx.fillText('Corpo em Movimento', 540, 200);
+
+       ctx.beginPath();
+       ctx.arc(540, 500, 180, 0, Math.PI * 2);
+       ctx.fillStyle = '#1A3020';
+       ctx.fill();
+       ctx.lineWidth = 10;
+       ctx.strokeStyle = '#D4AF37';
+       ctx.stroke();
+
+       ctx.fillStyle = '#D4AF37';
+       ctx.font = '120px Arial';
+       ctx.fillText('🏆', 540, 540);
+
+       ctx.fillStyle = '#FFFFFF';
+       ctx.font = 'bold 60px Arial';
+       ctx.fillText('Desafio Concluído!', 540, 800);
+
+       ctx.fillStyle = '#D4AF37';
+       ctx.font = '50px Arial';
+       ctx.fillText(conquistaNome, 540, 900);
+
+       canvas.toBlob(async (blob) => {
+         const file = new File([blob], 'conquista.png', { type: 'image/png' });
+         if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+           try {
+             await navigator.share({
+               title: 'Minha Conquista',
+               text: 'Acabei de concluir mais um desafio no app Corpo em Movimento! 🏆💪',
+               files: [file]
+             });
+           } catch (error) {
+             console.error('Erro ao compartilhar:', error);
+           }
+         } else {
+           const url = URL.createObjectURL(blob);
+           const a = document.createElement('a');
+           a.href = url;
+           a.download = 'corpo-em-movimento-conquista.png';
+           a.click();
+           URL.revokeObjectURL(url);
+           alert("Imagem gerada e baixada! Agora você pode compartilhar no seu Instagram.");
+         }
+       }, 'image/png');
   };
 
   return (
@@ -1250,7 +1302,7 @@ const Progresso = () => {
                  <p className="text-[10px] text-[#A0B3A6]">Concluído 4/4</p>
                </div>
              </div>
-             <button onClick={compartilharInstagram} className="bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] text-[10px] font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform">
+             <button onClick={() => compartilharInstagram('4 Dias de Treino')} className="bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] text-[10px] font-bold px-3 py-1.5 rounded-lg active:scale-95 transition-transform">
                COMPARTILHAR
              </button>
            </div>
