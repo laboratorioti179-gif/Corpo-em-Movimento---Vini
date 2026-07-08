@@ -535,7 +535,6 @@ const Inicio = () => {
   const { profile, setActiveTab, setSelectedModalidade } = useApp();
   const [onbData, setOnbData] = useState(null);
   const [stats, setStats] = useState({ treinos: 0 });
-  const scrollRef = React.useRef(null);
 
   useEffect(() => {
     const loadInfo = async () => {
@@ -548,20 +547,6 @@ const Inicio = () => {
     if (profile?.id) loadInfo();
   }, [profile]);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (scrollRef.current) {
-        const { scrollLeft, scrollWidth, clientWidth } = scrollRef.current;
-        if (scrollLeft >= scrollWidth - clientWidth - 10) {
-          scrollRef.current.scrollTo({ left: 0, behavior: 'smooth' });
-        } else {
-          scrollRef.current.scrollBy({ left: 216, behavior: 'smooth' });
-        }
-      }
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
-
   let goalCals = 2000;
   if (onbData?.objetivo === 'Perder peso') goalCals = 1500;
   if (onbData?.objetivo === 'Ganhar massa muscular') goalCals = 2500;
@@ -569,107 +554,110 @@ const Inicio = () => {
   const burnedCals = stats.treinos * 300; 
   const remaining = goalCals - 0 + burnedCals; 
 
-  const noticiasFit = [
-    { id: 1, titulo: "Nova descoberta sobre hipertrofia e descanso", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
-    { id: 2, titulo: "Alimentação pré-treino: O que realmente funciona?", img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&auto=format&fit=crop&q=60" },
-    { id: 3, titulo: "Os benefícios ocultos da hidratação constante", img: "https://images.unsplash.com/photo-1523362628745-0c100150b504?w=500&auto=format&fit=crop&q=60" }
+  const treinosRecomendados = [
+    { id: 1, titulo: "Treino Funcional: Força e...", desc: `Baseado no seu objetivo: ${onbData?.objetivo || 'Saúde e bem-estar'}`, link: "Ver Planos", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
+    { id: 2, titulo: "Cardio ao Ar Livre", img: "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=500&auto=format&fit=crop&q=60" },
+    { id: 3, titulo: "Treino de Força", img: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60" }
+  ];
+
+  const planosNutricao = [
+    { id: 1, titulo: `Dieta de Manutenção: ${goalCals} kcal`, desc: `Baseado no seu objetivo: ${goalCals} kcal`, img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&auto=format&fit=crop&q=60" },
+    { id: 2, titulo: "Receitas de Recuperação", img: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&auto=format&fit=crop&q=60" },
+    { id: 3, titulo: "Pré-Treino de Energia", img: "https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=500&auto=format&fit=crop&q=60" }
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white pt-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-2xl font-bold text-white">Hoje</h2>
+    <div className="flex-1 overflow-y-auto space-y-6 custom-scrollbar pb-24 text-white pt-2 px-1">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-3xl font-bold text-white">Hoje</h2>
       </div>
 
       {/* Medição nutritiva */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-5 shadow-lg">
-        <h3 className="text-[#D4AF37] font-semibold mb-1">Medição Nutritiva</h3>
-        <p className="text-[#A0B3A6] text-[10px] mb-4">Restantes = Meta - Alimentos + Exercício</p>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 shadow-lg relative overflow-hidden">
+        <div className="absolute top-1/2 left-[15%] w-32 h-32 bg-gradient-to-tr from-green-400/30 to-[#D4AF37]/30 rounded-full blur-2xl -translate-y-1/2 pointer-events-none"></div>
+        
+        <h3 className="text-[#D4AF37] font-medium text-base mb-0.5">Medição Nutritiva</h3>
+        <p className="text-[#A0B3A6] text-xs mb-6">Restantes = Meta - Alimentos + Exercício</p>
         
         <div className="flex items-center justify-between">
-          <div className="relative w-28 h-28 flex items-center justify-center">
+          <div className="relative w-32 h-32 flex items-center justify-center">
              <svg className="absolute inset-0 w-full h-full transform -rotate-90">
-               <circle cx="56" cy="56" r="48" stroke="#1A3020" strokeWidth="8" fill="none" />
-               <circle cx="56" cy="56" r="48" stroke="#D4AF37" strokeWidth="8" fill="none" strokeDasharray="300" strokeDashoffset="50" />
+               <circle cx="64" cy="64" r="54" stroke="#1A3020" strokeWidth="8" fill="none" />
+               <circle cx="64" cy="64" r="54" stroke="url(#glowGradient)" strokeWidth="8" fill="none" strokeDasharray="339" strokeDashoffset="60" strokeLinecap="round" />
+               <defs>
+                 <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                   <stop offset="0%" stopColor="#D4AF37" />
+                   <stop offset="100%" stopColor="#4ADE80" />
+                 </linearGradient>
+               </defs>
              </svg>
-             <div className="text-center">
-               <span className="text-2xl font-bold text-white">{remaining}</span>
-               <span className="block text-[10px] text-[#A0B3A6]">Restantes</span>
+             <div className="text-center z-10">
+               <span className="text-3xl font-bold text-white">{remaining}</span>
+               <span className="block text-xs text-[#A0B3A6] mt-1">Restantes</span>
              </div>
           </div>
           
-          <div className="flex flex-col gap-3 flex-1 ml-6">
+          <div className="flex flex-col gap-4 flex-1 ml-8">
              <div className="flex justify-between items-center">
                <div className="flex items-center gap-2 text-[#A0B3A6]">
-                 <Target size={16} /> <span className="text-xs">Meta base</span>
+                 <Target size={18} /> <span className="text-sm">Meta base</span>
                </div>
-               <span className="font-bold text-sm">{goalCals}</span>
+               <span className="font-bold text-base">{goalCals}</span>
              </div>
              <div className="flex justify-between items-center">
                <div className="flex items-center gap-2 text-[#A0B3A6]">
-                 <span className="text-blue-400">🍽️</span> <span className="text-xs">Alimentos</span>
+                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+                 <span className="text-sm">Alimentos</span>
                </div>
-               <span className="font-bold text-sm">0</span>
+               <span className="font-bold text-base">0</span>
              </div>
              <div className="flex justify-between items-center">
                <div className="flex items-center gap-2 text-[#A0B3A6]">
-                 <Flame size={16} className="text-orange-500" /> <span className="text-xs">Exercício</span>
+                 <Flame size={18} className="text-orange-500" /> <span className="text-sm">Exercício</span>
                </div>
-               <span className="font-bold text-sm">{burnedCals}</span>
+               <span className="font-bold text-base">{burnedCals}</span>
              </div>
           </div>
         </div>
       </div>
 
       {/* Sugestão de treino */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg">
-         <h4 className="text-sm font-semibold mb-3 text-[#D4AF37]">Sugestão de Treino</h4>
-         <div className="flex items-center gap-4 mb-3">
-           <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-             <Dumbbell size={24} />
-           </div>
-           <div>
-             <h4 className="font-medium text-white">{onbData?.objetivo === 'Ganhar massa muscular' ? 'Body Builders' : 'Treino Funcional'}</h4>
-             <p className="text-[#A0B3A6] text-xs">Baseado no seu objetivo: {onbData?.objetivo || 'Saúde e bem-estar'}</p>
-           </div>
-         </div>
-         <button onClick={() => setActiveTab('planos')} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
-            Acessar Planos <ChevronRight size={16} />
-         </button>
+      <div className="pt-2">
+        <h3 className="text-[#D4AF37] text-sm font-medium mb-0.5">Sugestão de Treino</h3>
+        <h2 className="text-xl font-bold text-white mb-4">Treinos Recomendados</h2>
+        <div className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-6 pr-6 snap-x snap-mandatory">
+          {treinosRecomendados.map(treino => (
+             <div key={treino.id} className="min-w-[240px] h-40 bg-[#0A1A10] rounded-2xl overflow-hidden flex-shrink-0 snap-start relative border border-[#1A4026]">
+               <img src={treino.img} alt={treino.titulo} className="absolute inset-0 w-full h-full object-cover" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[#051109] via-[#0A1A10]/70 to-transparent"></div>
+               <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end h-full">
+                 <h4 className="font-bold text-white text-base leading-tight">{treino.titulo}</h4>
+                 {treino.desc && <p className="text-[#A0B3A6] text-[10px] mt-1 line-clamp-2">{treino.desc}</p>}
+                 {treino.link && (
+                   <button onClick={() => setActiveTab('planos')} className="text-[#D4AF37] text-xs font-medium mt-1 text-right w-full hover:underline relative z-10">
+                     {treino.link}
+                   </button>
+                 )}
+               </div>
+             </div>
+          ))}
+        </div>
       </div>
 
       {/* Sugestão de nutrição */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 shadow-lg">
-         <h4 className="text-sm font-semibold mb-3 text-[#D4AF37]">Sugestão de Nutrição</h4>
-         <div className="flex items-center gap-4 mb-3">
-           <div className="w-12 h-12 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-             <ClipboardList size={24} />
-           </div>
-           <div>
-             <h4 className="font-medium text-white">{onbData?.objetivo === 'Perder peso' ? 'Dieta de Déficit Calórico' : (onbData?.objetivo === 'Ganhar massa muscular' ? 'Dieta Hipercalórica' : 'Dieta de Manutenção')}</h4>
-             <p className="text-[#A0B3A6] text-xs">Meta diária recomendada: {goalCals} kcal</p>
-           </div>
-         </div>
-         <button onClick={() => setActiveTab('planos')} className="w-full bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] font-bold py-2.5 rounded-xl active:scale-95 transition-transform flex items-center justify-center gap-2 text-sm">
-            Ver Planos Alimentares <ChevronRight size={16} />
-         </button>
-      </div>
-
-      {/* Notícias */}
-      <div className="mt-8">
-        <h3 className="text-[#D4AF37] text-sm font-semibold mb-3 border-l-2 border-[#D4AF37] pl-2">Mundo Fit - Notícias</h3>
-        <div ref={scrollRef} className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-2 pr-2 snap-x snap-mandatory scroll-smooth">
-          {noticiasFit.map(noticia => (
-            <div key={noticia.id} className="min-w-[200px] w-[200px] bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden flex-shrink-0 snap-start">
-              <div className="h-28 w-full relative">
-                <img src={noticia.img} alt={noticia.titulo} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0A1A10] to-transparent"></div>
-              </div>
-              <div className="p-3">
-                <h4 className="text-sm font-medium text-white line-clamp-2 leading-snug">{noticia.titulo}</h4>
-                <p className="text-[#D4AF37] text-[10px] mt-2">Ler artigo</p>
-              </div>
-            </div>
+      <div className="pt-2">
+        <h3 className="text-[#D4AF37] text-sm font-medium mb-0.5">Sugestão de Nutrição</h3>
+        <h2 className="text-xl font-bold text-white mb-4">Planos de Refeição em Destaque</h2>
+        <div className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-6 pr-6 snap-x snap-mandatory">
+          {planosNutricao.map(plano => (
+             <div key={plano.id} className="min-w-[240px] h-40 bg-[#0A1A10] rounded-2xl overflow-hidden flex-shrink-0 snap-start relative border border-[#1A4026]">
+               <img src={plano.img} alt={plano.titulo} className="absolute inset-0 w-full h-full object-cover" />
+               <div className="absolute inset-0 bg-gradient-to-t from-[#051109] via-[#0A1A10]/70 to-transparent"></div>
+               <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end h-full">
+                 <h4 className="font-bold text-white text-base leading-tight">{plano.titulo}</h4>
+                 {plano.desc && <p className="text-[#A0B3A6] text-[10px] mt-1 line-clamp-2">{plano.desc}</p>}
+               </div>
+             </div>
           ))}
         </div>
       </div>
@@ -2124,16 +2112,18 @@ export default function App() {
 
         if (!isMissingTable) {
           const { data: np, error: insertError } = await supabase.from('profiles').insert([localProfile]).select().single();
-          if (!insertError && np) { setProfile(np); if (np.is_admin) setAdminView(true); } 
-          else { setProfile(localProfile); if (localProfile.is_admin) setAdminView(true); }
+          if (!insertError && np) { setProfile(np); } 
+          else { setProfile(localProfile); }
         } else {
-          setProfile(localProfile); if (localProfile.is_admin) setAdminView(true);
+          setProfile(localProfile);
         }
       } else {
         if (userEmail === 'corpoemmovimento.adm@gmail.com') data.is_admin = true;
         setProfile(data);
-        if (data && data.is_admin) setAdminView(true);
       }
+
+      // SEMPRE desativa a view de admin no carregamento do perfil, forçando a visão de aluno primeiro
+      setAdminView(false);
 
       const storedOnboarding = localStorage.getItem(`onboarding_${userId}`);
       if (storedOnboarding) {
@@ -2155,7 +2145,7 @@ export default function App() {
       console.error('Erro ao carregar perfil:', err);
       const fallbackProfile = { id: userId, email: userEmail || '', nome: userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário', phone: userMetadata?.phone || null, is_admin: userEmail === 'corpoemmovimento.adm@gmail.com' };
       setProfile(fallbackProfile);
-      if (fallbackProfile.is_admin) setAdminView(true);
+      setAdminView(false);
     } finally {
       setLoading(false);
     }
