@@ -994,6 +994,46 @@ const Diario = () => {
   const [moduloAtivo, setModuloAtivo] = useState('musculacao');
   const [isRunning, setIsRunning] = useState(false);
   const [time, setTime] = useState(0);
+  const [rounds, setRounds] = useState(1);
+  
+  const [roundTimeConfig, setRoundTimeConfig] = useState(180); // 3 minutos em segundos
+  const [roundTimeLeft, setRoundTimeLeft] = useState(180);
+  const [isRoundRunning, setIsRoundRunning] = useState(false);
+  const [countdownVal, setCountdownVal] = useState(null);
+
+  const playGong = () => {
+    try {
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContext) return;
+      const ctx = new AudioContext();
+      
+      const osc = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      
+      osc.type = 'sine';
+      osc2.type = 'triangle';
+      
+      osc.frequency.setValueAtTime(200, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 1.5);
+      
+      osc2.frequency.setValueAtTime(250, ctx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 1.5);
+      
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.1);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2.5);
+      
+      osc.connect(gainNode);
+      osc2.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      
+      osc.start();
+      osc2.start();
+      osc.stop(ctx.currentTime + 2.5);
+      osc2.stop(ctx.currentTime + 2.5);
+    } catch (e) { console.error("Erro ao tocar o som", e); }
+  };
 
   useEffect(() => {
     let intervalId;
@@ -1002,6 +1042,29 @@ const Diario = () => {
     }
     return () => clearInterval(intervalId);
   }, [isRunning, time]);
+
+  useEffect(() => {
+    let intervalId;
+    if (countdownVal !== null) {
+      if (countdownVal < 3) {
+        intervalId = setTimeout(() => setCountdownVal(countdownVal + 1), 1000);
+      } else {
+        intervalId = setTimeout(() => {
+          setCountdownVal(null);
+          playGong();
+          setIsRoundRunning(true);
+        }, 1000);
+      }
+    } else if (isRoundRunning) {
+      if (roundTimeLeft > 0) {
+        intervalId = setTimeout(() => setRoundTimeLeft(roundTimeLeft - 1), 1000);
+      } else {
+        setIsRoundRunning(false);
+        playGong(); 
+      }
+    }
+    return () => clearTimeout(intervalId);
+  }, [countdownVal, isRoundRunning, roundTimeLeft]);
 
   const hours = Math.floor(time / 360000);
   const minutes = Math.floor((time % 360000) / 6000);
@@ -1027,6 +1090,12 @@ const Diario = () => {
           className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'corrida' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
         >
           Corrida
+        </button>
+        <button
+          onClick={() => setModuloAtivo('round')}
+          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'round' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
+        >
+          Round
         </button>
       </div>
 
@@ -1085,6 +1154,71 @@ const Diario = () => {
                <RotateCcw size={20} />
             </button>
           </div>
+        </div>
+      )}
+
+      {moduloAtivo === 'round' && (
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 flex flex-col items-center justify-center animate-in fade-in">
+          <Target size={40} className="text-[#D4AF37] mb-4" />
+          <h4 className="text-sm text-[#A0B3A6] uppercase tracking-widest mb-4 font-medium">Contagem de Rounds</h4>
+          
+          <div className="flex flex-col items-center gap-2 mb-4 w-full">
+            <label className="text-xs text-[#A0B3A6]">Número de Rounds</label>
+            <div className="flex items-center justify-center gap-6">
+              <button onClick={() => setRounds(Math.max(1, rounds - 1))} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Minus size={20} /></button>
+              <div className="text-3xl font-bold font-mono tracking-wider text-white w-12 text-center">
+                {rounds.toString().padStart(2, "0")}
+              </div>
+              <button onClick={() => setRounds(rounds + 1)} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Plus size={20} /></button>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center gap-2 mb-4 w-full">
+            <label className="text-xs text-[#A0B3A6]">Tempo por Round (min)</label>
+            <div className="flex items-center justify-center gap-6">
+              <button onClick={() => { setRoundTimeConfig(Math.max(60, roundTimeConfig - 60)); setRoundTimeLeft(Math.max(60, roundTimeConfig - 60)); }} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Minus size={20} /></button>
+              <div className="text-3xl font-bold font-mono tracking-wider text-white w-12 text-center">
+                {Math.floor(roundTimeConfig / 60)}
+              </div>
+              <button onClick={() => { setRoundTimeConfig(roundTimeConfig + 60); setRoundTimeLeft(roundTimeConfig + 60); }} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Plus size={20} /></button>
+            </div>
+          </div>
+
+          <div className="text-6xl font-bold font-mono tracking-wider mb-6 mt-4 relative w-full text-center h-16 flex items-center justify-center">
+             {countdownVal !== null ? (
+               <span className="text-[#D4AF37] text-8xl animate-pulse">{countdownVal}</span>
+             ) : (
+               <span className={isRoundRunning ? "text-[#D4AF37]" : "text-white"}>
+                 {Math.floor(roundTimeLeft / 60).toString().padStart(2, "0")}:
+                 {(roundTimeLeft % 60).toString().padStart(2, "0")}
+               </span>
+             )}
+          </div>
+
+          <div className="flex gap-4 w-full mb-4">
+            <button
+              onClick={() => {
+                if (isRoundRunning || countdownVal !== null) {
+                  setIsRoundRunning(false);
+                  setCountdownVal(null);
+                  setRoundTimeLeft(roundTimeConfig);
+                } else {
+                  setCountdownVal(1);
+                }
+              }}
+              className={`flex-1 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all ${
+                isRoundRunning || countdownVal !== null
+                  ? 'bg-transparent border-2 border-red-900/50 text-red-500' 
+                  : 'bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109]'
+              }`}
+            >
+              {isRoundRunning || countdownVal !== null ? "Parar" : "Iniciar Round"}
+            </button>
+          </div>
+
+          <button className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-2.5 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm mt-2">
+             <Save size={16} /> Salvar Treino
+          </button>
         </div>
       )}
     </div>
