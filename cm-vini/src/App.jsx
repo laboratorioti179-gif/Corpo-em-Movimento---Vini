@@ -532,7 +532,7 @@ const OnboardingTransition = ({ nome, onDone }) => {
 };
 
 const Inicio = () => {
-  const { profile, setActiveTab, setSelectedModalidade } = useApp();
+  const { profile, setActiveTab, setSelectedModalidade, diarioData } = useApp();
   const [onbData, setOnbData] = useState(null);
   const [stats, setStats] = useState({ treinos: 0 });
 
@@ -553,6 +553,11 @@ const Inicio = () => {
   
   const burnedCals = stats.treinos * 300; 
   const remaining = goalCals - 0 + burnedCals; 
+
+  const percMovimento = Math.round((Object.values(diarioData.treinosFeitos).filter(Boolean).length / 7) * 100);
+  const percNutricao = diarioData.nutricao;
+  const percRecuperacao = diarioData.horasSono ? Math.round(Math.min((Number(diarioData.horasSono) / 8) * 100, 100)) : 0;
+  const percMentalidade = diarioData.mentalidade;
 
   const treinosRecomendados = [
     { id: 1, titulo: "Treino Funcional: Força e...", desc: `Baseado no seu objetivo: ${onbData?.objetivo || 'Saúde e bem-estar'}`, link: "Ver Planos", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
@@ -576,11 +581,13 @@ const Inicio = () => {
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 shadow-lg relative overflow-hidden">
         <div className="absolute top-1/2 left-[15%] w-32 h-32 bg-gradient-to-tr from-green-400/30 to-[#D4AF37]/30 rounded-full blur-2xl -translate-y-1/2 pointer-events-none"></div>
         
-        <h3 className="text-[#D4AF37] font-medium text-base mb-0.5">Medição Nutritiva</h3>
-        <p className="text-[#A0B3A6] text-xs mb-6">Restantes = Meta - Alimentos + Exercício</p>
+        <h3 className="text-[#D4AF37] font-medium text-base mb-0.5">Índice Corpo em Movimento</h3>
+        <p className="text-[#A0B3A6] text-xs mb-4 sm:mb-6">Restantes = Meta - Alimentos + Exercício</p>
         
         <div className="flex items-center justify-between">
-          <div className="relative w-32 h-32 flex items-center justify-center">
+          <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
+             {/* Glow effect on the circle */}
+             <div className="absolute inset-0 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] pointer-events-none" style={{ mixBlendMode: 'screen' }}></div>
              <svg className="absolute inset-0 w-full h-full transform -rotate-90">
                <circle cx="64" cy="64" r="54" stroke="#1A3020" strokeWidth="8" fill="none" />
                <circle cx="64" cy="64" r="54" stroke="url(#glowGradient)" strokeWidth="8" fill="none" strokeDasharray="339" strokeDashoffset="60" strokeLinecap="round" />
@@ -597,25 +604,34 @@ const Inicio = () => {
              </div>
           </div>
           
-          <div className="flex flex-col gap-4 flex-1 ml-8">
-             <div className="flex justify-between items-center">
-               <div className="flex items-center gap-2 text-[#A0B3A6]">
-                 <Target size={18} /> <span className="text-sm">Meta base</span>
+          <div className="flex flex-col justify-between flex-1 ml-2 sm:ml-4 py-1 h-32 overflow-hidden">
+             <div className="flex justify-between items-center w-full gap-2">
+               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
+                 <Activity size={16} className="shrink-0" /> 
+                 <span className="text-xs whitespace-nowrap">Movimento</span>
                </div>
-               <span className="font-bold text-base">{goalCals}</span>
+               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percMovimento}%</span>
              </div>
-             <div className="flex justify-between items-center">
-               <div className="flex items-center gap-2 text-[#A0B3A6]">
-                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
-                 <span className="text-sm">Alimentos</span>
+             <div className="flex justify-between items-center w-full gap-2">
+               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+                 <span className="text-xs whitespace-nowrap">Nutrição</span>
                </div>
-               <span className="font-bold text-base">0</span>
+               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percNutricao}%</span>
              </div>
-             <div className="flex justify-between items-center">
-               <div className="flex items-center gap-2 text-[#A0B3A6]">
-                 <Flame size={18} className="text-orange-500" /> <span className="text-sm">Exercício</span>
+             <div className="flex justify-between items-center w-full gap-2">
+               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
+                 <Heart size={16} className="shrink-0" /> 
+                 <span className="text-xs whitespace-nowrap">Recuperação</span>
                </div>
-               <span className="font-bold text-base">{burnedCals}</span>
+               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percRecuperacao}%</span>
+             </div>
+             <div className="flex justify-between items-center w-full gap-2">
+               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
+                 <Target size={16} className="shrink-0" /> 
+                 <span className="text-xs whitespace-nowrap">Mentalidade</span>
+               </div>
+               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percMentalidade}%</span>
              </div>
           </div>
         </div>
@@ -991,236 +1007,175 @@ const Planos = () => {
 };
 
 const Diario = () => {
-  const [moduloAtivo, setModuloAtivo] = useState('musculacao');
-  const [isRunning, setIsRunning] = useState(false);
-  const [time, setTime] = useState(0);
-  const [rounds, setRounds] = useState(1);
-  
-  const [roundTimeConfig, setRoundTimeConfig] = useState(180); // 3 minutos em segundos
-  const [roundTimeLeft, setRoundTimeLeft] = useState(180);
-  const [isRoundRunning, setIsRoundRunning] = useState(false);
-  const [countdownVal, setCountdownVal] = useState(null);
+  const { diarioData, setDiarioData } = useApp();
 
-  const playGong = () => {
-    try {
-      const AudioContext = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContext) return;
-      const ctx = new AudioContext();
-      
-      const osc = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      
-      osc.type = 'sine';
-      osc2.type = 'triangle';
-      
-      osc.frequency.setValueAtTime(200, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 1.5);
-      
-      osc2.frequency.setValueAtTime(250, ctx.currentTime);
-      osc2.frequency.exponentialRampToValueAtTime(150, ctx.currentTime + 1.5);
-      
-      gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(1, ctx.currentTime + 0.1);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 2.5);
-      
-      osc.connect(gainNode);
-      osc2.connect(gainNode);
-      gainNode.connect(ctx.destination);
-      
-      osc.start();
-      osc2.start();
-      osc.stop(ctx.currentTime + 2.5);
-      osc2.stop(ctx.currentTime + 2.5);
-    } catch (e) { console.error("Erro ao tocar o som", e); }
+  const diasTreino = [
+    { id: 'segunda', nome: 'Segunda-feira', treino: 'Aquecimento: 10 min esteira\n1. Agachamento Livre: 4x10-12\n2. Supino Reto: 3x10-12\n3. Remada Curvada: 3x12\n4. Elevação Pélvica: 3x15\n5. Prancha Isométrica: 3x45s' },
+    { id: 'terca', nome: 'Terça-feira', treino: '1. Leg Press: 4x10-12\n2. Desenvolvimento Halteres: 3x12\n3. Puxada Alta: 4x10-12' },
+    { id: 'quarta', nome: 'Quarta-feira', treino: '30 min de cardio (esteira ou bike) + Alongamento leve.' },
+    { id: 'quinta', nome: 'Quinta-feira', treino: '1. Levantamento Terra: 3x8\n2. Supino Inclinado: 3x10\n3. Rosca Direta: 3x12' },
+    { id: 'sexta', nome: 'Sexta-feira', treino: 'Circuito Funcional: Burpees, Kettlebell Swing, Flexões (4 rounds)' },
+    { id: 'sabado', nome: 'Sábado', treino: 'Caminhada leve ao ar livre (60 min) ou esporte.' },
+    { id: 'domingo', nome: 'Domingo', treino: 'Descanso total.' }
+  ];
+
+  const toggleTreino = (id) => {
+    setDiarioData(prev => ({
+      ...prev,
+      treinosFeitos: { ...prev.treinosFeitos, [id]: !prev.treinosFeitos[id] }
+    }));
   };
-
-  useEffect(() => {
-    let intervalId;
-    if (isRunning) {
-      intervalId = setInterval(() => setTime(time + 1), 10);
-    }
-    return () => clearInterval(intervalId);
-  }, [isRunning, time]);
-
-  useEffect(() => {
-    let intervalId;
-    if (countdownVal !== null) {
-      if (countdownVal < 3) {
-        intervalId = setTimeout(() => setCountdownVal(countdownVal + 1), 1000);
-      } else {
-        intervalId = setTimeout(() => {
-          setCountdownVal(null);
-          playGong();
-          setIsRoundRunning(true);
-        }, 1000);
-      }
-    } else if (isRoundRunning) {
-      if (roundTimeLeft > 0) {
-        intervalId = setTimeout(() => setRoundTimeLeft(roundTimeLeft - 1), 1000);
-      } else {
-        setIsRoundRunning(false);
-        playGong(); 
-      }
-    }
-    return () => clearTimeout(intervalId);
-  }, [countdownVal, isRoundRunning, roundTimeLeft]);
-
-  const hours = Math.floor(time / 360000);
-  const minutes = Math.floor((time % 360000) / 6000);
-  const seconds = Math.floor((time % 6000) / 100);
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white pt-4">
       <div className="mb-4 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Diário</h2>
         <h3 className="text-white text-lg font-medium mb-1">Acompanhe seu dia a dia</h3>
-        <p className="text-[#A0B3A6] text-xs">Anote o seu progresso diário de treino.</p>
+        <p className="text-[#A0B3A6] text-xs">Anote o seu progresso diário.</p>
       </div>
 
-      <div className="flex bg-[#0A1A10] rounded-xl border border-[#1A4026] p-1">
-        <button
-          onClick={() => setModuloAtivo('musculacao')}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'musculacao' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
-        >
-          Musculação
-        </button>
-        <button
-          onClick={() => setModuloAtivo('corrida')}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'corrida' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
-        >
-          Corrida
-        </button>
-        <button
-          onClick={() => setModuloAtivo('round')}
-          className={`flex-1 py-2 text-sm font-medium rounded-lg transition-colors ${moduloAtivo === 'round' ? 'bg-[#1A3020] text-[#D4AF37]' : 'text-[#A0B3A6] hover:text-white'}`}
-        >
-          Round
-        </button>
-      </div>
-
-      {moduloAtivo === 'musculacao' && (
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
+      {/* --- CARROSSEL ESTILO FOLHA DE LIVRO (Treino / Dieta) NO TOPO --- */}
+      <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 custom-scrollbar" style={{ scrollSnapType: 'x mandatory' }}>
+        
+        {/* Folha 1: Treino da Semana */}
+        <div className="w-full flex-shrink-0 snap-center bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
           <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
              <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
                 <Dumbbell size={20} />
              </div>
+             <div className="flex-1">
+                <h4 className="font-medium text-white">Treinos da Semana</h4>
+                <p className="text-xs text-[#A0B3A6]">Deslize para ver a dieta ➔</p>
+             </div>
+          </div>
+          
+          <div className="bg-[#051109] border border-[#1A4026] p-3 rounded-xl max-h-60 overflow-y-auto custom-scrollbar space-y-4">
+            {diasTreino.map(dia => (
+              <div key={dia.id} className="border-b border-[#1A4026] pb-3 last:border-0 last:pb-0">
+                <div className="flex justify-between items-center mb-2">
+                   <span className="font-bold text-[#D4AF37] text-sm">{dia.nome}</span>
+                   {/* Botão On/Off Switch */}
+                   <div
+                     onClick={() => toggleTreino(dia.id)}
+                     className={`w-10 h-5 flex items-center rounded-full p-1 cursor-pointer transition-colors ${diarioData.treinosFeitos[dia.id] ? 'bg-[#D4AF37]' : 'bg-[#1A3020] border border-[#1A4026]'}`}
+                   >
+                     <div className={`bg-white w-3 h-3 rounded-full shadow-md transform transition-transform ${diarioData.treinosFeitos[dia.id] ? 'translate-x-5' : 'translate-x-0'}`} />
+                   </div>
+                </div>
+                <p className="text-xs text-[#A0B3A6] whitespace-pre-line">{dia.treino}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Folha 2: Dieta do Dia */}
+        <div className="w-full flex-shrink-0 snap-center bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+                <ClipboardList size={20} />
+             </div>
+             <div className="flex-1">
+                <h4 className="font-medium text-white">Dieta do Dia</h4>
+                <p className="text-xs text-[#A0B3A6]">← Deslize para o treino</p>
+             </div>
+          </div>
+          
+          <div className="bg-[#051109] border border-[#1A4026] p-3 rounded-xl max-h-48 overflow-y-auto custom-scrollbar">
+            <ul className="text-xs text-[#A0B3A6] space-y-3">
+              <li>
+                <strong className="text-white block mb-0.5">Café da Manhã (08:00):</strong>
+                2 Ovos mexidos, 1 fatia de pão integral, 1/2 mamão papaia e café preto sem açúcar.
+              </li>
+              <li>
+                <strong className="text-white block mb-0.5">Almoço (12:30):</strong>
+                120g de peito de frango grelhado, 100g de arroz integral, 1 concha de feijão, salada de folhas verdes à vontade com azeite.
+              </li>
+              <li>
+                <strong className="text-white block mb-0.5">Lanche da Tarde (16:00):</strong>
+                1 Iogurte natural, 1 colher de sopa de aveia e 1 banana.
+              </li>
+              <li>
+                <strong className="text-white block mb-0.5">Jantar (20:00):</strong>
+                120g de patinho moído, 100g de batata doce assada, brócolis cozido no vapor.
+              </li>
+            </ul>
+          </div>
+        </div>
+        
+      </div>
+
+      <div className="space-y-4">
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
+             </div>
              <div>
-                <h4 className="font-medium text-white">Treino de Força</h4>
-                <p className="text-xs text-[#A0B3A6]">Registre suas séries e cargas de hoje</p>
+                <h4 className="font-medium text-white">Nutrição</h4>
+                <p className="text-xs text-[#A0B3A6]">O quanto você seguiu da dieta hoje?</p>
+             </div>
+          </div>
+          <div className="px-2">
+            <div className="flex justify-between items-end text-xs text-[#A0B3A6] mb-3 font-medium">
+              <span className="w-20 text-left leading-tight">Não segui</span>
+              <span className="text-[#D4AF37] font-bold text-2xl">{diarioData.nutricao}%</span>
+              <span className="w-20 text-right leading-tight">Segui 100%</span>
+            </div>
+            <input 
+              type="range" min="0" max="100" 
+              value={diarioData.nutricao} 
+              onChange={e => setDiarioData(prev => ({ ...prev, nutricao: e.target.value }))}
+              className="w-full h-2 bg-[#1A3020] rounded-lg appearance-none cursor-pointer accent-[#D4AF37]"
+            />
+          </div>
+        </div>
+
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+                <Heart size={20} />
+             </div>
+             <div>
+                <h4 className="font-medium text-white">Recuperação</h4>
+                <p className="text-xs text-[#A0B3A6]">Quantas horas de sono fez</p>
              </div>
           </div>
           <div>
-            <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Grupo Muscular Principal</label>
-            <input type="text" placeholder="Ex: Peito e Tríceps" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2.5 rounded-xl focus:outline-none focus:border-[#D4AF37] text-sm" />
-          </div>
-          <div>
-            <label className="text-xs text-[#A0B3A6] ml-1 mb-1 block">Anotações do Treino</label>
-            <textarea placeholder="Ex: Supino 4x10 - 60kg, voador 3x12 - 25kg..." rows="4" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2.5 rounded-xl focus:outline-none focus:border-[#D4AF37] text-sm resize-none custom-scrollbar" />
-          </div>
-          <button className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-2.5 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm">
-             <Save size={16} /> Salvar Treino
-          </button>
-        </div>
-      )}
-
-      {moduloAtivo === 'corrida' && (
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 flex flex-col items-center justify-center animate-in fade-in">
-          <Activity size={40} className="text-[#D4AF37] mb-4" />
-          <h4 className="text-sm text-[#A0B3A6] uppercase tracking-widest mb-2 font-medium">Cronômetro de Corrida</h4>
-          
-          <div className="text-5xl font-bold font-mono tracking-wider text-white mb-8 mt-2">
-            {hours.toString().padStart(2, "0")}:
-            {minutes.toString().padStart(2, "0")}:
-            {seconds.toString().padStart(2, "0")}
-          </div>
-
-          <div className="flex gap-4 w-full px-4">
-            <button
-              onClick={() => setIsRunning(!isRunning)}
-              className={`flex-1 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all ${
-                isRunning 
-                  ? 'bg-transparent border-2 border-red-900/50 text-red-500' 
-                  : 'bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109]'
-              }`}
-            >
-              {isRunning ? "Pausar" : "Iniciar"}
-            </button>
-            <button
-              onClick={() => { setIsRunning(false); setTime(0); }}
-              disabled={time === 0 && !isRunning}
-              className="px-5 bg-[#1A3020] text-white rounded-xl font-medium text-sm active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center"
-            >
-               <RotateCcw size={20} />
-            </button>
+            <input type="number" value={diarioData.horasSono} onChange={e => setDiarioData(prev => ({ ...prev, horasSono: e.target.value }))} placeholder="Ex: 8" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] text-center text-xl font-bold" />
           </div>
         </div>
-      )}
 
-      {moduloAtivo === 'round' && (
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 flex flex-col items-center justify-center animate-in fade-in">
-          <Target size={40} className="text-[#D4AF37] mb-4" />
-          <h4 className="text-sm text-[#A0B3A6] uppercase tracking-widest mb-4 font-medium">Contagem de Rounds</h4>
-          
-          <div className="flex flex-col items-center gap-2 mb-4 w-full">
-            <label className="text-xs text-[#A0B3A6]">Número de Rounds</label>
-            <div className="flex items-center justify-center gap-6">
-              <button onClick={() => setRounds(Math.max(1, rounds - 1))} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Minus size={20} /></button>
-              <div className="text-3xl font-bold font-mono tracking-wider text-white w-12 text-center">
-                {rounds.toString().padStart(2, "0")}
-              </div>
-              <button onClick={() => setRounds(rounds + 1)} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Plus size={20} /></button>
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
+                <Target size={20} />
+             </div>
+             <div>
+                <h4 className="font-medium text-white">Mentalidade</h4>
+                <p className="text-xs text-[#A0B3A6]">Como está se sentindo?</p>
+             </div>
+          </div>
+          <div className="px-2">
+            <div className="flex justify-between items-end text-xs text-[#A0B3A6] mb-3 font-medium">
+              <span className="w-20 text-left leading-tight">Indisposto</span>
+              <span className="text-[#D4AF37] font-bold text-2xl">{diarioData.mentalidade}%</span>
+              <span className="w-20 text-right leading-tight">Disposição total</span>
             </div>
+            <input 
+              type="range" 
+              min="0" 
+              max="100" 
+              value={diarioData.mentalidade} 
+              onChange={e => setDiarioData(prev => ({ ...prev, mentalidade: e.target.value }))}
+              className="w-full h-2 bg-[#1A3020] rounded-lg appearance-none cursor-pointer accent-[#D4AF37]"
+            />
           </div>
-
-          <div className="flex flex-col items-center gap-2 mb-4 w-full">
-            <label className="text-xs text-[#A0B3A6]">Tempo por Round (min)</label>
-            <div className="flex items-center justify-center gap-6">
-              <button onClick={() => { setRoundTimeConfig(Math.max(60, roundTimeConfig - 60)); setRoundTimeLeft(Math.max(60, roundTimeConfig - 60)); }} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Minus size={20} /></button>
-              <div className="text-3xl font-bold font-mono tracking-wider text-white w-12 text-center">
-                {Math.floor(roundTimeConfig / 60)}
-              </div>
-              <button onClick={() => { setRoundTimeConfig(roundTimeConfig + 60); setRoundTimeLeft(roundTimeConfig + 60); }} disabled={isRoundRunning || countdownVal !== null} className="w-12 h-12 rounded-full bg-[#1A3020] border border-[#1A4026] flex items-center justify-center text-white active:scale-95 transition-transform disabled:opacity-50"><Plus size={20} /></button>
-            </div>
-          </div>
-
-          <div className="text-6xl font-bold font-mono tracking-wider mb-6 mt-4 relative w-full text-center h-16 flex items-center justify-center">
-             {countdownVal !== null ? (
-               <span className="text-[#D4AF37] text-8xl animate-pulse">{countdownVal}</span>
-             ) : (
-               <span className={isRoundRunning ? "text-[#D4AF37]" : "text-white"}>
-                 {Math.floor(roundTimeLeft / 60).toString().padStart(2, "0")}:
-                 {(roundTimeLeft % 60).toString().padStart(2, "0")}
-               </span>
-             )}
-          </div>
-
-          <div className="flex gap-4 w-full mb-4">
-            <button
-              onClick={() => {
-                if (isRoundRunning || countdownVal !== null) {
-                  setIsRoundRunning(false);
-                  setCountdownVal(null);
-                  setRoundTimeLeft(roundTimeConfig);
-                } else {
-                  setCountdownVal(1);
-                }
-              }}
-              className={`flex-1 py-3 rounded-xl font-bold text-sm active:scale-95 transition-all ${
-                isRoundRunning || countdownVal !== null
-                  ? 'bg-transparent border-2 border-red-900/50 text-red-500' 
-                  : 'bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109]'
-              }`}
-            >
-              {isRoundRunning || countdownVal !== null ? "Parar" : "Iniciar Round"}
-            </button>
-          </div>
-
-          <button className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-2.5 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm mt-2">
-             <Save size={16} /> Salvar Treino
-          </button>
         </div>
-      )}
+
+        <button className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-3 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm mt-4">
+           <Save size={18} /> Salvar Diário
+        </button>
+      </div>
     </div>
   );
 };
@@ -2211,6 +2166,13 @@ export default function App() {
   const [waterInterval, setWaterInterval] = useState(60);
   const [drinkSize, setDrinkSize] = useState(250);
   const [conquistaRegistrada, setConquistaRegistrada] = useState(false);
+  
+  const [diarioData, setDiarioData] = useState({
+    treinosFeitos: { segunda: false, terca: false, quarta: false, quinta: false, sexta: false, sabado: false, domingo: false },
+    nutricao: 50,
+    horasSono: '',
+    mentalidade: 50
+  });
 
   useEffect(() => {
     document.documentElement.lang = 'pt-BR';
@@ -2409,7 +2371,8 @@ export default function App() {
     waterConsumed, setWaterConsumed,
     waterInterval, setWaterInterval,
     drinkSize, setDrinkSize,
-    conquistaRegistrada, setConquistaRegistrada
+    conquistaRegistrada, setConquistaRegistrada,
+    diarioData, setDiarioData
   };
 
   return (
