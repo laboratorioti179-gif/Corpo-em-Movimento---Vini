@@ -532,7 +532,7 @@ const OnboardingTransition = ({ nome, onDone }) => {
 };
 
 const Inicio = () => {
-  const { profile, setActiveTab, setSelectedModalidade, diarioData } = useApp();
+  const { profile, setActiveTab, setSelectedModalidade, diarioData, proteinGoal, proteinConsumed } = useApp();
   const [onbData, setOnbData] = useState(null);
   const [stats, setStats] = useState({ treinos: 0 });
 
@@ -552,7 +552,10 @@ const Inicio = () => {
   if (onbData?.objetivo === 'Ganhar massa muscular') goalCals = 2500;
   
   const burnedCals = stats.treinos * 300; 
-  const remaining = goalCals - 0 + burnedCals; 
+  
+  const proteinaRestante = Math.max(0, proteinGoal - proteinConsumed);
+  const proteinPercentage = Math.min((proteinConsumed / proteinGoal) * 100, 100);
+  const strokeDashoffsetValue = 339 - (339 * (proteinPercentage / 100));
 
   const percMovimento = Math.round((Object.values(diarioData.treinosFeitos).filter(Boolean).length / 7) * 100);
   const percNutricao = diarioData.nutricao;
@@ -582,7 +585,7 @@ const Inicio = () => {
         <div className="absolute top-1/2 left-[15%] w-32 h-32 bg-gradient-to-tr from-green-400/30 to-[#D4AF37]/30 rounded-full blur-2xl -translate-y-1/2 pointer-events-none"></div>
         
         <h3 className="text-[#D4AF37] font-medium text-base mb-0.5">Índice Corpo em Movimento</h3>
-        <p className="text-[#A0B3A6] text-xs mb-4 sm:mb-6">Restantes = Meta - Alimentos + Exercício</p>
+        <p className="text-[#A0B3A6] text-xs mb-4 sm:mb-6">Acompanhamento de Proteína Diária</p>
         
         <div className="flex items-center justify-between">
           <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
@@ -590,7 +593,7 @@ const Inicio = () => {
              <div className="absolute inset-0 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] pointer-events-none" style={{ mixBlendMode: 'screen' }}></div>
              <svg className="absolute inset-0 w-full h-full transform -rotate-90">
                <circle cx="64" cy="64" r="54" stroke="#1A3020" strokeWidth="8" fill="none" />
-               <circle cx="64" cy="64" r="54" stroke="url(#glowGradient)" strokeWidth="8" fill="none" strokeDasharray="339" strokeDashoffset="60" strokeLinecap="round" />
+               <circle cx="64" cy="64" r="54" stroke="url(#glowGradient)" strokeWidth="8" fill="none" strokeDasharray="339" strokeDashoffset={strokeDashoffsetValue} strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }} />
                <defs>
                  <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
                    <stop offset="0%" stopColor="#D4AF37" />
@@ -599,8 +602,8 @@ const Inicio = () => {
                </defs>
              </svg>
              <div className="text-center z-10">
-               <span className="text-3xl font-bold text-white">{remaining}</span>
-               <span className="block text-xs text-[#A0B3A6] mt-1">Restantes</span>
+               <span className="text-3xl font-bold text-white">{proteinaRestante}</span>
+               <span className="block text-xs text-[#A0B3A6] mt-1">g Restantes</span>
              </div>
           </div>
           
@@ -973,10 +976,30 @@ const Feed = () => {
 };
 
 const Planos = () => {
+  const [expandedId, setExpandedId] = useState(null);
+
   const planosList = [
-    { id: 1, titulo: 'Plano Movimento', icon: Activity },
-    { id: 2, titulo: 'Plano Evolução', icon: TrendingUp },
-    { id: 3, titulo: 'Plano Performance', icon: Flame }
+    { 
+      id: 1, 
+      titulo: 'Plano Movimento', 
+      preco: 'R$ 49,90',
+      icon: Activity,
+      descricao: 'Ideal para quem deseja iniciar uma rotina saudável com praticidade e acompanhamento.\n\nPlano de treino e alimentação elaborado com o auxílio de Inteligência Artificial, adaptado ao seu perfil.\nAcesso a todos os recursos do plano gratuito.\nEnvio de 1 vídeo por mês para análise de treino ou alimentação, com resposta personalizada diretamente pelo aplicativo.'
+    },
+    { 
+      id: 2, 
+      titulo: 'Plano Evolução', 
+      preco: 'R$ 89,90',
+      icon: TrendingUp,
+      descricao: 'Para quem busca resultados consistentes com acompanhamento mais próximo.\nTudo o que está incluso no Plano Movimento, além de:\n\nAjustes no treino e na alimentação sempre que necessário, como mudança de academia, rotina, objetivos ou região.\nLives e aulões exclusivos, agendados previamente, para tirar dúvidas sobre treinos, alimentação e hábitos saudáveis, com participação de profissionais convidados.\nVideochamada individual mediante agendamento pelo WhatsApp do aplicativo.\nEnvio de 2 vídeos por mês (quinzenais) para análise de exercícios ou alimentação, proporcionando um acompanhamento mais próximo e personalizado.'
+    },
+    { 
+      id: 3, 
+      titulo: 'Plano Performance', 
+      preco: 'R$ 149,90',
+      icon: Flame,
+      descricao: 'Acompanhamento completo para quem busca máxima evolução e resultados.\nTudo o que está incluso no Plano Evolução, além de:\n\nAnamnese ao vivo realizada após a confirmação da assinatura, mediante agendamento.\nVideochamada individual de 60 minutos a cada 15 dias.\nEnvio de 4 vídeos por mês (1 por semana) para correção de execução, esclarecimento de dúvidas e acompanhamento contínuo.\nAtendimento diário pelo WhatsApp do aplicativo, em horário comercial, garantindo suporte sempre que necessário.'
+    }
   ];
 
   return (
@@ -990,17 +1013,41 @@ const Planos = () => {
       </div>
       
       {planosList.map((plano) => (
-        <button key={plano.id} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center gap-4 transition-all active:scale-[0.98] hover:border-[#2A5036]">
-          <div className="w-14 h-14 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]">
-            <plano.icon size={26} strokeWidth={1.5} />
-          </div>
-          <div className="flex-1 text-left">
-            <h4 className="text-white text-base font-medium">{plano.titulo}</h4>
-          </div>
-          <div className="text-[#D4AF37] ml-2 opacity-80">
-            <ChevronRight size={18} strokeWidth={2} />
-          </div>
-        </button>
+        <div key={plano.id} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden transition-all hover:border-[#2A5036]">
+          <button 
+            onClick={() => setExpandedId(expandedId === plano.id ? null : plano.id)} 
+            className="w-full p-4 flex items-center gap-4 active:scale-[0.98] transition-transform"
+          >
+            <div className="w-14 h-14 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]">
+              <plano.icon size={26} strokeWidth={1.5} />
+            </div>
+            <div className="flex-1 text-left">
+              <h4 className="text-white text-base font-medium">{plano.titulo}</h4>
+            </div>
+            <div className={`text-[#D4AF37] ml-2 opacity-80 transition-transform duration-300 ${expandedId === plano.id ? 'rotate-90' : ''}`}>
+              <ChevronRight size={18} strokeWidth={2} />
+            </div>
+          </button>
+          
+          {expandedId === plano.id && (
+            <div className="px-4 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
+              <div className="pt-2 border-t border-[#1A4026]/50">
+                <p className="text-[#A0B3A6] text-xs whitespace-pre-line leading-relaxed">
+                  {plano.descricao}
+                </p>
+                <div className="mt-5 flex flex-col items-center gap-3">
+                  <div className="text-center">
+                    <span className="text-[#D4AF37] text-3xl font-bold">{plano.preco}</span>
+                    <span className="text-[#A0B3A6] text-sm ml-1">/mês</span>
+                  </div>
+                  <button className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-base py-3 rounded-xl active:scale-95 transition-transform shadow-[0_0_15px_rgba(212,175,55,0.2)]">
+                    Assinar
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       ))}
     </div>
   );
@@ -1181,11 +1228,28 @@ const Diario = () => {
 };
 
 const Progresso = () => {
-  const { profile } = useApp();
+  const { 
+    profile, registrarConquista,
+    proteinGoal, setProteinGoal,
+    proteinConsumed, setProteinConsumed,
+    proteinPortion, setProteinPortion,
+    proteinConquista, setProteinConquista
+  } = useApp();
   const [progressoUser, setProgressoUser] = useState({ mes: '', peso: '', braco: '', cintura: '', coxa: '' });
   const [historico, setHistorico] = useState([]);
   const [statusMsg, setStatusMsg] = useState('');
   const [humorSemanal, setHumorSemanal] = useState('');
+
+  const proteinFill = Math.min((proteinConsumed / proteinGoal) * 100, 100);
+
+  useEffect(() => {
+    if (proteinFill >= 100 && !proteinConquista) {
+      if (registrarConquista) registrarConquista("🥩 Conquista: Meta de proteína diária concluída!");
+      setProteinConquista(true);
+    } else if (proteinFill < 100) {
+      setProteinConquista(false);
+    }
+  }, [proteinFill, proteinConquista, registrarConquista]);
 
   useEffect(() => {
     if (profile?.id) loadHistorico();
@@ -1308,6 +1372,49 @@ const Progresso = () => {
       <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Evolução</h2>
         <h3 className="text-white text-lg font-medium mb-1">Seu Progresso Pessoal</h3>
+      </div>
+
+      {/* --- JOGO DA PROTEÍNA --- */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+        <div className="mb-4">
+          <h4 className="font-medium text-[#D4AF37]">Meta de Proteína</h4>
+          <p className="text-[#A0B3A6] text-[10px]">Acompanhe seu consumo diário.</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-2">
+          <div className="relative w-32 h-48 cursor-pointer transition-transform active:scale-95 drop-shadow-[0_0_20px_rgba(26,64,38,0.4)] mx-auto" onClick={() => setProteinConsumed(prev => prev + proteinPortion)}>
+            {/* Silhueta Vazia (Fundo) */}
+            <svg viewBox="0 0 100 200" className="w-32 h-48 text-[#1A3020]" fill="currentColor">
+              <path d="M50 10a13 13 0 1 0 0 26 13 13 0 0 0 0-26zm-16 38c-9 0-16 7-16 16v40c0 5 3 8 7 8h3v73c0 6 5 10 9 10s9-4 9-10v-45h8v45c0 6 5 10 9 10s9-4 9-10v-73h3c4 0 7-3 7-8V64c0-9-7-16-16-16H34z" />
+            </svg>
+            
+            {/* Container de Preenchimento (Corte animado) */}
+            <div className="absolute bottom-0 left-0 w-32 overflow-hidden transition-all duration-[800ms] ease-in-out" style={{ height: `${proteinFill}%` }}>
+              <svg viewBox="0 0 100 200" className="absolute bottom-0 left-0 w-32 h-48">
+                <defs>
+                  <linearGradient id="proteinGradient" x1="0%" y1="100%" x2="0%" y2="0%">
+                    <stop offset="0%" stopColor="#ea580c" />
+                    <stop offset="100%" stopColor="#fbbf24" />
+                  </linearGradient>
+                </defs>
+                <path d="M50 10a13 13 0 1 0 0 26 13 13 0 0 0 0-26zm-16 38c-9 0-16 7-16 16v40c0 5 3 8 7 8h3v73c0 6 5 10 9 10s9-4 9-10v-45h8v45c0 6 5 10 9 10s9-4 9-10v-73h3c4 0 7-3 7-8V64c0-9-7-16-16-16H34z" fill="url(#proteinGradient)" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col items-center">
+            <div className="flex items-baseline gap-1"><span className="text-4xl font-bold text-[#D4AF37]">{proteinConsumed}</span><span className="text-[#A0B3A6] text-lg">/ {proteinGoal} g</span></div>
+            <p className="text-[#D4AF37] text-xs font-medium uppercase tracking-widest mt-1">{proteinFill >= 100 ? 'Meta Atingida!' : 'Continue Consumindo'}</p>
+          </div>
+        </div>
+        <div className="flex gap-4 mt-4">
+          <button onClick={() => setProteinConsumed(0)} className="w-14 h-14 bg-[#051109] border border-red-900/30 rounded-2xl flex items-center justify-center text-red-500 active:scale-95 transition-transform" title="Zerar"><RotateCcw size={24} /></button>
+          <button onClick={() => setProteinConsumed(prev => Math.max(0, prev - proteinPortion))} className="w-14 h-14 bg-[#051109] border border-[#1A4026] rounded-2xl flex items-center justify-center text-white active:scale-95 transition-transform"><Minus size={24} /></button>
+          <button onClick={() => setProteinConsumed(prev => prev + proteinPortion)} className="flex-1 bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] rounded-2xl flex items-center justify-center gap-2 font-medium active:scale-95 transition-transform"><Plus size={24} /> {proteinPortion}g</button>
+        </div>
+        <div className="bg-[#051109] border border-[#1A4026] rounded-xl p-3 mt-4 space-y-3">
+          <h5 className="text-[#D4AF37] text-xs font-semibold">Configurações de Proteína</h5>
+          <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Meta Diária (g)</label><input type="number" value={proteinGoal} onChange={e => setProteinGoal(Number(e.target.value))} className="bg-[#0A1A10] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-20 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
+          <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Porção (g)</label><input type="number" value={proteinPortion} onChange={e => setProteinPortion(Number(e.target.value))} className="bg-[#0A1A10] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-20 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
+        </div>
       </div>
 
       {/* --- GRÁFICOS (Evolução de Peso) --- */}
@@ -2167,6 +2274,11 @@ export default function App() {
   const [drinkSize, setDrinkSize] = useState(250);
   const [conquistaRegistrada, setConquistaRegistrada] = useState(false);
   
+  const [proteinGoal, setProteinGoal] = useState(150);
+  const [proteinConsumed, setProteinConsumed] = useState(0);
+  const [proteinPortion, setProteinPortion] = useState(30);
+  const [proteinConquista, setProteinConquista] = useState(false);
+  
   const [diarioData, setDiarioData] = useState({
     treinosFeitos: { segunda: false, terca: false, quarta: false, quinta: false, sexta: false, sabado: false, domingo: false },
     nutricao: 50,
@@ -2372,6 +2484,10 @@ export default function App() {
     waterInterval, setWaterInterval,
     drinkSize, setDrinkSize,
     conquistaRegistrada, setConquistaRegistrada,
+    proteinGoal, setProteinGoal,
+    proteinConsumed, setProteinConsumed,
+    proteinPortion, setProteinPortion,
+    proteinConquista, setProteinConquista,
     diarioData, setDiarioData
   };
 
