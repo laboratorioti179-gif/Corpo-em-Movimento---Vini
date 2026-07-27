@@ -223,11 +223,11 @@ const modalidadesData = [
 
 const RunnerIcon = ({ size = 24, strokeWidth = 2, className = '' }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M14.5 4a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z" />
-    <path d="M15 8l-2 2-2.5-1.5" />
-    <path d="M10.5 10.5l1.5 5 3.5 1.5" />
-    <path d="M12 15.5l-3 6.5" />
-    <path d="M17 18l3-1.5" />
+    <path d="M17 5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z" />
+    <path d="M7 13l4-1 2.5-3.5 3.5 1.5 2.5-1" />
+    <path d="M13.5 13.5L16 18l4 1.5" />
+    <path d="M16 18l-3 5" />
+    <path d="M5 18l4-2.5" />
   </svg>
 );
 
@@ -1497,30 +1497,6 @@ const Progresso = () => {
          </div>
       </div>
 
-      {/* --- CONTABILIZADORES (Movimento, Nutrição, Recuperação) --- */}
-      <div className="grid grid-cols-3 gap-3">
-         {/* Movimento */}
-         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 flex flex-col items-center justify-center text-center">
-            <Activity className="text-[#D4AF37] mb-2" size={24} />
-            <span className="text-sm font-bold">14 hrs</span>
-            <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Movimento</span>
-         </div>
-         
-         {/* Nutrição */}
-         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 flex flex-col items-center justify-center text-center">
-            <span className="text-[#D4AF37] text-2xl mb-1">🍽️</span>
-            <span className="text-sm font-bold">12k kcal</span>
-            <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Nutrição</span>
-         </div>
-         
-         {/* Recuperação (Sono) */}
-         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 flex flex-col items-center justify-center text-center">
-            <span className="text-[#D4AF37] text-2xl mb-1">🌙</span>
-            <span className="text-sm font-bold">48 hrs</span>
-            <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Recuperação</span>
-         </div>
-      </div>
-
       {/* --- DESAFIOS SEMANAIS E MEDALHAS --- */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
         <h4 className="font-medium text-[#D4AF37] mb-1">Desafios da Semana</h4>
@@ -1596,6 +1572,105 @@ const Progresso = () => {
 };
 
 const Corrida = () => {
+  const compartilharCorrida = async () => {
+     const canvas = document.createElement('canvas');
+     canvas.width = 1080;
+     canvas.height = 1920; 
+     const ctx = canvas.getContext('2d');
+
+     // Fundo do Story
+     const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
+     gradient.addColorStop(0, '#0A1A10');
+     gradient.addColorStop(1, '#051109');
+     ctx.fillStyle = gradient;
+     ctx.fillRect(0, 0, 1080, 1920);
+
+     // Desenho das "ruas" de fundo
+     ctx.strokeStyle = '#1A3020';
+     ctx.lineWidth = 3;
+     for (let i = 0; i < 20; i++) {
+         ctx.beginPath();
+         ctx.moveTo(0, i * 100);
+         ctx.lineTo(1080, i * 100 + Math.random() * 200 - 100);
+         ctx.stroke();
+     }
+
+     // Linha do Percurso percorrido (Dourado/Gold)
+     ctx.strokeStyle = '#D4AF37';
+     ctx.lineWidth = 18;
+     ctx.lineCap = 'round';
+     ctx.lineJoin = 'round';
+     ctx.beginPath();
+     ctx.moveTo(200, 1000);
+     ctx.lineTo(350, 800);
+     ctx.lineTo(500, 850);
+     ctx.lineTo(700, 600);
+     ctx.lineTo(850, 750);
+     ctx.stroke();
+
+     // Pontos de partida e chegada
+     ctx.fillStyle = '#FFFFFF';
+     ctx.beginPath(); ctx.arc(200, 1000, 24, 0, Math.PI * 2); ctx.fill();
+     ctx.beginPath(); ctx.arc(850, 750, 24, 0, Math.PI * 2); ctx.fill();
+
+     // Branding
+     ctx.fillStyle = '#D4AF37';
+     ctx.font = 'italic bold 70px "Playfair Display", serif';
+     ctx.textAlign = 'center';
+     ctx.fillText('Corpo em Movimento', 540, 180);
+
+     // Bloco Escuro para as Estatísticas
+     ctx.fillStyle = 'rgba(10, 26, 16, 0.9)';
+     ctx.roundRect(90, 1300, 900, 420, 40);
+     ctx.fill();
+     ctx.strokeStyle = '#1A4026';
+     ctx.lineWidth = 4;
+     ctx.stroke();
+
+     // Estatísticas e Metricas
+     ctx.fillStyle = '#FFFFFF';
+     ctx.font = 'bold 110px Arial';
+     ctx.fillText('5.20 km', 540, 1460);
+
+     ctx.font = '40px Arial';
+     ctx.fillStyle = '#A0B3A6';
+     ctx.fillText('Distância', 540, 1530);
+
+     ctx.font = 'bold 70px Arial';
+     ctx.fillStyle = '#FFFFFF';
+     ctx.fillText('5\'30"', 300, 1640);
+     ctx.fillText('28:36', 780, 1640);
+
+     ctx.font = '30px Arial';
+     ctx.fillStyle = '#A0B3A6';
+     ctx.fillText('Pace / Ritmo Médio', 300, 1690);
+     ctx.fillText('Tempo', 780, 1690);
+
+     // Geração e Compartilhamento
+     canvas.toBlob(async (blob) => {
+       const file = new File([blob], 'corrida.png', { type: 'image/png' });
+       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+         try {
+           await navigator.share({
+             title: 'Minha Corrida',
+             text: 'Acabei de concluir meu percurso pelo Corpo em Movimento! 🏃💨',
+             files: [file]
+           });
+         } catch (error) {
+           console.error('Erro ao compartilhar:', error);
+         }
+       } else {
+         const url = URL.createObjectURL(blob);
+         const a = document.createElement('a');
+         a.href = url;
+         a.download = 'corpo-em-movimento-corrida.png';
+         a.click();
+         URL.revokeObjectURL(url);
+         alert("Imagem gerada e baixada! Agora você pode compartilhar no seu Instagram.");
+       }
+     }, 'image/png');
+  };
+
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
       <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
@@ -1603,9 +1678,84 @@ const Corrida = () => {
         <h3 className="text-white text-lg font-medium mb-1">Seu Desempenho</h3>
         <p className="text-[#A0B3A6] text-xs">Acompanhe seus treinos e metas de corrida.</p>
       </div>
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-8 text-center text-[#A0B3A6] text-sm flex flex-col items-center justify-center">
-        <RunnerIcon size={48} className="text-[#D4AF37] mb-4 opacity-50" />
-        <p>O módulo de acompanhamento de Corrida estará disponível em breve.</p>
+      
+      {/* Resumo da Última Corrida */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
+        <div className="flex justify-between items-center mb-2">
+           <h4 className="font-medium text-[#D4AF37] flex items-center gap-2">
+             <RunnerIcon size={18} /> Última Corrida
+           </h4>
+           <span className="text-xs text-[#A0B3A6]">Hoje, 06:30</span>
+        </div>
+
+        {/* Desenho de Mapa do Percurso */}
+        <div className="w-full h-48 bg-[#051109] rounded-xl border border-[#1A4026] relative overflow-hidden flex items-center justify-center shadow-inner">
+           {/* Linhas de fundo simulando ruas/mapa */}
+           <svg className="absolute inset-0 w-full h-full opacity-20" xmlns="http://www.w3.org/2000/svg">
+             <path d="M-10 20 Q 50 50 100 10 T 250 30 T 400 10" stroke="#D4AF37" fill="transparent" strokeWidth="1"/>
+             <path d="M-10 70 Q 80 120 150 60 T 300 90 T 450 40" stroke="#D4AF37" fill="transparent" strokeWidth="1"/>
+             <path d="M-10 130 Q 60 100 120 170 T 260 140 T 400 160" stroke="#D4AF37" fill="transparent" strokeWidth="1"/>
+             <path d="M50 -10 V 200 M 150 -10 V 200 M 250 -10 V 200 M 350 -10 V 200" stroke="#A0B3A6" fill="transparent" strokeWidth="0.5" strokeDasharray="4 4"/>
+           </svg>
+           {/* Linha do Percurso */}
+           <svg className="absolute inset-0 w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+             <path d="M 15 85 L 35 60 L 50 65 L 70 30 L 85 45" fill="none" stroke="#D4AF37" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-[0_0_8px_rgba(212,175,55,1)]"/>
+             <circle cx="15" cy="85" r="3" fill="#FFFFFF" />
+             <circle cx="85" cy="45" r="3" fill="#FFFFFF" />
+           </svg>
+        </div>
+
+        {/* Estatísticas (Pace, Distância, Tempo) */}
+        <div className="grid grid-cols-3 gap-2 text-center pt-2">
+           <div className="bg-[#051109] p-3 rounded-xl border border-[#1A4026]">
+             <span className="text-[#A0B3A6] text-[10px] uppercase block mb-1">Distância</span>
+             <span className="text-white font-bold text-lg">5.2<span className="text-xs font-normal text-[#A0B3A6]"> km</span></span>
+           </div>
+           <div className="bg-[#051109] p-3 rounded-xl border border-[#1A4026]">
+             <span className="text-[#A0B3A6] text-[10px] uppercase block mb-1">Pace</span>
+             <span className="text-white font-bold text-lg">5'30"<span className="text-xs font-normal text-[#A0B3A6]"> /km</span></span>
+           </div>
+           <div className="bg-[#051109] p-3 rounded-xl border border-[#1A4026]">
+             <span className="text-[#A0B3A6] text-[10px] uppercase block mb-1">Tempo</span>
+             <span className="text-white font-bold text-lg">28:36</span>
+           </div>
+        </div>
+
+        {/* Botão de Compartilhar no Instagram (estilo Strava) */}
+        <button onClick={compartilharCorrida} className="w-full mt-2 bg-gradient-to-r from-[#f09433] via-[#e6683c] to-[#bc1888] text-white font-bold text-sm py-3 rounded-xl active:scale-95 transition-transform flex justify-center items-center gap-2 shadow-lg">
+          <Camera size={18} /> Compartilhar no Instagram
+        </button>
+      </div>
+
+      {/* Recordes Pessoais (RP) em KM */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+         <h4 className="font-medium text-[#D4AF37] mb-4">Recordes Pessoais (RP) em KM</h4>
+         <div className="space-y-3">
+           <div className="flex justify-between items-center bg-[#051109] border border-[#1A4026] p-3 rounded-xl">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37] border border-[#D4AF37]/30">
+                 <Award size={20} />
+               </div>
+               <div>
+                 <span className="text-white font-bold block text-sm">5 KM</span>
+                 <span className="text-[#A0B3A6] text-[10px]">Melhor Tempo</span>
+               </div>
+             </div>
+             <span className="text-[#D4AF37] font-bold">25:14</span>
+           </div>
+           <div className="flex justify-between items-center bg-[#051109] border border-[#1A4026] p-3 rounded-xl">
+             <div className="flex items-center gap-3">
+               <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37] border border-[#D4AF37]/30">
+                 <Award size={20} />
+               </div>
+               <div>
+                 <span className="text-white font-bold block text-sm">10 KM</span>
+                 <span className="text-[#A0B3A6] text-[10px]">Melhor Tempo</span>
+               </div>
+             </div>
+             <span className="text-[#D4AF37] font-bold">54:30</span>
+           </div>
+         </div>
       </div>
     </div>
   );
