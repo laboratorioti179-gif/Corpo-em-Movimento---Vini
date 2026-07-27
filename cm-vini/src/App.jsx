@@ -221,6 +221,16 @@ const modalidadesData = [
 
 // --- COMPONENTES ---
 
+const RunnerIcon = ({ size = 24, strokeWidth = 2, className = '' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M14.5 4a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0z" />
+    <path d="M15 8l-2 2-2.5-1.5" />
+    <path d="M10.5 10.5l1.5 5 3.5 1.5" />
+    <path d="M12 15.5l-3 6.5" />
+    <path d="M17 18l3-1.5" />
+  </svg>
+);
+
 const GlobalStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
     @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
@@ -1233,14 +1243,28 @@ const Progresso = () => {
     proteinGoal, setProteinGoal,
     proteinConsumed, setProteinConsumed,
     proteinPortion, setProteinPortion,
-    proteinConquista, setProteinConquista
+    proteinConquista, setProteinConquista,
+    waterGoal, setWaterGoal,
+    waterConsumed, setWaterConsumed,
+    waterInterval, setWaterInterval,
+    drinkSize, setDrinkSize,
+    conquistaRegistrada, setConquistaRegistrada
   } = useApp();
   const [progressoUser, setProgressoUser] = useState({ mes: '', peso: '', braco: '', cintura: '', coxa: '' });
   const [historico, setHistorico] = useState([]);
   const [statusMsg, setStatusMsg] = useState('');
-  const [humorSemanal, setHumorSemanal] = useState('');
 
   const proteinFill = Math.min((proteinConsumed / proteinGoal) * 100, 100);
+  const fillPercentage = Math.min((waterConsumed / waterGoal) * 100, 100);
+
+  useEffect(() => {
+    if (fillPercentage >= 100 && !conquistaRegistrada) {
+      if (registrarConquista) registrarConquista("💧 Conquista: Meta de água diária concluída!");
+      setConquistaRegistrada(true);
+    } else if (fillPercentage < 100) {
+      setConquistaRegistrada(false); 
+    }
+  }, [fillPercentage, conquistaRegistrada, registrarConquista]);
 
   useEffect(() => {
     if (proteinFill >= 100 && !proteinConquista) {
@@ -1417,6 +1441,39 @@ const Progresso = () => {
         </div>
       </div>
 
+      {/* --- JOGO DA ÁGUA --- */}
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+        <div className="mb-4">
+          <h4 className="font-medium text-[#D4AF37]">Meta de Água</h4>
+          <p className="text-[#A0B3A6] text-[10px]">Acompanhe seu consumo diário.</p>
+        </div>
+        <div className="flex flex-col items-center justify-center py-2">
+          <div className="relative w-32 h-48 border-[6px] border-[#1A3020] rounded-b-3xl rounded-t-lg bg-[#051109] overflow-hidden shadow-[0_0_30px_rgba(26,64,38,0.3)] cursor-pointer transition-transform active:scale-95 mx-auto" onClick={() => setWaterConsumed(prev => prev + drinkSize)}>
+            <div className="absolute top-1/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
+            <div className="absolute top-2/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
+            <div className="absolute top-3/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-[800ms] ease-in-out opacity-90" style={{ height: `${fillPercentage}%` }}>
+              <div className="absolute top-0 left-0 right-0 h-2 bg-cyan-300/60 rounded-t-full"></div>
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col items-center">
+            <div className="flex items-baseline gap-1"><span className="text-4xl font-bold text-[#D4AF37]">{waterConsumed}</span><span className="text-[#A0B3A6] text-lg">/ {waterGoal} ml</span></div>
+            <p className="text-[#D4AF37] text-xs font-medium uppercase tracking-widest mt-1">{fillPercentage >= 100 ? 'Meta Atingida!' : 'Continue Bebendo'}</p>
+          </div>
+        </div>
+        <div className="flex gap-4 mt-4">
+          <button onClick={() => setWaterConsumed(0)} className="w-14 h-14 bg-[#051109] border border-red-900/30 rounded-2xl flex items-center justify-center text-red-500 active:scale-95 transition-transform" title="Zerar"><RotateCcw size={24} /></button>
+          <button onClick={() => setWaterConsumed(prev => Math.max(0, prev - drinkSize))} className="w-14 h-14 bg-[#051109] border border-[#1A4026] rounded-2xl flex items-center justify-center text-white active:scale-95 transition-transform"><Minus size={24} /></button>
+          <button onClick={() => setWaterConsumed(prev => prev + drinkSize)} className="flex-1 bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] rounded-2xl flex items-center justify-center gap-2 font-medium active:scale-95 transition-transform"><Plus size={24} /> {drinkSize}ml</button>
+        </div>
+        <div className="bg-[#051109] border border-[#1A4026] rounded-xl p-3 mt-4 space-y-3">
+          <h5 className="text-[#D4AF37] text-xs font-semibold">Configurações de Água</h5>
+          <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Meta Diária (ml)</label><input type="number" value={waterGoal} onChange={e => setWaterGoal(Number(e.target.value))} className="bg-[#0A1A10] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-20 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
+          <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Intervalo (min)</label><input type="number" value={waterInterval} onChange={e => setWaterInterval(Number(e.target.value))} className="bg-[#0A1A10] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-20 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
+          <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Porção (ml)</label><input type="number" value={drinkSize} onChange={e => setDrinkSize(Number(e.target.value))} className="bg-[#0A1A10] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-20 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
+        </div>
+      </div>
+
       {/* --- GRÁFICOS (Evolução de Peso) --- */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
          <div className="flex justify-between items-center mb-4">
@@ -1462,24 +1519,6 @@ const Progresso = () => {
             <span className="text-sm font-bold">48 hrs</span>
             <span className="text-[#A0B3A6] text-[8px] uppercase tracking-wider mt-1">Recuperação</span>
          </div>
-      </div>
-
-      {/* --- MENTALIDADE --- */}
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-        <h4 className="font-medium text-[#D4AF37] mb-3">Mentalidade da Semana</h4>
-        <div className="flex justify-between items-center gap-2">
-          {['Empolgada', 'Feliz', 'Triste'].map((humor) => (
-             <button 
-               key={humor}
-               onClick={() => setHumorSemanal(humor)}
-               className={`flex-1 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                 humorSemanal === humor ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#051109] border-[#1A4026] text-[#A0B3A6] hover:border-[#D4AF37]/50'
-               }`}
-             >
-               {humor === 'Empolgada' ? '🤩' : humor === 'Feliz' ? '😊' : '😔'} {humor}
-             </button>
-          ))}
-        </div>
       </div>
 
       {/* --- DESAFIOS SEMANAIS E MEDALHAS --- */}
@@ -1556,58 +1595,17 @@ const Progresso = () => {
   );
 };
 
-const Agua = () => {
-  const { 
-    registrarConquista,
-    waterGoal, setWaterGoal,
-    waterConsumed, setWaterConsumed,
-    waterInterval, setWaterInterval,
-    drinkSize, setDrinkSize,
-    conquistaRegistrada, setConquistaRegistrada
-  } = useApp();
-  
-  const fillPercentage = Math.min((waterConsumed / waterGoal) * 100, 100);
-
-  useEffect(() => {
-    if (fillPercentage >= 100 && !conquistaRegistrada) {
-      registrarConquista("💧 Conquista: Meta de água diária concluída!");
-      setConquistaRegistrada(true);
-    } else if (fillPercentage < 100) {
-      setConquistaRegistrada(false); 
-    }
-  }, [fillPercentage, conquistaRegistrada, registrarConquista]);
-
+const Corrida = () => {
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
       <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
-        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Hidratação</h2>
-        <h3 className="text-white text-lg font-medium mb-1">Meta de Água</h3>
-        <p className="text-[#A0B3A6] text-xs">Acompanhe e configure seu consumo diário.</p>
+        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Corrida</h2>
+        <h3 className="text-white text-lg font-medium mb-1">Seu Desempenho</h3>
+        <p className="text-[#A0B3A6] text-xs">Acompanhe seus treinos e metas de corrida.</p>
       </div>
-      <div className="flex flex-col items-center justify-center py-2">
-        <div className="relative w-32 h-48 border-[6px] border-[#1A3020] rounded-b-3xl rounded-t-lg bg-[#051109] overflow-hidden shadow-[0_0_30px_rgba(26,64,38,0.3)] cursor-pointer transition-transform active:scale-95" onClick={() => setWaterConsumed(prev => prev + drinkSize)}>
-          <div className="absolute top-1/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
-          <div className="absolute top-2/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
-          <div className="absolute top-3/4 left-0 w-2 h-0.5 bg-[#1A3020] z-10"></div>
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-cyan-600 to-cyan-400 transition-all duration-[800ms] ease-in-out opacity-90" style={{ height: `${fillPercentage}%` }}>
-            <div className="absolute top-0 left-0 right-0 h-2 bg-cyan-300/60 rounded-t-full"></div>
-          </div>
-        </div>
-        <div className="mt-6 flex flex-col items-center">
-          <div className="flex items-baseline gap-1"><span className="text-4xl font-bold text-[#D4AF37]">{waterConsumed}</span><span className="text-[#A0B3A6] text-lg">/ {waterGoal} ml</span></div>
-          <p className="text-[#D4AF37] text-xs font-medium uppercase tracking-widest mt-1">{fillPercentage >= 100 ? 'Meta Atingida!' : 'Continue Bebendo'}</p>
-        </div>
-      </div>
-      <div className="flex gap-4">
-        <button onClick={() => setWaterConsumed(0)} className="w-14 h-14 bg-[#0A1A10] border border-red-900/30 rounded-2xl flex items-center justify-center text-red-500 active:scale-95 transition-transform" title="Reiniciar Copo"><RotateCcw size={24} /></button>
-        <button onClick={() => setWaterConsumed(prev => Math.max(0, prev - drinkSize))} className="w-14 h-14 bg-[#0A1A10] border border-[#1A4026] rounded-2xl flex items-center justify-center text-white active:scale-95 transition-transform"><Minus size={24} /></button>
-        <button onClick={() => setWaterConsumed(prev => prev + drinkSize)} className="flex-1 bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] rounded-2xl flex items-center justify-center gap-2 font-medium active:scale-95 transition-transform"><Plus size={24} /> Tomar {drinkSize}ml</button>
-      </div>
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 mt-2 space-y-4">
-        <h4 className="text-[#D4AF37] text-sm font-semibold mb-3">Configurações</h4>
-        <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Meta Diária (ml)</label><input type="number" value={waterGoal} onChange={e => setWaterGoal(Number(e.target.value))} className="bg-[#051109] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-24 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
-        <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Intervalo (min)</label><input type="number" value={waterInterval} onChange={e => setWaterInterval(Number(e.target.value))} className="bg-[#051109] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-24 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
-        <div className="flex justify-between items-center"><label className="text-xs text-[#A0B3A6]">Tamanho do Copo (ml)</label><input type="number" value={drinkSize} onChange={e => setDrinkSize(Number(e.target.value))} className="bg-[#051109] border border-[#1A4026] text-white px-3 py-1.5 rounded-lg w-24 text-right text-sm focus:outline-none focus:border-[#D4AF37]" /></div>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-8 text-center text-[#A0B3A6] text-sm flex flex-col items-center justify-center">
+        <RunnerIcon size={48} className="text-[#D4AF37] mb-4 opacity-50" />
+        <p>O módulo de acompanhamento de Corrida estará disponível em breve.</p>
       </div>
     </div>
   );
@@ -2240,7 +2238,7 @@ const NavBar = () => {
     { id: 'diario', icon: Calendar, label: 'Diário' },
     { id: 'planos', icon: ClipboardList, label: 'Planos' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
-    { id: 'agua', icon: Droplets, label: 'Água' },
+    { id: 'corrida', icon: RunnerIcon, label: 'Corrida' },
     { id: 'perfil', icon: User, label: 'Perfil' }
   ];
   return (
@@ -2529,7 +2527,7 @@ export default function App() {
                 {activeTab === 'feed' && <Feed />}
                 {activeTab === 'planos' && <Planos />}
                 {activeTab === 'progresso' && <Progresso />}
-                {activeTab === 'agua' && <Agua />}
+                {activeTab === 'corrida' && <Corrida />}
                 {activeTab === 'perfil' && <Perfil />}
                 {activeTab === 'notificacoes' && <Notificacoes />}
               </main>
