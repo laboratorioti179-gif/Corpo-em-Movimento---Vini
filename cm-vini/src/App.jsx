@@ -6,7 +6,7 @@ import {
   MessageCircle, Send, Heart, MoreVertical, X, CheckCircle
 } from 'lucide-react';
 
-const logoCorpoMovimento = '/e0fe45c2-ff94-4b6c-b523-626464e3a09c.jpg';
+const logoCorpoMovimento = '/logo_cm_semfundo.png';
 const simboloCorpoMovimento = '/simbolo-corpo-movimento.png';
 
 // --- CONFIGURAÇÃO SUPABASE REAL (VIA FETCH NATIVO) ---
