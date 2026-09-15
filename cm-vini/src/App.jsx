@@ -40,6 +40,9 @@ class SupabaseQuery {
       this.headers['Prefer'] = 'count=exact';
       if (options.head) this.method = 'HEAD';
     }
+    if ((this.isInsert || this.isUpdate) && !this.headers['Prefer']) {
+      this.headers['Prefer'] = 'return=representation';
+    }
     this.queryParams.push(`select=${encodeURIComponent(columns)}`);
     return this;
   }
@@ -1004,11 +1007,451 @@ const Feed = () => {
 };
 
 
+const getLocalDateKey = () => {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = String(agora.getMonth() + 1).padStart(2, '0');
+  const dia = String(agora.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+};
+
+const getSessaoKey = (dia, index = 0) => String(dia?.id || dia?.titulo || `treino-${index + 1}`);
+const getExercicioKey = (exercicio, index = 0) => String(exercicio?.id || `exercicio-${index + 1}`);
+
+const getQuantidadeSeries = (valor) => {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero) || numero <= 0) return 1;
+  return Math.max(1, Math.min(12, Math.round(numero)));
+};
+
+const formatarDataExecucao = (valor) => {
+  if (!valor) return '';
+  const data = new Date(`${String(valor).slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(data.getTime())) return String(valor);
+  return data.toLocaleDateString('pt-BR');
+};
+
+const ExecucaoTreino = ({ plano, dia, diaIndex, profile, onClose, onConcluido }) => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+  const [execucao, setExecucao] = useState(null);
+  const [exerciciosExec, setExerciciosExec] = useState([]);
+  const [seriesExec, setSeriesExec] = useState([]);
+  const [historicoAnterior, setHistoricoAnterior] = useState({});
+  const [percepcaoEsforco, setPercepcaoEsforco] = useState('');
+  const [observacoesAluno, setObservacoesAluno] = useState('');
+
+  const sessaoKey = getSessaoKey(dia, diaIndex);
+  const hoje = getLocalDateKey();
+
+  const carregarHistoricoAnterior = async (execucaoAtualId, exercicios) => {
+    const mapa = {};
+    for (const exercicio of exercicios) {
+      const { data } = await supabase.from('execucoes_series')
+        .select('*')
+        .eq('user_id', profile.id)
+        .eq('exercicio_key', exercicio.exercicio_key)
+        .eq('concluida', true);
+
+      const anteriores = (data || [])
+        .filter(item => item.execucao_treino_id !== execucaoAtualId)
+        .sort((a, b) => new Date(b.updated_at || b.created_at || 0) - new Date(a.updated_at || a.created_at || 0));
+
+      anteriores.forEach(item => {
+        const chave = `${exercicio.exercicio_key}-${item.numero_serie}`;
+        if (!mapa[chave]) mapa[chave] = item;
+      });
+    }
+    setHistoricoAnterior(mapa);
+  };
+
+  const carregarDetalhesExecucao = async (execucaoAtual) => {
+    const { data: exercicios, error: exerciciosError } = await supabase.from('execucoes_exercicios')
+      .select('*')
+      .eq('execucao_treino_id', execucaoAtual.id);
+    if (exerciciosError) throw exerciciosError;
+
+    const listaExercicios = (exercicios || []).sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+
+    const { data: series, error: seriesError } = await supabase.from('execucoes_series')
+      .select('*')
+      .eq('execucao_treino_id', execucaoAtual.id);
+    if (seriesError) throw seriesError;
+
+    const listaSeries = (series || []).sort((a, b) => {
+      if (a.execucao_exercicio_id === b.execucao_exercicio_id) return Number(a.numero_serie) - Number(b.numero_serie);
+      return String(a.execucao_exercicio_id).localeCompare(String(b.execucao_exercicio_id));
+    });
+
+    setExerciciosExec(listaExercicios);
+    setSeriesExec(listaSeries);
+    setPercepcaoEsforco(execucaoAtual.percepcao_esforco ? String(execucaoAtual.percepcao_esforco) : '');
+    setObservacoesAluno(execucaoAtual.observacoes_aluno || '');
+    await carregarHistoricoAnterior(execucaoAtual.id, listaExercicios);
+    return { exercicios: listaExercicios, series: listaSeries };
+  };
+
+  const criarEstruturaExecucao = async (execucaoAtual) => {
+    const exerciciosPlano = Array.isArray(dia?.exercicios) ? dia.exercicios : [];
+    if (exerciciosPlano.length === 0) return;
+
+    const linhasExercicios = exerciciosPlano.map((ex, index) => ({
+      execucao_treino_id: execucaoAtual.id,
+      plano_treino_id: plano.id,
+      user_id: profile.id,
+      sessao_key: sessaoKey,
+      exercicio_key: getExercicioKey(ex, index),
+      nome_exercicio: ex.nome || `Exercício ${index + 1}`,
+      ordem: index + 1,
+      series_planejadas: getQuantidadeSeries(ex.series),
+      repeticoes_planejadas: ex.repeticoes != null ? String(ex.repeticoes) : null,
+      carga_orientacao: ex.carga_orientacao || null,
+      descanso_seg: ex.descanso_seg ? Number(ex.descanso_seg) : null,
+      observacoes_planejamento: ex.observacoes || null
+    }));
+
+    const { data: criados, error: exerciciosError } = await supabase.from('execucoes_exercicios')
+      .insert(linhasExercicios)
+      .select();
+    if (exerciciosError) throw exerciciosError;
+
+    const exerciciosCriados = (criados || []).sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0));
+    const linhasSeries = [];
+
+    exerciciosCriados.forEach(exercicio => {
+      const quantidade = getQuantidadeSeries(exercicio.series_planejadas);
+      for (let numero = 1; numero <= quantidade; numero += 1) {
+        linhasSeries.push({
+          execucao_exercicio_id: exercicio.id,
+          execucao_treino_id: execucaoAtual.id,
+          plano_treino_id: plano.id,
+          user_id: profile.id,
+          exercicio_key: exercicio.exercicio_key,
+          numero_serie: numero,
+          carga_kg: null,
+          repeticoes: null,
+          concluida: false
+        });
+      }
+    });
+
+    if (linhasSeries.length > 0) {
+      const { error: seriesError } = await supabase.from('execucoes_series').insert(linhasSeries);
+      if (seriesError) throw seriesError;
+    }
+  };
+
+  const iniciarOuRetomar = async () => {
+    setLoading(true);
+    setStatusMsg('');
+    try {
+      const { data: existentes, error: existentesError } = await supabase.from('execucoes_treino')
+        .select('*')
+        .eq('plano_treino_id', plano.id)
+        .eq('user_id', profile.id)
+        .eq('sessao_key', sessaoKey)
+        .eq('data_execucao', hoje)
+        .eq('status', 'iniciado');
+      if (existentesError) throw existentesError;
+
+      let atual = (existentes || []).sort((a, b) => new Date(b.iniciado_em || b.created_at || 0) - new Date(a.iniciado_em || a.created_at || 0))[0] || null;
+
+      if (!atual) {
+        const iniciadoEm = new Date().toISOString();
+        const { data: criada, error: criarError } = await supabase.from('execucoes_treino').insert([{
+          plano_treino_id: plano.id,
+          user_id: profile.id,
+          sessao_key: sessaoKey,
+          status: 'iniciado',
+          data_execucao: hoje,
+          iniciado_em: iniciadoEm,
+          dados_execucao: {
+            titulo: dia?.titulo || 'Treino',
+            foco: dia?.foco || null,
+            sessao_key: sessaoKey,
+            iniciado_em: iniciadoEm
+          }
+        }]).select().single();
+        if (criarError) throw criarError;
+        atual = criada;
+        await criarEstruturaExecucao(atual);
+      }
+
+      setExecucao(atual);
+      let detalhes = await carregarDetalhesExecucao(atual);
+      if (detalhes.exercicios.length === 0) {
+        await criarEstruturaExecucao(atual);
+        detalhes = await carregarDetalhesExecucao(atual);
+      }
+    } catch (error) {
+      console.error('Erro ao iniciar treino:', error);
+      setStatusMsg('Não foi possível iniciar o treino. Verifique o banco do Passo 4.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    iniciarOuRetomar();
+  }, [plano?.id, profile?.id, sessaoKey]);
+
+  const atualizarSerieLocal = (id, campo, valor) => {
+    setSeriesExec(prev => prev.map(item => item.id === id ? { ...item, [campo]: valor } : item));
+  };
+
+  const persistirSerie = async (serie, patch = {}) => {
+    const atualizada = { ...serie, ...patch };
+    const payload = {
+      carga_kg: atualizada.carga_kg === '' || atualizada.carga_kg == null ? null : Number(atualizada.carga_kg),
+      repeticoes: atualizada.repeticoes === '' || atualizada.repeticoes == null ? null : Number(atualizada.repeticoes),
+      concluida: Boolean(atualizada.concluida),
+      updated_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('execucoes_series').update(payload).eq('id', serie.id);
+    if (error) {
+      setStatusMsg('Não foi possível salvar uma das séries.');
+      return false;
+    }
+    return true;
+  };
+
+  const alternarSerie = async (serie) => {
+    const novoValor = !serie.concluida;
+    atualizarSerieLocal(serie.id, 'concluida', novoValor);
+    await persistirSerie(serie, { concluida: novoValor });
+  };
+
+  const finalizarTreino = async () => {
+    if (!execucao?.id) return;
+    const concluidas = seriesExec.filter(item => item.concluida).length;
+    const total = seriesExec.length;
+    if (total === 0 || concluidas === 0) {
+      setStatusMsg('Conclua pelo menos uma série antes de finalizar o treino.');
+      return;
+    }
+
+    setSaving(true);
+    setStatusMsg('Salvando seu treino...');
+
+    try {
+      for (const serie of seriesExec) {
+        const ok = await persistirSerie(serie);
+        if (!ok) throw new Error('Erro ao salvar séries');
+      }
+
+      const agora = new Date();
+      const iniciado = new Date(execucao.iniciado_em || execucao.created_at || agora.toISOString());
+      const duracaoMinutos = Math.max(1, Math.round((agora.getTime() - iniciado.getTime()) / 60000));
+      const percentual = total > 0 ? Math.round((concluidas / total) * 10000) / 100 : 0;
+
+      const exerciciosResumo = exerciciosExec.map(exercicio => ({
+        exercicio_key: exercicio.exercicio_key,
+        nome: exercicio.nome_exercicio,
+        planejado: {
+          series: exercicio.series_planejadas,
+          repeticoes: exercicio.repeticoes_planejadas,
+          carga_orientacao: exercicio.carga_orientacao,
+          descanso_seg: exercicio.descanso_seg
+        },
+        series: seriesExec
+          .filter(serie => serie.execucao_exercicio_id === exercicio.id)
+          .sort((a, b) => Number(a.numero_serie) - Number(b.numero_serie))
+          .map(serie => ({
+            numero: serie.numero_serie,
+            carga_kg: serie.carga_kg === '' || serie.carga_kg == null ? null : Number(serie.carga_kg),
+            repeticoes: serie.repeticoes === '' || serie.repeticoes == null ? null : Number(serie.repeticoes),
+            concluida: Boolean(serie.concluida)
+          }))
+      }));
+
+      const concluidoEm = agora.toISOString();
+      const esforcoNumero = percepcaoEsforco ? Number(percepcaoEsforco) : null;
+      const dadosExecucao = {
+        titulo: dia?.titulo || 'Treino',
+        foco: dia?.foco || null,
+        sessao_key: sessaoKey,
+        data_execucao: hoje,
+        iniciado_em: execucao.iniciado_em,
+        concluido_em: concluidoEm,
+        duracao_minutos: duracaoMinutos,
+        total_series: total,
+        series_concluidas: concluidas,
+        percentual_conclusao: percentual,
+        percepcao_esforco: esforcoNumero,
+        observacoes_aluno: observacoesAluno || null,
+        exercicios: exerciciosResumo
+      };
+
+      const { error } = await supabase.from('execucoes_treino').update({
+        status: 'concluido',
+        concluido_em: concluidoEm,
+        duracao_minutos: duracaoMinutos,
+        percepcao_esforco: esforcoNumero,
+        observacoes_aluno: observacoesAluno || null,
+        percentual_conclusao: percentual,
+        dados_execucao: dadosExecucao,
+        updated_at: concluidoEm
+      }).eq('id', execucao.id);
+      if (error) throw error;
+
+      setStatusMsg('Treino concluído! Seu histórico foi salvo.');
+      setTimeout(() => onConcluido?.(dadosExecucao), 700);
+    } catch (error) {
+      console.error('Erro ao finalizar treino:', error);
+      setStatusMsg('Não foi possível finalizar o treino. Tente novamente.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalSeries = seriesExec.length;
+  const seriesConcluidas = seriesExec.filter(item => item.concluida).length;
+  const percentualVisual = totalSeries > 0 ? Math.round((seriesConcluidas / totalSeries) * 100) : 0;
+
+  return (
+    <div className="absolute inset-0 z-[70] bg-[#051109] text-white flex flex-col">
+      <div className="px-5 pt-[calc(1rem+env(safe-area-inset-top))] pb-4 border-b border-[#1A4026] bg-[#07150c] shrink-0">
+        <div className="flex items-center justify-between gap-3">
+          <button onClick={onClose} className="w-10 h-10 rounded-full border border-[#1A4026] flex items-center justify-center text-[#D4AF37] active:scale-95"><ChevronLeft size={20}/></button>
+          <div className="flex-1 text-center min-w-0">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-[#D4AF37]">Treino em andamento</p>
+            <h2 className="font-bold text-base truncate">{dia?.titulo || 'Treino'}</h2>
+          </div>
+          <div className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/30 flex items-center justify-center"><Dumbbell size={18} className="text-[#D4AF37]"/></div>
+        </div>
+        <div className="mt-4">
+          <div className="flex justify-between text-[10px] text-[#A0B3A6] mb-1"><span>{seriesConcluidas}/{totalSeries} séries</span><span>{percentualVisual}%</span></div>
+          <div className="h-2 rounded-full bg-[#1A3020] overflow-hidden"><div className="h-full bg-[#D4AF37] transition-all duration-300" style={{ width: `${percentualVisual}%` }} /></div>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-5 pb-32 space-y-5">
+        {statusMsg && <div className="bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] p-3 rounded-xl text-xs text-center">{statusMsg}</div>}
+
+        {loading ? (
+          <div className="text-center text-[#A0B3A6] py-16">Preparando seu treino...</div>
+        ) : exerciciosExec.length === 0 ? (
+          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-5 text-center text-sm text-[#A0B3A6]">Nenhum exercício foi encontrado nesta sessão.</div>
+        ) : (
+          exerciciosExec.map((exercicio, exIndex) => {
+            const seriesDoExercicio = seriesExec
+              .filter(serie => serie.execucao_exercicio_id === exercicio.id)
+              .sort((a, b) => Number(a.numero_serie) - Number(b.numero_serie));
+            const concluidasExercicio = seriesDoExercicio.filter(item => item.concluida).length;
+
+            return (
+              <div key={exercicio.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-[#1A4026]">
+                  <div className="flex justify-between items-start gap-3">
+                    <div>
+                      <p className="text-[9px] uppercase tracking-wider text-[#D4AF37]">Exercício {exIndex + 1}</p>
+                      <h3 className="font-bold text-base mt-0.5">{exercicio.nome_exercicio}</h3>
+                    </div>
+                    <span className="text-[10px] bg-[#051109] border border-[#1A4026] text-[#A0B3A6] px-2 py-1 rounded-full whitespace-nowrap">{concluidasExercicio}/{seriesDoExercicio.length}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#A0B3A6]">
+                    {exercicio.repeticoes_planejadas && <span>Meta: {exercicio.series_planejadas} × {exercicio.repeticoes_planejadas}</span>}
+                    {exercicio.descanso_seg && <span>Descanso: {exercicio.descanso_seg}s</span>}
+                    {exercicio.carga_orientacao && <span>Carga: {exercicio.carga_orientacao}</span>}
+                  </div>
+                  {exercicio.observacoes_planejamento && <p className="text-[10px] text-[#A0B3A6] mt-2 leading-relaxed">{exercicio.observacoes_planejamento}</p>}
+                </div>
+
+                <div className="p-4 space-y-2">
+                  <div className="grid grid-cols-[34px_1fr_1fr_42px] gap-2 text-[9px] uppercase tracking-wider text-[#A0B3A6] px-1">
+                    <span>Série</span><span>Carga kg</span><span>Reps</span><span className="text-center">OK</span>
+                  </div>
+                  {seriesDoExercicio.map(serie => {
+                    const anterior = historicoAnterior[`${exercicio.exercicio_key}-${serie.numero_serie}`];
+                    return (
+                      <div key={serie.id} className={`grid grid-cols-[34px_1fr_1fr_42px] gap-2 items-center rounded-xl p-2 border transition-colors ${serie.concluida ? 'bg-[#142619] border-[#D4AF37]/50' : 'bg-[#051109] border-[#1A4026]'}`}>
+                        <span className="text-center font-bold text-[#D4AF37]">{serie.numero_serie}</span>
+                        <div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.5"
+                            value={serie.carga_kg ?? ''}
+                            onChange={e => atualizarSerieLocal(serie.id, 'carga_kg', e.target.value)}
+                            onBlur={() => persistirSerie(serie)}
+                            placeholder={anterior?.carga_kg != null ? String(anterior.carga_kg) : 'kg'}
+                            className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-lg px-2 py-2 text-sm text-white outline-none focus:border-[#D4AF37]"
+                          />
+                          {anterior?.carga_kg != null && <span className="block mt-1 text-[8px] text-[#A0B3A6]">Anterior: {anterior.carga_kg} kg</span>}
+                        </div>
+                        <div>
+                          <input
+                            type="number"
+                            min="0"
+                            step="1"
+                            value={serie.repeticoes ?? ''}
+                            onChange={e => atualizarSerieLocal(serie.id, 'repeticoes', e.target.value)}
+                            onBlur={() => persistirSerie(serie)}
+                            placeholder={anterior?.repeticoes != null ? String(anterior.repeticoes) : 'reps'}
+                            className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-lg px-2 py-2 text-sm text-white outline-none focus:border-[#D4AF37]"
+                          />
+                          {anterior?.repeticoes != null && <span className="block mt-1 text-[8px] text-[#A0B3A6]">Anterior: {anterior.repeticoes}</span>}
+                        </div>
+                        <button onClick={() => alternarSerie(serie)} className={`w-9 h-9 rounded-full border flex items-center justify-center active:scale-95 transition-all ${serie.concluida ? 'bg-[#D4AF37] border-[#D4AF37] text-[#051109]' : 'bg-[#0A1A10] border-[#1A4026] text-[#A0B3A6]'}`}>
+                          {serie.concluida ? <CheckCircle size={18}/> : <span className="text-xs">✓</span>}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })
+        )}
+
+        {!loading && exerciciosExec.length > 0 && (
+          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
+            <div>
+              <label className="text-xs text-[#D4AF37] font-medium block mb-2">Como foi o esforço geral?</label>
+              <div className="grid grid-cols-5 gap-2">
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(valor => (
+                  <button key={valor} onClick={() => setPercepcaoEsforco(String(valor))} className={`py-2 rounded-lg border text-xs font-bold ${Number(percepcaoEsforco) === valor ? 'bg-[#D4AF37] text-[#051109] border-[#D4AF37]' : 'bg-[#051109] text-[#A0B3A6] border-[#1A4026]'}`}>{valor}</button>
+                ))}
+              </div>
+              <p className="text-[9px] text-[#A0B3A6] mt-2">2 = leve • 10 = esforço máximo</p>
+            </div>
+            <div>
+              <label className="text-xs text-[#D4AF37] font-medium block mb-2">Observações do treino</label>
+              <textarea value={observacoesAluno} onChange={e => setObservacoesAluno(e.target.value)} placeholder="Ex.: carga confortável, dor, fadiga ou algo que o professor deva saber." rows="3" className="w-full bg-[#051109] border border-[#1A4026] text-white p-3 rounded-xl text-xs outline-none resize-none focus:border-[#D4AF37]" />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!loading && exerciciosExec.length > 0 && (
+        <div className="absolute bottom-0 left-0 right-0 p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] bg-[#07150c]/95 backdrop-blur-md border-t border-[#1A4026]">
+          <button disabled={saving || seriesConcluidas === 0} onClick={finalizarTreino} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3.5 rounded-xl active:scale-95 transition-transform disabled:opacity-40">
+            {saving ? 'Salvando...' : `Finalizar treino • ${seriesConcluidas}/${totalSeries} séries`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const MeuTreino = () => {
   const { profile } = useApp();
   const [plano, setPlano] = useState(null);
   const [loadingPlano, setLoadingPlano] = useState(true);
   const [statusMsg, setStatusMsg] = useState('');
+  const [execucoes, setExecucoes] = useState([]);
+  const [treinoAtivo, setTreinoAtivo] = useState(null);
+
+  const carregarExecucoes = async (planoId) => {
+    if (!planoId || !profile?.id) {
+      setExecucoes([]);
+      return;
+    }
+    const { data } = await supabase.from('execucoes_treino').select('*').eq('plano_treino_id', planoId).eq('user_id', profile.id);
+    const lista = (data || []).sort((a, b) => new Date(b.concluido_em || b.iniciado_em || b.created_at || 0) - new Date(a.concluido_em || a.iniciado_em || a.created_at || 0));
+    setExecucoes(lista);
+  };
 
   const carregarPlano = async () => {
     if (!profile?.id) return;
@@ -1018,10 +1461,13 @@ const MeuTreino = () => {
     if (error) {
       setStatusMsg('Ainda não foi possível carregar seu treino.');
       setPlano(null);
+      setExecucoes([]);
     } else {
       const lista = Array.isArray(data) ? data : (data ? [data] : []);
       lista.sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
-      setPlano(lista[0] || null);
+      const atual = lista[0] || null;
+      setPlano(atual);
+      await carregarExecucoes(atual?.id);
     }
     setLoadingPlano(false);
   };
@@ -1030,38 +1476,51 @@ const MeuTreino = () => {
 
   const treino = plano?.treino_json || null;
   const dias = Array.isArray(treino?.dias) ? treino.dias : [];
+  const hoje = getLocalDateKey();
 
-  const concluirSessao = async (dia) => {
-    if (!plano?.id || !profile?.id) return;
-    const sessaoKey = String(dia.id || dia.titulo || 'treino');
-    const { data: existentes } = await supabase.from('execucoes_treino').select('*').eq('plano_treino_id', plano.id).eq('user_id', profile.id).eq('sessao_key', sessaoKey).eq('status', 'concluido');
-    const hoje = new Date().toISOString().slice(0, 10);
-    const jaConcluidoHoje = (existentes || []).some(item => String(item.concluido_em || item.created_at || '').slice(0, 10) === hoje);
-    if (jaConcluidoHoje) {
-      setStatusMsg('Este treino já foi registrado como concluído hoje.');
+  const getStatusSessao = (dia, index) => {
+    const chave = getSessaoKey(dia, index);
+    const daSessao = execucoes.filter(item => item.sessao_key === chave);
+    const emAndamentoHoje = daSessao.find(item => item.status === 'iniciado' && String(item.data_execucao || item.iniciado_em || '').slice(0, 10) === hoje);
+    const concluidoHoje = daSessao.find(item => item.status === 'concluido' && String(item.data_execucao || item.concluido_em || '').slice(0, 10) === hoje);
+    const ultimoConcluido = daSessao.find(item => item.status === 'concluido') || null;
+    return { emAndamentoHoje, concluidoHoje, ultimoConcluido };
+  };
+
+  const abrirTreino = (dia, index) => {
+    const status = getStatusSessao(dia, index);
+    if (status.concluidoHoje) {
+      setStatusMsg('Este treino já foi concluído hoje.');
       setTimeout(() => setStatusMsg(''), 3000);
       return;
     }
+    setTreinoAtivo({ dia, index });
+  };
 
-    const concluidoEm = new Date().toISOString();
-    const { error } = await supabase.from('execucoes_treino').insert([{
-      plano_treino_id: plano.id,
-      user_id: profile.id,
-      sessao_key: sessaoKey,
-      status: 'concluido',
-      concluido_em: concluidoEm,
-      dados_execucao: { titulo: dia.titulo || 'Treino', concluido_em: concluidoEm }
-    }]);
-    setStatusMsg(error ? 'Não foi possível registrar a conclusão.' : 'Treino concluído e registrado no seu histórico!');
-    setTimeout(() => setStatusMsg(''), 3000);
+  const handleConcluido = async () => {
+    setTreinoAtivo(null);
+    setStatusMsg('Treino concluído e salvo no histórico!');
+    await carregarExecucoes(plano?.id);
+    setTimeout(() => setStatusMsg(''), 3500);
   };
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-24 pt-4 text-white">
+      {treinoAtivo && plano && (
+        <ExecucaoTreino
+          plano={plano}
+          dia={treinoAtivo.dia}
+          diaIndex={treinoAtivo.index}
+          profile={profile}
+          onClose={() => setTreinoAtivo(null)}
+          onConcluido={handleConcluido}
+        />
+      )}
+
       <div className="mb-5 border-l-2 border-[#D4AF37] pl-3 py-1">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Meu Treino</h2>
         <h3 className="text-white text-lg font-medium mb-1">Seu plano atual</h3>
-        <p className="text-[#A0B3A6] text-xs">Aqui aparece somente o treino publicado pela equipe da academia.</p>
+        <p className="text-[#A0B3A6] text-xs">Registre cada série, carga e repetição para acompanhar sua evolução.</p>
       </div>
 
       {statusMsg && <div className="bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] p-3 rounded-xl text-xs text-center">{statusMsg}</div>}
@@ -1092,33 +1551,49 @@ const MeuTreino = () => {
           </div>
 
           <div className="space-y-4">
-            {dias.map((dia, idx) => (
-              <div key={dia.id || idx} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden">
-                <div className="p-4 border-b border-[#1A4026] flex justify-between items-start gap-3">
-                  <div><p className="text-[#D4AF37] text-[10px] uppercase">{dia.foco || `Treino ${idx + 1}`}</p><h4 className="font-bold text-base">{dia.titulo || `Sessão ${idx + 1}`}</h4></div>
-                  {dia.duracao_min && <span className="text-[10px] text-[#A0B3A6] whitespace-nowrap">≈ {dia.duracao_min} min</span>}
-                </div>
-                <div className="p-4 space-y-3">
-                  {(dia.exercicios || []).map((ex, exIdx) => (
-                    <div key={ex.id || exIdx} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
-                      <div className="flex justify-between gap-3"><span className="text-sm font-medium">{ex.nome}</span><span className="text-[#D4AF37] text-xs whitespace-nowrap">{ex.series || '-'} × {ex.repeticoes || '-'}</span></div>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#A0B3A6]">
-                        {ex.descanso_seg && <span>Descanso: {ex.descanso_seg}s</span>}
-                        {ex.carga_orientacao && <span>Carga: {ex.carga_orientacao}</span>}
-                      </div>
-                      {ex.observacoes && <p className="text-[10px] text-[#A0B3A6] mt-2 leading-relaxed">{ex.observacoes}</p>}
+            {dias.map((dia, idx) => {
+              const status = getStatusSessao(dia, idx);
+              const ultimaData = status.ultimoConcluido?.data_execucao || status.ultimoConcluido?.concluido_em;
+              return (
+                <div key={dia.id || idx} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden">
+                  <div className="p-4 border-b border-[#1A4026] flex justify-between items-start gap-3">
+                    <div>
+                      <p className="text-[#D4AF37] text-[10px] uppercase">{dia.foco || `Treino ${idx + 1}`}</p>
+                      <h4 className="font-bold text-base">{dia.titulo || `Sessão ${idx + 1}`}</h4>
+                      {ultimaData && <p className="text-[9px] text-[#A0B3A6] mt-1">Última execução: {formatarDataExecucao(ultimaData)}{status.ultimoConcluido?.percentual_conclusao != null ? ` • ${Math.round(Number(status.ultimoConcluido.percentual_conclusao))}%` : ''}</p>}
                     </div>
-                  ))}
-                  <button onClick={() => concluirSessao(dia)} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl active:scale-95 transition-transform">Concluir este treino</button>
+                    {dia.duracao_min && <span className="text-[10px] text-[#A0B3A6] whitespace-nowrap">≈ {dia.duracao_min} min</span>}
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {(dia.exercicios || []).map((ex, exIdx) => (
+                      <div key={ex.id || exIdx} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
+                        <div className="flex justify-between gap-3"><span className="text-sm font-medium">{ex.nome}</span><span className="text-[#D4AF37] text-xs whitespace-nowrap">{ex.series || '-'} × {ex.repeticoes || '-'}</span></div>
+                        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#A0B3A6]">
+                          {ex.descanso_seg && <span>Descanso: {ex.descanso_seg}s</span>}
+                          {ex.carga_orientacao && <span>Carga: {ex.carga_orientacao}</span>}
+                        </div>
+                        {ex.observacoes && <p className="text-[10px] text-[#A0B3A6] mt-2 leading-relaxed">{ex.observacoes}</p>}
+                      </div>
+                    ))}
+
+                    <button
+                      onClick={() => abrirTreino(dia, idx)}
+                      disabled={Boolean(status.concluidoHoje)}
+                      className={`w-full font-bold py-3 rounded-xl active:scale-95 transition-transform ${status.concluidoHoje ? 'bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 opacity-80' : 'bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109]'}`}
+                    >
+                      {status.concluidoHoje ? '✓ Concluído hoje' : status.emAndamentoHoje ? 'Continuar treino' : status.ultimoConcluido ? 'Iniciar nova sessão' : 'Iniciar treino'}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
     </div>
   );
 };
+
 
 const Diario = () => {
   const { diarioData, setDiarioData, setActiveTab } = useApp();
