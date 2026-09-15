@@ -6,6 +6,9 @@ import {
   MessageCircle, Send, Heart, MoreVertical, X, CheckCircle
 } from 'lucide-react';
 
+const logoCorpoMovimento = '/e0fe45c2-ff94-4b6c-b523-626464e3a09c.jpg';
+const simboloCorpoMovimento = '/simbolo-corpo-movimento.png';
+
 // --- CONFIGURAÇÃO SUPABASE REAL (VIA FETCH NATIVO) ---
 export const supabaseUrl = 'https://jaujldyuelyhsqyxyerc.supabase.co';
 export const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphdWpsZHl1ZWx5aHNxeXh5ZXJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE5NTU5NDEsImV4cCI6MjA4NzUzMTk0MX0.YluXKJHl0rfJAiwyoN8tFfJIDfeHB_CwV-oFdaLwkvw';
@@ -209,6 +212,44 @@ export const supabase = {
 export const AppContext = createContext(null);
 export const useApp = () => useContext(AppContext);
 
+
+// --- PAPÉIS E FLUXO DE TREINO COM IA/RAG ---
+const getUserRole = (profile) => profile?.role || (profile?.is_admin ? 'admin' : 'aluno');
+const hasAdminAccess = (profile) => getUserRole(profile) === 'admin';
+const hasStaffAccess = (profile) => ['admin', 'professor'].includes(getUserRole(profile));
+
+// A Edge Function será responsável por consultar o RAG e retornar um treino estruturado.
+// O front-end nunca publica a resposta da IA automaticamente: primeiro salva como rascunho.
+const gerarTreinoComRAG = async ({ aluno, onboarding, progresso, instrucoesProfissional }) => {
+  if (!currentSession?.access_token) throw new Error('Sessão expirada. Entre novamente.');
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/gerar-treino-rag`, {
+    method: 'POST',
+    headers: {
+      'apikey': supabaseAnonKey,
+      'Authorization': `Bearer ${currentSession.access_token}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      aluno_id: aluno.id,
+      aluno: {
+        nome: aluno.nome,
+        data_nascimento: aluno.data_nascimento,
+        altura: aluno.altura,
+        peso_atual: aluno.peso_atual
+      },
+      onboarding: onboarding || null,
+      progresso: progresso || [],
+      instrucoes_profissional: instrucoesProfissional || ''
+    })
+  });
+
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(payload?.error || payload?.message || 'Não foi possível gerar o treino com a IA.');
+  if (!payload?.treino) throw new Error('A IA não retornou um treino estruturado.');
+  return payload;
+};
+
 const modalidadesData = [
   { id: 1, titulo: 'Boxe', categoria: 'Combate', fases: 10, dietas: 2, icon: ({ size, strokeWidth }) => <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
   { id: 7, titulo: 'Jiu-Jitsu', categoria: 'Luta Agarrada', fases: 10, dietas: 2, icon: ({ size, strokeWidth }) => <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
@@ -288,11 +329,13 @@ const Login = () => {
   return (
     <div className="flex-1 flex flex-col items-center justify-center p-8 text-white relative z-10 w-full h-full pt-20">
       <GlobalStyles />
-      <div className="flex flex-col items-center mb-12">
-        <h1 className="text-4xl text-center leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent drop-shadow-md mb-2 playfair italic font-bold">
-          Corpo em<br/>Movimento
-        </h1>
-        <p className="text-[#A0B3A6] text-sm tracking-widest uppercase mt-2">
+      <div className="flex flex-col items-center mb-8 sm:mb-10 w-full">
+        <img
+          src={logoCorpoMovimento}
+          alt="Corpo em Movimento"
+          className="w-[180px] sm:w-[200px] h-auto max-h-[230px] object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+        />
+        <p className="text-[#A0B3A6] text-sm tracking-widest uppercase mt-3">
           {isForgotPassword ? 'Recuperar Senha' : isSignUp ? 'Criar Conta' : 'Login'}
         </p>
       </div>
@@ -981,6 +1024,115 @@ const Feed = () => {
            </button>
          </div>
        )}
+    </div>
+  );
+};
+
+
+const MeuTreinoIA = () => {
+  const { profile } = useApp();
+  const [plano, setPlano] = useState(null);
+  const [loadingPlano, setLoadingPlano] = useState(true);
+  const [statusMsg, setStatusMsg] = useState('');
+
+  const carregarPlano = async () => {
+    if (!profile?.id) return;
+    setLoadingPlano(true);
+    setStatusMsg('');
+    const { data, error } = await supabase
+      .from('planos_treino')
+      .select('*')
+      .eq('user_id', profile.id)
+      .eq('status', 'publicado');
+
+    if (error) {
+      setStatusMsg('Ainda não foi possível carregar seu treino.');
+      setPlano(null);
+    } else {
+      const lista = Array.isArray(data) ? data : (data ? [data] : []);
+      lista.sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
+      setPlano(lista[0] || null);
+    }
+    setLoadingPlano(false);
+  };
+
+  useEffect(() => { carregarPlano(); }, [profile?.id]);
+
+  const treino = plano?.treino_json || null;
+  const dias = Array.isArray(treino?.dias) ? treino.dias : [];
+
+  const concluirSessao = async (dia) => {
+    const { error } = await supabase.from('execucoes_treino').insert([{
+      plano_treino_id: plano.id,
+      user_id: profile.id,
+      sessao_key: dia.id || dia.titulo || 'treino',
+      status: 'concluido',
+      dados_execucao: { titulo: dia.titulo || 'Treino', concluido_em: new Date().toISOString() }
+    }]);
+    setStatusMsg(error ? 'Não foi possível registrar a conclusão.' : 'Treino concluído e registrado!');
+    setTimeout(() => setStatusMsg(''), 3000);
+  };
+
+  return (
+    <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-24 pt-4 text-white">
+      <div className="mb-5 border-l-2 border-[#D4AF37] pl-3 py-1">
+        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Meu Treino</h2>
+        <h3 className="text-white text-lg font-medium mb-1">Treino personalizado</h3>
+        <p className="text-[#A0B3A6] text-xs">Gerado com apoio da IA da academia e liberado após revisão profissional.</p>
+      </div>
+
+      {statusMsg && <div className="bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] p-3 rounded-xl text-xs text-center">{statusMsg}</div>}
+
+      {loadingPlano ? (
+        <div className="text-center text-[#A0B3A6] py-12">Carregando seu treino...</div>
+      ) : !plano ? (
+        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center">
+          <Dumbbell size={34} className="text-[#D4AF37] mx-auto mb-3" />
+          <h4 className="font-medium mb-2">Seu treino está sendo preparado</h4>
+          <p className="text-[#A0B3A6] text-xs leading-relaxed">Quando o professor revisar e publicar o plano criado pela IA, ele aparecerá aqui automaticamente.</p>
+        </div>
+      ) : (
+        <>
+          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+            <div className="flex justify-between gap-3 items-start">
+              <div>
+                <p className="text-[#D4AF37] text-[10px] uppercase tracking-wider">Plano atual</p>
+                <h4 className="text-xl font-bold mt-1">{treino?.nome_plano || 'Treino Personalizado'}</h4>
+                <p className="text-[#A0B3A6] text-xs mt-1">{treino?.objetivo || plano.objetivo || 'Plano individualizado'}</p>
+              </div>
+              <span className="text-[9px] bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] px-2 py-1 rounded-full whitespace-nowrap">REVISADO</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-4 text-center">
+              <div className="bg-[#051109] rounded-xl p-3 border border-[#1A4026]"><span className="text-lg font-bold">{treino?.frequencia_semanal || dias.length || '-'}</span><span className="block text-[10px] text-[#A0B3A6]">treinos/semana</span></div>
+              <div className="bg-[#051109] rounded-xl p-3 border border-[#1A4026]"><span className="text-lg font-bold">{treino?.duracao_semanas || '-'}</span><span className="block text-[10px] text-[#A0B3A6]">semanas</span></div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {dias.map((dia, idx) => (
+              <div key={dia.id || idx} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden">
+                <div className="p-4 border-b border-[#1A4026] flex justify-between items-start gap-3">
+                  <div><p className="text-[#D4AF37] text-[10px] uppercase">{dia.foco || `Treino ${idx + 1}`}</p><h4 className="font-bold text-base">{dia.titulo || `Sessão ${idx + 1}`}</h4></div>
+                  {dia.duracao_min && <span className="text-[10px] text-[#A0B3A6] whitespace-nowrap">≈ {dia.duracao_min} min</span>}
+                </div>
+                <div className="p-4 space-y-3">
+                  {(dia.exercicios || []).map((ex, exIdx) => (
+                    <div key={ex.id || exIdx} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
+                      <div className="flex justify-between gap-3"><span className="text-sm font-medium">{ex.nome}</span><span className="text-[#D4AF37] text-xs whitespace-nowrap">{ex.series || '-'} × {ex.repeticoes || '-'}</span></div>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[#A0B3A6]">
+                        {ex.descanso_seg && <span>Descanso: {ex.descanso_seg}s</span>}
+                        {ex.carga_orientacao && <span>Carga: {ex.carga_orientacao}</span>}
+                      </div>
+                      {ex.observacoes && <p className="text-[10px] text-[#A0B3A6] mt-2 leading-relaxed">{ex.observacoes}</p>}
+                    </div>
+                  ))}
+                  <button onClick={() => concluirSessao(dia)} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl active:scale-95 transition-transform">Concluir este treino</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -1828,7 +1980,7 @@ const Perfil = () => {
         </label>
         <h2 className="text-xl font-bold">{profile?.nome || 'Usuário'}</h2>
         <p className="text-[#A0B3A6] text-sm">{profile?.email || ''}</p>
-        <span className="mt-2 bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">{profile?.is_admin ? 'Administrador' : 'Aluno PRO'}</span>
+        <span className="mt-2 bg-[#D4AF37]/20 text-[#D4AF37] px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider">{getUserRole(profile) === 'admin' ? 'Administrador' : getUserRole(profile) === 'professor' ? 'Professor' : 'Aluno'}</span>
       </div>
 
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
@@ -1874,7 +2026,7 @@ const Perfil = () => {
       </div>
 
       <div className="space-y-2">
-        {profile?.is_admin && (
+        {hasStaffAccess(profile) && (
           <button onClick={() => setAdminView(true)} className="w-full bg-[#1A3020] border border-[#D4AF37] rounded-xl p-4 flex items-center justify-between transition-all active:scale-[0.98]">
             <div className="flex items-center gap-3"><ShieldCheck className="text-[#D4AF37]" size={20} /><span className="text-[#D4AF37] font-medium">Acessar Área Administrativa</span></div><ChevronRight className="text-[#D4AF37] opacity-80" size={18} />
           </button>
@@ -2052,6 +2204,7 @@ const Notificacoes = () => {
 };
 
 const AdminPanel = ({ onExitAdmin }) => {
+  const { profile } = useApp();
   const [adminTab, setAdminTab] = useState('evolucao');
   const [gestaoView, setGestaoView] = useState('menu');
   
@@ -2064,21 +2217,27 @@ const AdminPanel = ({ onExitAdmin }) => {
   const [ranking, setRanking] = useState([]);
   
   const [novaModalidade, setNovaModalidade] = useState({ titulo: '', categoria: '', fases: 10, dietas: 2 });
+  const [ragAlunoId, setRagAlunoId] = useState('');
+  const [ragInstrucoes, setRagInstrucoes] = useState('');
+  const [ragGerando, setRagGerando] = useState(false);
+  const [ragTreino, setRagTreino] = useState(null);
+  const [ragPlanoId, setRagPlanoId] = useState(null);
 
   useEffect(() => {
     const fetchAlunos = async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('is_admin', false);
+      const { data } = await supabase.from('profiles').select('*');
       if (data) {
-        setAlunos(data);
+        const alunosData = data.filter(p => getUserRole(p) === 'aluno');
+        setAlunos(alunosData);
         const { data: treinos } = await supabase.from('treinos_realizados').select('*');
         if (treinos) {
-          const r = data.map(a => ({
+          const r = alunosData.map(a => ({
             ...a,
             treinosCount: treinos.filter(t => t.user_id === a.id).length
           })).sort((a, b) => b.treinosCount - a.treinosCount);
           setRanking(r);
         } else {
-          setRanking(data.map(a => ({...a, treinosCount: 0})));
+          setRanking(alunosData.map(a => ({...a, treinosCount: 0})));
         }
       }
     };
@@ -2114,6 +2273,61 @@ const AdminPanel = ({ onExitAdmin }) => {
     setTimeout(() => setStatusMsg(''), 3000);
   };
 
+  const handleGerarTreinoRAG = async () => {
+    const aluno = alunos.find(a => a.id === ragAlunoId);
+    if (!aluno) {
+      setStatusMsg('Selecione um aluno para gerar o treino.');
+      return;
+    }
+    setRagGerando(true);
+    setStatusMsg('Consultando a base de conhecimento e gerando o treino...');
+    setRagTreino(null);
+    setRagPlanoId(null);
+
+    try {
+      const { data: onboarding } = await supabase.from('onboarding_respostas').select('*').eq('user_id', aluno.id).single();
+      const { data: progresso } = await supabase.from('progresso_mensal').select('*').eq('user_id', aluno.id);
+      const resultado = await gerarTreinoComRAG({
+        aluno,
+        onboarding,
+        progresso: progresso || [],
+        instrucoesProfissional: ragInstrucoes
+      });
+
+      const { data: salvo, error: saveError } = await supabase.from('planos_treino').insert([{
+        user_id: aluno.id,
+        created_by: currentSession?.user?.id || null,
+        status: 'rascunho',
+        objetivo: resultado.treino?.objetivo || onboarding?.objetivo || null,
+        observacoes_profissional: ragInstrucoes || null,
+        treino_json: resultado.treino,
+        fontes_rag: resultado.fontes || resultado.fontes_rag || [],
+        rag_version: resultado.rag_version || 'v1',
+        model_name: resultado.model || null
+      }]).select().single();
+
+      if (saveError) throw saveError;
+      setRagTreino(resultado.treino);
+      setRagPlanoId(salvo?.id || null);
+      setStatusMsg('Treino gerado como rascunho. Revise antes de publicar.');
+    } catch (error) {
+      console.error('Erro RAG:', error);
+      setStatusMsg(error.message || 'Erro ao gerar o treino.');
+    } finally {
+      setRagGerando(false);
+    }
+  };
+
+  const handlePublicarTreinoRAG = async () => {
+    if (!ragPlanoId) return;
+    setStatusMsg('Publicando treino...');
+    const { error } = await supabase.from('planos_treino').update({
+      status: 'publicado',
+      published_at: new Date().toISOString()
+    }).eq('id', ragPlanoId);
+    setStatusMsg(error ? 'Não foi possível publicar.' : 'Treino publicado para o aluno!');
+  };
+
   useEffect(() => {
     if (alunoSelecionado) {
       const fetchProgresso = async () => {
@@ -2144,7 +2358,7 @@ const AdminPanel = ({ onExitAdmin }) => {
     <div className="flex-1 flex flex-col text-white z-10 w-full h-full relative overflow-hidden bg-[#051109]">
       <GlobalStyles />
       <div className="px-6 py-4 pt-[calc(1.5rem+env(safe-area-inset-top))] border-b border-[#1A4026] flex items-center justify-between shrink-0">
-        <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic">Área Administrativa</h2>
+        <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic">{hasAdminAccess(profile) ? 'Área Administrativa' : 'Área do Professor'}</h2>
         <button onClick={onExitAdmin} className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95"><LogOut size={18} /></button>
       </div>
 
@@ -2284,9 +2498,55 @@ const AdminPanel = ({ onExitAdmin }) => {
                 <button onClick={() => setGestaoView('relatorios')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
                   <div className="text-left"><h4 className="font-medium">Relatórios e Gráficos de Desenvolvimento</h4><p className="text-xs text-[#A0B3A6]">Evolutivos gerais da academia</p></div><TrendingUp className="text-[#D4AF37]" size={20} />
                 </button>
-                <button onClick={() => setGestaoView('criar_treinos')} className="w-full bg-[#1A3020] border border-[#D4AF37]/50 rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform mt-6 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                  <div className="text-left"><h4 className="font-medium text-[#D4AF37]">Criar Modalidades e Treinos</h4><p className="text-xs text-[#A0B3A6]">Adicionar novas opções no App</p></div><Dumbbell className="text-[#D4AF37]" size={20} />
+                <button onClick={() => { setGestaoView('treinos_rag'); setRagTreino(null); setRagPlanoId(null); }} className="w-full bg-[#1A3020] border border-[#D4AF37]/50 rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform mt-6 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
+                  <div className="text-left"><h4 className="font-medium text-[#D4AF37]">Treinos com IA (RAG)</h4><p className="text-xs text-[#A0B3A6]">Gerar, revisar e publicar o treino individual</p></div><Target className="text-[#D4AF37]" size={20} />
                 </button>
+              </div>
+            )}
+
+            {gestaoView === 'treinos_rag' && (
+              <div className="space-y-4">
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
+                  <div className="border-b border-[#1A4026] pb-3">
+                    <h4 className="text-[#D4AF37] font-medium flex items-center gap-2"><Target size={16}/> Gerar treino individual com IA</h4>
+                    <p className="text-[#A0B3A6] text-[10px] mt-1">A IA consulta o RAG da academia. O resultado fica em rascunho até a revisão profissional.</p>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label>
+                    <select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none">
+                      <option value="">Selecione...</option>
+                      {alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Orientações do professor (opcional)</label>
+                    <textarea value={ragInstrucoes} onChange={e => setRagInstrucoes(e.target.value)} rows="4" placeholder="Ex.: evitar impacto no joelho; priorizar fortalecimento de posterior; 4 treinos por semana..." className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none resize-none text-sm" />
+                  </div>
+                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || !ragAlunoId} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">
+                    {ragGerando ? 'Gerando com IA...' : 'Gerar treino com RAG'}
+                  </button>
+                  {statusMsg && <p className="text-[#D4AF37] text-xs text-center">{statusMsg}</p>}
+                </div>
+
+                {ragTreino && (
+                  <div className="bg-[#0A1A10] border border-[#D4AF37]/40 rounded-2xl p-4 space-y-4">
+                    <div className="flex justify-between items-start gap-3">
+                      <div><p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">Rascunho da IA</p><h4 className="font-bold text-lg">{ragTreino.nome_plano || 'Treino Personalizado'}</h4><p className="text-[#A0B3A6] text-xs">{ragTreino.objetivo || ''}</p></div>
+                      <span className="text-[9px] border border-yellow-500/40 text-yellow-400 px-2 py-1 rounded-full">AGUARDANDO REVISÃO</span>
+                    </div>
+                    {(ragTreino.dias || []).map((dia, i) => (
+                      <div key={dia.id || i} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
+                        <h5 className="text-sm font-bold text-[#D4AF37]">{dia.titulo || `Treino ${i+1}`}</h5>
+                        <p className="text-[10px] text-[#A0B3A6] mb-2">{dia.foco || ''}</p>
+                        <div className="space-y-1">
+                          {(dia.exercicios || []).map((ex, j) => <p key={ex.id || j} className="text-xs text-gray-200">{j+1}. {ex.nome} — {ex.series || '-'} × {ex.repeticoes || '-'}</p>)}
+                        </div>
+                      </div>
+                    ))}
+                    <div className="bg-[#1A3020] border border-[#1A4026] rounded-xl p-3 text-[10px] text-[#A0B3A6]">Antes de publicar, confira exercícios, volume, frequência, restrições do aluno e coerência com a orientação profissional.</div>
+                    <button onClick={handlePublicarTreinoRAG} disabled={!ragPlanoId} className="w-full bg-[#1A3020] border border-[#D4AF37] text-[#D4AF37] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95">Aprovar e publicar para o aluno</button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -2363,7 +2623,7 @@ const AdminPanel = ({ onExitAdmin }) => {
           {[
             { id: 'evolucao', label: 'Evolução', icon: TrendingUp },
             { id: 'historico', label: 'Histórico', icon: Calendar },
-            { id: 'financeiro', label: 'Financeiro', icon: DollarSign },
+            ...(hasAdminAccess(profile) ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
             { id: 'acompanhamento', label: 'Gestão', icon: FileText },
           ].map(tab => (
             <NavItem key={tab.id} icon={tab.icon} label={tab.label} isActive={adminTab === tab.id} onClick={() => { setAdminTab(tab.id); setGestaoView('menu'); }} />
@@ -2386,7 +2646,7 @@ const NavBar = () => {
   const navItems = [
     { id: 'inicio', icon: Home, label: 'Início' },
     { id: 'diario', icon: Calendar, label: 'Diário' },
-    { id: 'planos', icon: ClipboardList, label: 'Planos' },
+    { id: 'planos', icon: Dumbbell, label: 'Meu Treino' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
     { id: 'corrida', icon: RunnerIcon, label: 'Corrida' },
     { id: 'perfil', icon: User, label: 'Perfil' }
@@ -2515,8 +2775,9 @@ export default function App() {
         const data_nascimento = userMetadata?.data_nascimento || null;
         const cidade_estado = userMetadata?.cidade_estado || null;
         const is_admin = userEmail === 'corpoemmovimento.adm@gmail.com';
+        const role = is_admin ? 'admin' : 'aluno';
 
-        const localProfile = { id: userId, email: userEmail || '', nome, phone, cpf, data_nascimento, cidade_estado, is_admin };
+        const localProfile = { id: userId, email: userEmail || '', nome, phone, cpf, data_nascimento, cidade_estado, is_admin, role };
 
         if (!isMissingTable) {
           const { data: np, error: insertError } = await supabase.from('profiles').insert([localProfile]).select().single();
@@ -2527,6 +2788,7 @@ export default function App() {
         }
       } else {
         if (userEmail === 'corpoemmovimento.adm@gmail.com') data.is_admin = true;
+        if (!data.role) data.role = data.is_admin ? 'admin' : 'aluno';
         setProfile(data);
       }
 
@@ -2551,7 +2813,8 @@ export default function App() {
       
     } catch (err) {
       console.error('Erro ao carregar perfil:', err);
-      const fallbackProfile = { id: userId, email: userEmail || '', nome: userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário', phone: userMetadata?.phone || null, is_admin: userEmail === 'corpoemmovimento.adm@gmail.com' };
+      const fallbackIsAdmin = userEmail === 'corpoemmovimento.adm@gmail.com';
+      const fallbackProfile = { id: userId, email: userEmail || '', nome: userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário', phone: userMetadata?.phone || null, is_admin: fallbackIsAdmin, role: fallbackIsAdmin ? 'admin' : 'aluno' };
       setProfile(fallbackProfile);
       setAdminView(false);
     } finally {
@@ -2612,7 +2875,10 @@ export default function App() {
         <GlobalStyles />
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <h1 className="text-[#D4AF37] playfair italic text-xl">Corpo em Movimento</h1>
+          <div className="flex items-center justify-center gap-2">
+            <img src={simboloCorpoMovimento} alt="" className="w-9 h-9 object-contain" />
+            <h1 className="text-[#D4AF37] playfair italic text-xl">Corpo em Movimento</h1>
+          </div>
         </div>
       </div>
     );
@@ -2652,7 +2918,7 @@ export default function App() {
             <Onboarding profile={profile} onClose={() => setNeedsOnboarding(false)} onComplete={handleFinishOnboarding} />
           ) : showTransition ? (
             <OnboardingTransition nome={profile?.nome} onDone={() => setShowTransition(false)} />
-          ) : profile?.is_admin && adminView ? (
+          ) : hasStaffAccess(profile) && adminView ? (
             <AdminPanel onExitAdmin={() => setAdminView(false)} />
           ) : (
             <>
@@ -2660,9 +2926,18 @@ export default function App() {
                 <button className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95" onClick={() => { setActiveTab('perfil'); setSelectedModalidade(null); }}>
                   {profile?.foto_url ? <img src={profile.foto_url} alt="Perfil" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><User size={20} strokeWidth={1.5} /></div>}
                 </button>
-                <h1 className="text-xl text-center leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold">Corpo em<br />Movimento</h1>
+                <div className="flex items-center justify-center gap-2 min-w-0 px-2">
+                  <img
+                    src={simboloCorpoMovimento}
+                    alt="Símbolo Corpo em Movimento"
+                    className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(212,175,55,0.18)]"
+                  />
+                  <span className="text-sm sm:text-base leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold whitespace-nowrap">
+                    Corpo em Movimento
+                  </span>
+                </div>
                 <div className="flex items-center gap-2">
-                  {profile?.is_admin && <button onClick={() => setAdminView(true)} title="Área Administrativa" className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95 transition-transform"><ShieldCheck size={18} /></button>}
+                  {hasStaffAccess(profile) && <button onClick={() => setAdminView(true)} title="Área Administrativa" className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95 transition-transform"><ShieldCheck size={18} /></button>}
                   <button onClick={() => setActiveTab('notificacoes')} className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative transition-transform active:scale-95">
                     <Bell size={22} strokeWidth={2} />
                     {notifCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#051109]" />}
@@ -2675,7 +2950,7 @@ export default function App() {
                 {activeTab === 'modalidades' && <Modalidades />}
                 {activeTab === 'diario' && <Diario />}
                 {activeTab === 'feed' && <Feed />}
-                {activeTab === 'planos' && <Planos />}
+                {activeTab === 'planos' && <MeuTreinoIA />}
                 {activeTab === 'progresso' && <Progresso />}
                 {activeTab === 'corrida' && <Corrida />}
                 {activeTab === 'perfil' && <Perfil />}
