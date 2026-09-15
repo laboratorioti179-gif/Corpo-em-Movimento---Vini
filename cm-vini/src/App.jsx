@@ -1,7 +1,7 @@
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { 
-  Home, Dumbbell, ClipboardList, Activity, User, Bell, ChevronRight,
-  Target, Flame, Award, Settings, LogOut, ChevronLeft, Droplets, Plus, Minus, ShieldCheck,
+  Home, Dumbbell, Activity, User, Bell, ChevronRight,
+  Target, Award, Settings, LogOut, ChevronLeft, Droplets, Plus, Minus, ShieldCheck,
   Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera, RotateCcw,
   MessageCircle, Send, Heart, MoreVertical, X, CheckCircle
 } from 'lucide-react';
@@ -256,7 +256,9 @@ const modalidadesData = [
   { id: 3, titulo: 'Corrida', categoria: 'Longa / Curta', fases: 10, dietas: 2, icon: Activity },
   { id: 4, titulo: 'Natação', categoria: 'Piscina / Mar', fases: 10, dietas: 2, icon: ({ size, strokeWidth }) => <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none"><path d="M2 12c2.667 0 5.333-2 8-2s5.333 2 8 2 5.333-2 8-2" strokeLinecap="round" strokeLinejoin="round"/><path d="M2 16c2.667 0 5.333-2 8-2s5.333 2 8 2 5.333-2 8-2" strokeLinecap="round" strokeLinejoin="round"/></svg> },
   { id: 5, titulo: 'Ciclismo', categoria: 'Longa / Curta', fases: 10, dietas: 2, icon: ({ size, strokeWidth }) => <svg viewBox="0 0 24 24" width={size} height={size} stroke="currentColor" strokeWidth={strokeWidth} fill="none"><circle cx="5" cy="18" r="4" strokeLinecap="round" strokeLinejoin="round"/><circle cx="19" cy="18" r="4" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 18l4-8h6l4 8M15 10l-3-6H8" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-  { id: 6, titulo: 'Body Builders', categoria: 'HOMEM - Mens / Classic\nMULHER - Figure / Wellness', fases: 10, dietas: 2, icon: Dumbbell }
+  { id: 6, titulo: 'Body Builders', categoria: 'HOMEM - Mens / Classic\nMULHER - Figure / Wellness', fases: 10, dietas: 2, icon: Dumbbell },
+  { id: 8, titulo: 'Musculação', categoria: 'Força / Hipertrofia / Condicionamento', fases: 10, dietas: 0, icon: Dumbbell },
+  { id: 9, titulo: 'Treinamento Funcional', categoria: 'Força / Mobilidade / Condicionamento', fases: 10, dietas: 0, icon: Activity }
 ];
 
 // --- COMPONENTES ---
@@ -380,7 +382,7 @@ const Login = () => {
 
 const Onboarding = ({ profile, onClose, onComplete }) => {
   const [step, setStep] = useState(1);
-  const totalSteps = 11;
+  const totalSteps = 12;
   const [formData, setFormData] = useState({
     nome: profile?.nome || '',
     genero: '',
@@ -392,6 +394,7 @@ const Onboarding = ({ profile, onClose, onComplete }) => {
     desafios: [],
     estrutura: '',
     dias: [],
+    modalidade: '',
     termos: false
   });
 
@@ -507,6 +510,22 @@ const Onboarding = ({ profile, onClose, onComplete }) => {
         )}
         {step === 11 && (
           <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
+             <h2 className="text-2xl font-bold mb-2 text-center">Qual sua modalidade principal?</h2>
+             <p className="text-center text-[#A0B3A6] text-xs mb-5">Essa informação ajuda a IA a contextualizar seu plano de treino.</p>
+             {modalidadesData.map(modalidade => (
+               <button
+                 key={modalidade.id}
+                 onClick={() => { setFormData({...formData, modalidade: modalidade.titulo}); nextStep(); }}
+                 className={`w-full p-4 rounded-xl border text-left transition-colors ${formData.modalidade === modalidade.titulo ? 'bg-[#1A3020] border-[#D4AF37] text-[#D4AF37]' : 'bg-[#0A1A10] border-[#1A4026] text-white hover:border-[#D4AF37]/50'}`}
+               >
+                 <span className="font-medium block">{modalidade.titulo}</span>
+                 <span className="text-[10px] text-[#A0B3A6] mt-1 block whitespace-pre-line">{modalidade.categoria}</span>
+               </button>
+             ))}
+          </div>
+        )}
+        {step === 12 && (
+          <div className="space-y-4 my-auto animate-in fade-in slide-in-from-right-4">
              <div className="bg-[#0A1A10] border border-[#1A4026] p-6 rounded-2xl">
                <ShieldCheck size={40} className="text-[#D4AF37] mb-4 mx-auto" />
                <h2 className="text-xl font-bold mb-4 text-center">Termos e Condições (LGPD)</h2>
@@ -531,7 +550,7 @@ const Onboarding = ({ profile, onClose, onComplete }) => {
              <ChevronLeft size={24} />
            </button>
          )}
-         {(step === 1 || step === 4 || step === 5 || step === 6 || step === 8 || step === 10 || step === 11) && (
+         {(step === 1 || step === 4 || step === 5 || step === 6 || step === 8 || step === 10 || step === 12) && (
            <button 
              onClick={step === totalSteps ? handleFinish : nextStep} 
              disabled={
@@ -541,7 +560,7 @@ const Onboarding = ({ profile, onClose, onComplete }) => {
                (step === 6 && !formData.meta) || 
                (step === 8 && formData.desafios.length === 0) || 
                (step === 10 && formData.dias.length === 0) || 
-               (step === 11 && !formData.termos)
+               (step === 12 && !formData.termos)
              }
              className="flex-1 bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-lg py-3 rounded-xl active:scale-95 transition-transform disabled:opacity-50"
            >
@@ -584,47 +603,49 @@ const OnboardingTransition = ({ nome, onDone }) => {
 };
 
 const Inicio = () => {
-  const { profile, setActiveTab, setSelectedModalidade, diarioData, proteinGoal, proteinConsumed } = useApp();
+  const { profile, setActiveTab, diarioData, proteinGoal, proteinConsumed } = useApp();
   const [onbData, setOnbData] = useState(null);
-  const [stats, setStats] = useState({ treinos: 0 });
+  const [planoAtual, setPlanoAtual] = useState(null);
+  const [stats, setStats] = useState({ treinosSemana: 0, treinosTotal: 0 });
 
   useEffect(() => {
     const loadInfo = async () => {
-       const { data } = await supabase.from('onboarding_respostas').select('*').eq('user_id', profile.id).single();
-       if (data) setOnbData(data);
+      const { data: onboarding } = await supabase.from('onboarding_respostas').select('*').eq('user_id', profile.id).single();
+      if (onboarding) setOnbData(onboarding);
 
-       const { data: treinos } = await supabase.from('treinos_realizados').select('*').eq('user_id', profile.id);
-       if (treinos) setStats({ treinos: treinos.length });
+      const { data: planos } = await supabase.from('planos_treino').select('*').eq('user_id', profile.id).eq('status', 'publicado');
+      const listaPlanos = Array.isArray(planos) ? planos : (planos ? [planos] : []);
+      listaPlanos.sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
+      setPlanoAtual(listaPlanos[0] || null);
+
+      const { data: execucoes } = await supabase.from('execucoes_treino').select('*').eq('user_id', profile.id).eq('status', 'concluido');
+      const listaExecucoes = Array.isArray(execucoes) ? execucoes : [];
+      const agora = new Date();
+      const inicioSemana = new Date(agora);
+      const deslocamento = (agora.getDay() + 6) % 7;
+      inicioSemana.setDate(agora.getDate() - deslocamento);
+      inicioSemana.setHours(0, 0, 0, 0);
+      const treinosSemana = listaExecucoes.filter(item => {
+        const dataExecucao = new Date(item.concluido_em || item.created_at || 0);
+        return dataExecucao >= inicioSemana;
+      }).length;
+      setStats({ treinosSemana, treinosTotal: listaExecucoes.length });
     };
     if (profile?.id) loadInfo();
-  }, [profile]);
+  }, [profile?.id]);
 
-  let goalCals = 2000;
-  if (onbData?.objetivo === 'Perder peso') goalCals = 1500;
-  if (onbData?.objetivo === 'Ganhar massa muscular') goalCals = 2500;
-  
-  const burnedCals = stats.treinos * 300; 
-  
+  const treinoAtual = planoAtual?.treino_json || null;
+  const diasPlano = Array.isArray(treinoAtual?.dias) ? treinoAtual.dias : [];
+  const metaSemanal = Number(treinoAtual?.frequencia_semanal) || (Array.isArray(onbData?.disponibilidade) ? onbData.disponibilidade.length : 0);
+
   const proteinaRestante = Math.max(0, proteinGoal - proteinConsumed);
-  const proteinPercentage = Math.min((proteinConsumed / proteinGoal) * 100, 100);
+  const proteinPercentage = proteinGoal > 0 ? Math.min((proteinConsumed / proteinGoal) * 100, 100) : 0;
   const strokeDashoffsetValue = 339 - (339 * (proteinPercentage / 100));
 
-  const percMovimento = Math.round((Object.values(diarioData.treinosFeitos).filter(Boolean).length / 7) * 100);
-  const percNutricao = diarioData.nutricao;
+  const percMovimento = metaSemanal > 0 ? Math.min(Math.round((stats.treinosSemana / metaSemanal) * 100), 100) : 0;
+  const percNutricao = Number(diarioData.nutricao) || 0;
   const percRecuperacao = diarioData.horasSono ? Math.round(Math.min((Number(diarioData.horasSono) / 8) * 100, 100)) : 0;
-  const percMentalidade = diarioData.mentalidade;
-
-  const treinosRecomendados = [
-    { id: 1, titulo: "Treino Funcional: Força e...", desc: `Baseado no seu objetivo: ${onbData?.objetivo || 'Saúde e bem-estar'}`, link: "Ver Planos", img: "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?w=500&auto=format&fit=crop&q=60" },
-    { id: 2, titulo: "Cardio ao Ar Livre", img: "https://images.unsplash.com/photo-1476480862126-209bfaa8edc8?w=500&auto=format&fit=crop&q=60" },
-    { id: 3, titulo: "Treino de Força", img: "https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=500&auto=format&fit=crop&q=60" }
-  ];
-
-  const planosNutricao = [
-    { id: 1, titulo: `Dieta de Manutenção: ${goalCals} kcal`, desc: `Baseado no seu objetivo: ${goalCals} kcal`, img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=500&auto=format&fit=crop&q=60" },
-    { id: 2, titulo: "Receitas de Recuperação", img: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=500&auto=format&fit=crop&q=60" },
-    { id: 3, titulo: "Pré-Treino de Energia", img: "https://images.unsplash.com/photo-1550304943-4f24f54ddde9?w=500&auto=format&fit=crop&q=60" }
-  ];
+  const percMentalidade = Number(diarioData.mentalidade) || 0;
 
   return (
     <div className="flex-1 overflow-y-auto space-y-6 custom-scrollbar pb-24 text-white pt-2 px-1">
@@ -632,108 +653,63 @@ const Inicio = () => {
         <h2 className="text-3xl font-bold text-white">Hoje</h2>
       </div>
 
-      {/* Medição nutritiva */}
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-3xl p-5 shadow-lg relative overflow-hidden">
         <div className="absolute top-1/2 left-[15%] w-32 h-32 bg-gradient-to-tr from-green-400/30 to-[#D4AF37]/30 rounded-full blur-2xl -translate-y-1/2 pointer-events-none"></div>
-        
         <h3 className="text-[#D4AF37] font-medium text-base mb-0.5">Índice Corpo em Movimento</h3>
-        <p className="text-[#A0B3A6] text-xs mb-4 sm:mb-6">Acompanhamento de Proteína Diária</p>
-        
+        <p className="text-[#A0B3A6] text-xs mb-4 sm:mb-6">Resumo do seu acompanhamento</p>
         <div className="flex items-center justify-between">
           <div className="relative w-32 h-32 flex items-center justify-center shrink-0">
-             {/* Glow effect on the circle */}
              <div className="absolute inset-0 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.4)] pointer-events-none" style={{ mixBlendMode: 'screen' }}></div>
              <svg className="absolute inset-0 w-full h-full transform -rotate-90">
                <circle cx="64" cy="64" r="54" stroke="#1A3020" strokeWidth="8" fill="none" />
                <circle cx="64" cy="64" r="54" stroke="url(#glowGradient)" strokeWidth="8" fill="none" strokeDasharray="339" strokeDashoffset={strokeDashoffsetValue} strokeLinecap="round" style={{ transition: 'stroke-dashoffset 0.8s ease-in-out' }} />
-               <defs>
-                 <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                   <stop offset="0%" stopColor="#D4AF37" />
-                   <stop offset="100%" stopColor="#4ADE80" />
-                 </linearGradient>
-               </defs>
+               <defs><linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor="#D4AF37" /><stop offset="100%" stopColor="#4ADE80" /></linearGradient></defs>
              </svg>
              <div className="text-center z-10">
                <span className="text-3xl font-bold text-white">{proteinaRestante}</span>
-               <span className="block text-xs text-[#A0B3A6] mt-1">g Restantes</span>
+               <span className="block text-xs text-[#A0B3A6] mt-1">g proteína restantes</span>
              </div>
           </div>
-          
           <div className="flex flex-col justify-between flex-1 ml-2 sm:ml-4 py-1 h-32 overflow-hidden">
-             <div className="flex justify-between items-center w-full gap-2">
-               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
-                 <Activity size={16} className="shrink-0" /> 
-                 <span className="text-xs whitespace-nowrap">Movimento</span>
-               </div>
-               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percMovimento}%</span>
-             </div>
-             <div className="flex justify-between items-center w-full gap-2">
-               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
-                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
-                 <span className="text-xs whitespace-nowrap">Nutrição</span>
-               </div>
-               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percNutricao}%</span>
-             </div>
-             <div className="flex justify-between items-center w-full gap-2">
-               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
-                 <Heart size={16} className="shrink-0" /> 
-                 <span className="text-xs whitespace-nowrap">Recuperação</span>
-               </div>
-               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percRecuperacao}%</span>
-             </div>
-             <div className="flex justify-between items-center w-full gap-2">
-               <div className="flex items-center gap-1.5 text-[#A0B3A6] min-w-0">
-                 <Target size={16} className="shrink-0" /> 
-                 <span className="text-xs whitespace-nowrap">Mentalidade</span>
-               </div>
-               <span className="font-bold text-sm tabular-nums whitespace-nowrap text-right">{percMentalidade}%</span>
-             </div>
+             <div className="flex justify-between items-center w-full gap-2"><div className="flex items-center gap-1.5 text-[#A0B3A6]"><Activity size={16}/><span className="text-xs">Movimento</span></div><span className="font-bold text-sm">{percMovimento}%</span></div>
+             <div className="flex justify-between items-center w-full gap-2"><div className="flex items-center gap-1.5 text-[#A0B3A6]"><span className="text-base">🍽️</span><span className="text-xs">Nutrição</span></div><span className="font-bold text-sm">{percNutricao}%</span></div>
+             <div className="flex justify-between items-center w-full gap-2"><div className="flex items-center gap-1.5 text-[#A0B3A6]"><Heart size={16}/><span className="text-xs">Recuperação</span></div><span className="font-bold text-sm">{percRecuperacao}%</span></div>
+             <div className="flex justify-between items-center w-full gap-2"><div className="flex items-center gap-1.5 text-[#A0B3A6]"><Target size={16}/><span className="text-xs">Mentalidade</span></div><span className="font-bold text-sm">{percMentalidade}%</span></div>
           </div>
         </div>
       </div>
 
-      {/* Sugestão de treino */}
-      <div className="pt-2">
-        <h3 className="text-[#D4AF37] text-sm font-medium mb-0.5">Sugestão de Treino</h3>
-        <h2 className="text-xl font-bold text-white mb-4">Treinos Recomendados</h2>
-        <div className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-6 pr-6 snap-x snap-mandatory">
-          {treinosRecomendados.map(treino => (
-             <div key={treino.id} className="min-w-[240px] h-40 bg-[#0A1A10] rounded-2xl overflow-hidden flex-shrink-0 snap-start relative border border-[#1A4026]">
-               <img src={treino.img} alt={treino.titulo} className="absolute inset-0 w-full h-full object-cover" />
-               <div className="absolute inset-0 bg-gradient-to-t from-[#051109] via-[#0A1A10]/70 to-transparent"></div>
-               <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end h-full">
-                 <h4 className="font-bold text-white text-base leading-tight">{treino.titulo}</h4>
-                 {treino.desc && <p className="text-[#A0B3A6] text-[10px] mt-1 line-clamp-2">{treino.desc}</p>}
-                 {treino.link && (
-                   <button onClick={() => setActiveTab('planos')} className="text-[#D4AF37] text-xs font-medium mt-1 text-right w-full hover:underline relative z-10">
-                     {treino.link}
-                   </button>
-                 )}
-               </div>
-             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Sugestão de nutrição */}
-      <div className="pt-2">
-        <h3 className="text-[#D4AF37] text-sm font-medium mb-0.5">Sugestão de Nutrição</h3>
-        <h2 className="text-xl font-bold text-white mb-4">Planos de Refeição em Destaque</h2>
-        <div className="flex overflow-x-auto gap-4 custom-scrollbar pb-4 -mr-6 pr-6 snap-x snap-mandatory">
-          {planosNutricao.map(plano => (
-             <div key={plano.id} className="min-w-[240px] h-40 bg-[#0A1A10] rounded-2xl overflow-hidden flex-shrink-0 snap-start relative border border-[#1A4026]">
-               <img src={plano.img} alt={plano.titulo} className="absolute inset-0 w-full h-full object-cover" />
-               <div className="absolute inset-0 bg-gradient-to-t from-[#051109] via-[#0A1A10]/70 to-transparent"></div>
-               <div className="absolute bottom-0 left-0 right-0 p-4 flex flex-col justify-end h-full">
-                 <h4 className="font-bold text-white text-base leading-tight">{plano.titulo}</h4>
-                 {plano.desc && <p className="text-[#A0B3A6] text-[10px] mt-1 line-clamp-2">{plano.desc}</p>}
-               </div>
-             </div>
-          ))}
-        </div>
+      <div className="pt-1">
+        <h3 className="text-[#D4AF37] text-sm font-medium mb-0.5">Seu plano atual</h3>
+        <h2 className="text-xl font-bold text-white mb-4">Treino da academia</h2>
+        {planoAtual ? (
+          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-wider text-[#D4AF37]">Revisado e publicado</p>
+                <h4 className="font-bold text-lg mt-1">{treinoAtual?.nome_plano || 'Treino Personalizado'}</h4>
+                <p className="text-[#A0B3A6] text-xs mt-1">{treinoAtual?.objetivo || planoAtual.objetivo || 'Plano individualizado'}</p>
+                {onbData?.modalidade && <p className="text-[10px] text-[#A0B3A6] mt-2">Modalidade: {onbData.modalidade}</p>}
+              </div>
+              <Dumbbell size={28} className="text-[#D4AF37] shrink-0" />
+            </div>
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              <div className="bg-[#051109] border border-[#1A4026] rounded-xl p-3 text-center"><span className="text-xl font-bold">{stats.treinosSemana}</span><span className="block text-[10px] text-[#A0B3A6]">concluídos nesta semana</span></div>
+              <div className="bg-[#051109] border border-[#1A4026] rounded-xl p-3 text-center"><span className="text-xl font-bold">{metaSemanal || diasPlano.length || '-'}</span><span className="block text-[10px] text-[#A0B3A6]">meta semanal</span></div>
+            </div>
+            <button onClick={() => setActiveTab('treino')} className="w-full mt-4 bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl active:scale-95 transition-transform">Abrir Meu Treino</button>
+          </div>
+        ) : (
+          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center">
+            <Dumbbell size={34} className="text-[#D4AF37] mx-auto mb-3" />
+            <h4 className="font-medium">Seu treino está sendo preparado</h4>
+            <p className="text-[#A0B3A6] text-xs mt-2 leading-relaxed">Assim que a equipe revisar e publicar seu plano, ele aparecerá aqui e em Meu Treino.</p>
+            <button onClick={() => setActiveTab('treino')} className="mt-4 text-[#D4AF37] text-xs font-medium">Ver Meu Treino</button>
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
 };
 
 const Feed = () => {
@@ -1028,7 +1004,7 @@ const Feed = () => {
 };
 
 
-const MeuTreinoIA = () => {
+const MeuTreino = () => {
   const { profile } = useApp();
   const [plano, setPlano] = useState(null);
   const [loadingPlano, setLoadingPlano] = useState(true);
@@ -1038,12 +1014,7 @@ const MeuTreinoIA = () => {
     if (!profile?.id) return;
     setLoadingPlano(true);
     setStatusMsg('');
-    const { data, error } = await supabase
-      .from('planos_treino')
-      .select('*')
-      .eq('user_id', profile.id)
-      .eq('status', 'publicado');
-
+    const { data, error } = await supabase.from('planos_treino').select('*').eq('user_id', profile.id).eq('status', 'publicado');
     if (error) {
       setStatusMsg('Ainda não foi possível carregar seu treino.');
       setPlano(null);
@@ -1061,14 +1032,27 @@ const MeuTreinoIA = () => {
   const dias = Array.isArray(treino?.dias) ? treino.dias : [];
 
   const concluirSessao = async (dia) => {
+    if (!plano?.id || !profile?.id) return;
+    const sessaoKey = String(dia.id || dia.titulo || 'treino');
+    const { data: existentes } = await supabase.from('execucoes_treino').select('*').eq('plano_treino_id', plano.id).eq('user_id', profile.id).eq('sessao_key', sessaoKey).eq('status', 'concluido');
+    const hoje = new Date().toISOString().slice(0, 10);
+    const jaConcluidoHoje = (existentes || []).some(item => String(item.concluido_em || item.created_at || '').slice(0, 10) === hoje);
+    if (jaConcluidoHoje) {
+      setStatusMsg('Este treino já foi registrado como concluído hoje.');
+      setTimeout(() => setStatusMsg(''), 3000);
+      return;
+    }
+
+    const concluidoEm = new Date().toISOString();
     const { error } = await supabase.from('execucoes_treino').insert([{
       plano_treino_id: plano.id,
       user_id: profile.id,
-      sessao_key: dia.id || dia.titulo || 'treino',
+      sessao_key: sessaoKey,
       status: 'concluido',
-      dados_execucao: { titulo: dia.titulo || 'Treino', concluido_em: new Date().toISOString() }
+      concluido_em: concluidoEm,
+      dados_execucao: { titulo: dia.titulo || 'Treino', concluido_em: concluidoEm }
     }]);
-    setStatusMsg(error ? 'Não foi possível registrar a conclusão.' : 'Treino concluído e registrado!');
+    setStatusMsg(error ? 'Não foi possível registrar a conclusão.' : 'Treino concluído e registrado no seu histórico!');
     setTimeout(() => setStatusMsg(''), 3000);
   };
 
@@ -1076,8 +1060,8 @@ const MeuTreinoIA = () => {
     <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-24 pt-4 text-white">
       <div className="mb-5 border-l-2 border-[#D4AF37] pl-3 py-1">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Meu Treino</h2>
-        <h3 className="text-white text-lg font-medium mb-1">Treino personalizado</h3>
-        <p className="text-[#A0B3A6] text-xs">Gerado com apoio da IA da academia e liberado após revisão profissional.</p>
+        <h3 className="text-white text-lg font-medium mb-1">Seu plano atual</h3>
+        <p className="text-[#A0B3A6] text-xs">Aqui aparece somente o treino publicado pela equipe da academia.</p>
       </div>
 
       {statusMsg && <div className="bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] p-3 rounded-xl text-xs text-center">{statusMsg}</div>}
@@ -1088,14 +1072,14 @@ const MeuTreinoIA = () => {
         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center">
           <Dumbbell size={34} className="text-[#D4AF37] mx-auto mb-3" />
           <h4 className="font-medium mb-2">Seu treino está sendo preparado</h4>
-          <p className="text-[#A0B3A6] text-xs leading-relaxed">Quando o professor revisar e publicar o plano criado pela IA, ele aparecerá aqui automaticamente.</p>
+          <p className="text-[#A0B3A6] text-xs leading-relaxed">A IA poderá gerar o plano, mas ele só aparece aqui depois da revisão e publicação pela equipe profissional.</p>
         </div>
       ) : (
         <>
           <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
             <div className="flex justify-between gap-3 items-start">
               <div>
-                <p className="text-[#D4AF37] text-[10px] uppercase tracking-wider">Plano atual</p>
+                <p className="text-[#D4AF37] text-[10px] uppercase tracking-wider">Plano publicado</p>
                 <h4 className="text-xl font-bold mt-1">{treino?.nome_plano || 'Treino Personalizado'}</h4>
                 <p className="text-[#A0B3A6] text-xs mt-1">{treino?.objetivo || plano.objetivo || 'Plano individualizado'}</p>
               </div>
@@ -1136,253 +1120,73 @@ const MeuTreinoIA = () => {
   );
 };
 
-const Planos = () => {
-  const [expandedId, setExpandedId] = useState(null);
-
-  const planosList = [
-    { 
-      id: 1, 
-      titulo: 'Plano Movimento', 
-      preco: 'R$ 49,90',
-      icon: Activity,
-      descricao: 'Ideal para quem deseja iniciar uma rotina saudável com praticidade e acompanhamento.\n\nPlano de treino e alimentação elaborado com o auxílio de Inteligência Artificial, adaptado ao seu perfil.\nAcesso a todos os recursos do plano gratuito.\nEnvio de 1 vídeo por mês para análise de treino ou alimentação, com resposta personalizada diretamente pelo aplicativo.'
-    },
-    { 
-      id: 2, 
-      titulo: 'Plano Evolução', 
-      preco: 'R$ 89,90',
-      icon: TrendingUp,
-      descricao: 'Para quem busca resultados consistentes com acompanhamento mais próximo.\nTudo o que está incluso no Plano Movimento, além de:\n\nAjustes no treino e na alimentação sempre que necessário, como mudança de academia, rotina, objetivos ou região.\nLives e aulões exclusivos, agendados previamente, para tirar dúvidas sobre treinos, alimentação e hábitos saudáveis, com participação de profissionais convidados.\nVideochamada individual mediante agendamento pelo WhatsApp do aplicativo.\nEnvio de 2 vídeos por mês (quinzenais) para análise de exercícios ou alimentação, proporcionando um acompanhamento mais próximo e personalizado.'
-    },
-    { 
-      id: 3, 
-      titulo: 'Plano Performance', 
-      preco: 'R$ 149,90',
-      icon: Flame,
-      descricao: 'Acompanhamento completo para quem busca máxima evolução e resultados.\nTudo o que está incluso no Plano Evolução, além de:\n\nAnamnese ao vivo realizada após a confirmação da assinatura, mediante agendamento.\nVideochamada individual de 60 minutos a cada 15 dias.\nEnvio de 4 vídeos por mês (1 por semana) para correção de execução, esclarecimento de dúvidas e acompanhamento contínuo.\nAtendimento diário pelo WhatsApp do aplicativo, em horário comercial, garantindo suporte sempre que necessário.'
-    }
-  ];
-
-  return (
-    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24 pt-4 text-white">
-      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
-        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Planos</h2>
-        <h3 className="text-white text-lg font-medium mb-1">Escolha seu plano</h3>
-        <p className="text-[#A0B3A6] text-xs max-w-[280px]">
-          Selecione o plano ideal para iniciar sua jornada e atingir seus objetivos.
-        </p>
-      </div>
-      
-      {planosList.map((plano) => (
-        <div key={plano.id} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden transition-all hover:border-[#2A5036]">
-          <button 
-            onClick={() => setExpandedId(expandedId === plano.id ? null : plano.id)} 
-            className="w-full p-4 flex items-center gap-4 active:scale-[0.98] transition-transform"
-          >
-            <div className="w-14 h-14 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]">
-              <plano.icon size={26} strokeWidth={1.5} />
-            </div>
-            <div className="flex-1 text-left">
-              <h4 className="text-white text-base font-medium">{plano.titulo}</h4>
-            </div>
-            <div className={`text-[#D4AF37] ml-2 opacity-80 transition-transform duration-300 ${expandedId === plano.id ? 'rotate-90' : ''}`}>
-              <ChevronRight size={18} strokeWidth={2} />
-            </div>
-          </button>
-          
-          {expandedId === plano.id && (
-            <div className="px-4 pb-4 animate-in slide-in-from-top-2 fade-in duration-200">
-              <div className="pt-2 border-t border-[#1A4026]/50">
-                <p className="text-[#A0B3A6] text-xs whitespace-pre-line leading-relaxed">
-                  {plano.descricao}
-                </p>
-                <div className="mt-5 flex flex-col items-center gap-3">
-                  <div className="text-center">
-                    <span className="text-[#D4AF37] text-3xl font-bold">{plano.preco}</span>
-                    <span className="text-[#A0B3A6] text-sm ml-1">/mês</span>
-                  </div>
-                  <button className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold text-base py-3 rounded-xl active:scale-95 transition-transform shadow-[0_0_15px_rgba(212,175,55,0.2)]">
-                    Assinar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-};
-
 const Diario = () => {
-  const { diarioData, setDiarioData } = useApp();
+  const { diarioData, setDiarioData, setActiveTab } = useApp();
+  const [salvo, setSalvo] = useState(false);
 
-  const diasTreino = [
-    { id: 'segunda', nome: 'Segunda-feira', treino: 'Aquecimento: 10 min esteira\n1. Agachamento Livre: 4x10-12\n2. Supino Reto: 3x10-12\n3. Remada Curvada: 3x12\n4. Elevação Pélvica: 3x15\n5. Prancha Isométrica: 3x45s' },
-    { id: 'terca', nome: 'Terça-feira', treino: '1. Leg Press: 4x10-12\n2. Desenvolvimento Halteres: 3x12\n3. Puxada Alta: 4x10-12' },
-    { id: 'quarta', nome: 'Quarta-feira', treino: '30 min de cardio (esteira ou bike) + Alongamento leve.' },
-    { id: 'quinta', nome: 'Quinta-feira', treino: '1. Levantamento Terra: 3x8\n2. Supino Inclinado: 3x10\n3. Rosca Direta: 3x12' },
-    { id: 'sexta', nome: 'Sexta-feira', treino: 'Circuito Funcional: Burpees, Kettlebell Swing, Flexões (4 rounds)' },
-    { id: 'sabado', nome: 'Sábado', treino: 'Caminhada leve ao ar livre (60 min) ou esporte.' },
-    { id: 'domingo', nome: 'Domingo', treino: 'Descanso total.' }
-  ];
-
-  const toggleTreino = (id) => {
-    setDiarioData(prev => ({
-      ...prev,
-      treinosFeitos: { ...prev.treinosFeitos, [id]: !prev.treinosFeitos[id] }
-    }));
+  const salvarDiario = () => {
+    setSalvo(true);
+    setTimeout(() => setSalvo(false), 2500);
   };
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white pt-4">
       <div className="mb-4 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
         <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Diário</h2>
-        <h3 className="text-white text-lg font-medium mb-1">Acompanhe seu dia a dia</h3>
-        <p className="text-[#A0B3A6] text-xs">Anote o seu progresso diário.</p>
+        <h3 className="text-white text-lg font-medium mb-1">Como foi seu dia?</h3>
+        <p className="text-[#A0B3A6] text-xs">O treino não fica mais aqui. Seu plano oficial está em Meu Treino.</p>
       </div>
 
-      {/* --- CARROSSEL ESTILO FOLHA DE LIVRO (Treino / Dieta) NO TOPO --- */}
-      <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-2 custom-scrollbar" style={{ scrollSnapType: 'x mandatory' }}>
-        
-        {/* Folha 1: Treino da Semana */}
-        <div className="w-full flex-shrink-0 snap-center bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
-          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
-             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-                <Dumbbell size={20} />
-             </div>
-             <div className="flex-1">
-                <h4 className="font-medium text-white">Treinos da Semana</h4>
-                <p className="text-xs text-[#A0B3A6]">Deslize para ver a dieta ➔</p>
-             </div>
-          </div>
-          
-          <div className="bg-[#051109] border border-[#1A4026] p-3 rounded-xl max-h-60 overflow-y-auto custom-scrollbar space-y-4">
-            {diasTreino.map(dia => (
-              <div key={dia.id} className="border-b border-[#1A4026] pb-3 last:border-0 last:pb-0">
-                <div className="flex justify-between items-center mb-2">
-                   <span className="font-bold text-[#D4AF37] text-sm">{dia.nome}</span>
-                   {/* Botão On/Off Switch */}
-                   <div
-                     onClick={() => toggleTreino(dia.id)}
-                     className={`w-10 h-5 flex items-center rounded-full p-1 cursor-pointer transition-colors ${diarioData.treinosFeitos[dia.id] ? 'bg-[#D4AF37]' : 'bg-[#1A3020] border border-[#1A4026]'}`}
-                   >
-                     <div className={`bg-white w-3 h-3 rounded-full shadow-md transform transition-transform ${diarioData.treinosFeitos[dia.id] ? 'translate-x-5' : 'translate-x-0'}`} />
-                   </div>
-                </div>
-                <p className="text-xs text-[#A0B3A6] whitespace-pre-line">{dia.treino}</p>
-              </div>
-            ))}
-          </div>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center justify-between gap-4">
+        <div>
+          <p className="text-[#D4AF37] text-[10px] uppercase tracking-wider">Treino</p>
+          <h4 className="font-medium mt-1">Acesse sua ficha atual</h4>
+          <p className="text-[#A0B3A6] text-xs mt-1">Somente o plano revisado e publicado pela academia.</p>
         </div>
-
-        {/* Folha 2: Dieta do Dia */}
-        <div className="w-full flex-shrink-0 snap-center bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
-          <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
-             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-                <ClipboardList size={20} />
-             </div>
-             <div className="flex-1">
-                <h4 className="font-medium text-white">Dieta do Dia</h4>
-                <p className="text-xs text-[#A0B3A6]">← Deslize para o treino</p>
-             </div>
-          </div>
-          
-          <div className="bg-[#051109] border border-[#1A4026] p-3 rounded-xl max-h-48 overflow-y-auto custom-scrollbar">
-            <ul className="text-xs text-[#A0B3A6] space-y-3">
-              <li>
-                <strong className="text-white block mb-0.5">Café da Manhã (08:00):</strong>
-                2 Ovos mexidos, 1 fatia de pão integral, 1/2 mamão papaia e café preto sem açúcar.
-              </li>
-              <li>
-                <strong className="text-white block mb-0.5">Almoço (12:30):</strong>
-                120g de peito de frango grelhado, 100g de arroz integral, 1 concha de feijão, salada de folhas verdes à vontade com azeite.
-              </li>
-              <li>
-                <strong className="text-white block mb-0.5">Lanche da Tarde (16:00):</strong>
-                1 Iogurte natural, 1 colher de sopa de aveia e 1 banana.
-              </li>
-              <li>
-                <strong className="text-white block mb-0.5">Jantar (20:00):</strong>
-                120g de patinho moído, 100g de batata doce assada, brócolis cozido no vapor.
-              </li>
-            </ul>
-          </div>
-        </div>
-        
+        <button onClick={() => setActiveTab('treino')} className="shrink-0 bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] px-3 py-2 rounded-xl text-xs font-medium active:scale-95">Meu Treino</button>
       </div>
 
       <div className="space-y-4">
         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
           <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
-             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>
-             </div>
-             <div>
-                <h4 className="font-medium text-white">Nutrição</h4>
-                <p className="text-xs text-[#A0B3A6]">O quanto você seguiu da dieta hoje?</p>
-             </div>
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37] text-lg">🍽️</div>
+             <div><h4 className="font-medium text-white">Nutrição</h4><p className="text-xs text-[#A0B3A6]">Como você avalia sua alimentação hoje?</p></div>
           </div>
           <div className="px-2">
             <div className="flex justify-between items-end text-xs text-[#A0B3A6] mb-3 font-medium">
-              <span className="w-20 text-left leading-tight">Não segui</span>
+              <span className="w-20 text-left leading-tight">Muito fora da rotina</span>
               <span className="text-[#D4AF37] font-bold text-2xl">{diarioData.nutricao}%</span>
-              <span className="w-20 text-right leading-tight">Segui 100%</span>
+              <span className="w-20 text-right leading-tight">Muito alinhada</span>
             </div>
-            <input 
-              type="range" min="0" max="100" 
-              value={diarioData.nutricao} 
-              onChange={e => setDiarioData(prev => ({ ...prev, nutricao: e.target.value }))}
-              className="w-full h-2 bg-[#1A3020] rounded-lg appearance-none cursor-pointer accent-[#D4AF37]"
-            />
+            <input type="range" min="0" max="100" value={diarioData.nutricao} onChange={e => setDiarioData(prev => ({ ...prev, nutricao: Number(e.target.value) }))} className="w-full h-2 bg-[#1A3020] rounded-lg appearance-none cursor-pointer accent-[#D4AF37]" />
           </div>
         </div>
 
         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
           <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
-             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-                <Heart size={20} />
-             </div>
-             <div>
-                <h4 className="font-medium text-white">Recuperação</h4>
-                <p className="text-xs text-[#A0B3A6]">Quantas horas de sono fez</p>
-             </div>
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><Heart size={20} /></div>
+             <div><h4 className="font-medium text-white">Recuperação</h4><p className="text-xs text-[#A0B3A6]">Quantas horas você dormiu?</p></div>
           </div>
-          <div>
-            <input type="number" value={diarioData.horasSono} onChange={e => setDiarioData(prev => ({ ...prev, horasSono: e.target.value }))} placeholder="Ex: 8" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] text-center text-xl font-bold" />
-          </div>
+          <input type="number" min="0" max="24" step="0.5" value={diarioData.horasSono} onChange={e => setDiarioData(prev => ({ ...prev, horasSono: e.target.value }))} placeholder="Ex: 8" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-3 rounded-xl focus:outline-none focus:border-[#D4AF37] text-center text-xl font-bold" />
         </div>
 
         <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4 animate-in fade-in">
           <div className="flex items-center gap-3 border-b border-[#1A4026] pb-3">
-             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-                <Target size={20} />
-             </div>
-             <div>
-                <h4 className="font-medium text-white">Mentalidade</h4>
-                <p className="text-xs text-[#A0B3A6]">Como está se sentindo?</p>
-             </div>
+             <div className="w-10 h-10 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><Target size={20} /></div>
+             <div><h4 className="font-medium text-white">Disposição</h4><p className="text-xs text-[#A0B3A6]">Como você está se sentindo hoje?</p></div>
           </div>
           <div className="px-2">
             <div className="flex justify-between items-end text-xs text-[#A0B3A6] mb-3 font-medium">
-              <span className="w-20 text-left leading-tight">Indisposto</span>
+              <span className="w-20 text-left leading-tight">Sem disposição</span>
               <span className="text-[#D4AF37] font-bold text-2xl">{diarioData.mentalidade}%</span>
               <span className="w-20 text-right leading-tight">Disposição total</span>
             </div>
-            <input 
-              type="range" 
-              min="0" 
-              max="100" 
-              value={diarioData.mentalidade} 
-              onChange={e => setDiarioData(prev => ({ ...prev, mentalidade: e.target.value }))}
-              className="w-full h-2 bg-[#1A3020] rounded-lg appearance-none cursor-pointer accent-[#D4AF37]"
-            />
+            <input type="range" min="0" max="100" value={diarioData.mentalidade} onChange={e => setDiarioData(prev => ({ ...prev, mentalidade: Number(e.target.value) }))} className="w-full h-2 bg-[#1A3020] rounded-lg appearance-none cursor-pointer accent-[#D4AF37]" />
           </div>
         </div>
 
-        <button className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-3 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm mt-4">
-           <Save size={18} /> Salvar Diário
-        </button>
+        {salvo && <div className="text-center text-[#D4AF37] text-xs">Diário atualizado.</div>}
+        <button onClick={salvarDiario} className="w-full bg-[#1A3020] text-[#D4AF37] border border-[#D4AF37]/30 py-3 rounded-xl font-medium active:scale-95 transition-transform flex justify-center items-center gap-2 text-sm mt-4"><Save size={18} /> Salvar Diário</button>
       </div>
     </div>
   );
@@ -2037,120 +1841,6 @@ const Perfil = () => {
   );
 };
 
-const Modalidades = () => {
-  const { selectedModalidade, setSelectedModalidade, profile } = useApp();
-  const [editFase, setEditFase] = useState(null);
-  const [treinosLocais, setTreinosLocais] = useState({});
-
-  if (selectedModalidade) {
-    return (
-      <div className="flex-1 overflow-y-auto pr-2 space-y-6 custom-scrollbar pb-24 text-white">
-        <button onClick={() => setSelectedModalidade(null)} className="flex items-center text-[#D4AF37] mb-4 mt-4 hover:opacity-80 transition-opacity"><ChevronLeft size={20} /><span>Voltar para Modalidades</span></button>
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-16 h-16 rounded-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]">
-            {selectedModalidade.icon ? <selectedModalidade.icon size={32} strokeWidth={1.5} /> : <Dumbbell size={32} strokeWidth={1.5} />}
-          </div>
-          <div><h2 className="text-2xl font-bold text-white">{selectedModalidade.titulo}</h2><p className="text-[#A0B3A6] text-sm">{selectedModalidade.categoria}</p></div>
-        </div>
-        
-        <div className="space-y-4">
-          <h3 className="text-[#D4AF37] text-lg font-medium border-b border-[#1A4026] pb-2 flex justify-between">
-            Fases do Treinamento
-            {profile?.is_admin && <span className="text-[10px] bg-[#D4AF37] text-black px-2 py-1 rounded-full uppercase tracking-wider font-bold">Modo Edição Admin</span>}
-          </h3>
-          {[...Array(selectedModalidade.fases)].map((_, i) => (
-            <div key={`fase-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-white">Fase {i + 1}</span>
-                {profile?.is_admin && editFase !== i && (
-                  <button onClick={() => setEditFase(i)} className="text-[#D4AF37] text-xs flex items-center gap-1 hover:underline"><Edit2 size={12}/> Editar Treino</button>
-                )}
-                {profile?.is_admin && editFase === i && (
-                  <button onClick={() => setEditFase(null)} className="text-green-500 text-xs flex items-center gap-1 hover:underline"><Save size={12}/> Salvar</button>
-                )}
-              </div>
-              
-              {editFase === i ? (
-                <textarea 
-                  className="w-full bg-[#051109] border border-[#D4AF37] text-white p-3 rounded-lg mt-2 text-sm min-h-[80px] outline-none"
-                  placeholder="Descreva o treino desta fase para os alunos..."
-                  value={treinosLocais[`${selectedModalidade.id}-${i}`] || ''}
-                  onChange={(e) => setTreinosLocais({...treinosLocais, [`${selectedModalidade.id}-${i}`]: e.target.value})}
-                  autoFocus
-                />
-              ) : (
-                <p className="text-sm text-[#A0B3A6] mt-1 whitespace-pre-line">
-                  {treinosLocais[`${selectedModalidade.id}-${i}`] || 'Treino padrão da fase. O administrador ainda não personalizou a rotina.'}
-                </p>
-              )}
-              
-              {!profile?.is_admin && (
-                <button 
-                  onClick={async () => {
-                    await supabase.from('treinos_realizados').insert([{ user_id: profile.id, modalidade_nome: `${selectedModalidade.titulo} - Fase ${i+1}` }]);
-                    alert("Treino concluído com sucesso!");
-                  }}
-                  className="mt-2 bg-[#1A3020] border border-[#D4AF37]/30 text-[#D4AF37] py-1.5 rounded-lg text-xs font-medium active:scale-95 transition-transform"
-                >
-                  Marcar como Concluído
-                </button>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="space-y-4 mt-8">
-          <h3 className="text-[#D4AF37] text-lg font-medium border-b border-[#1A4026] pb-2">Dietas Recomendadas</h3>
-          {[...Array(selectedModalidade.dietas)].map((_, i) => {
-            const pdfUrl = `${supabaseUrl}/storage/v1/object/public/dietas/modalidade-${selectedModalidade.id}-dieta-${i}.pdf`;
-            return (
-              <div key={`dieta-${i}`} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <ClipboardList className="text-[#D4AF37]" size={20} />
-                  <span className="font-medium">Dieta Opção {i + 1}</span>
-                </div>
-                {profile?.is_admin ? (
-                  <label className="text-xs text-[#D4AF37] border border-[#D4AF37] px-3 py-2 rounded-lg cursor-pointer text-center active:scale-95 transition-transform flex items-center justify-center gap-2">
-                    <input type="file" accept="application/pdf" className="hidden" onChange={async (e) => {
-                      const file = e.target.files[0];
-                      if(!file) return;
-                      const fileName = `modalidade-${selectedModalidade.id}-dieta-${i}.pdf`;
-                      const { error } = await supabase.storage.from('dietas').upload(fileName, file, { upsert: true });
-                      if(error) alert('Erro ao fazer upload: ' + error.message);
-                      else alert('PDF salvo com sucesso!');
-                    }} />
-                    Carregar PDF da Dieta
-                  </label>
-                ) : (
-                  <a href={pdfUrl} target="_blank" rel="noopener noreferrer" className="bg-[#1A3020] text-[#D4AF37] text-xs font-bold px-3 py-2 rounded-lg text-center active:scale-95 transition-transform">
-                    Abrir Dieta (PDF)
-                  </a>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-  return (
-    <div className="flex-1 overflow-y-auto pr-2 space-y-4 custom-scrollbar pb-24">
-      <div className="mb-6 border-l-2 border-[#D4AF37] pl-3 py-1 mt-4">
-        <h2 className="text-[#D4AF37] text-[10px] font-semibold tracking-[0.15em] uppercase mb-1">Modalidades</h2>
-        <h3 className="text-white text-lg font-medium mb-1">Escolha sua modalidade</h3>
-        <p className="text-[#A0B3A6] text-xs max-w-[280px]">Selecione sua modalidade para acessar os treinos e planos alimentares.</p>
-      </div>
-      {modalidadesData.map((item) => (
-        <button key={item.id} onClick={() => setSelectedModalidade(item)} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex items-center gap-4 transition-all active:scale-[0.98] hover:border-[#2A5036]">
-          <div className="w-14 h-14 rounded-full bg-[#1A3020] flex items-center justify-center flex-shrink-0 text-[#D4AF37]"><item.icon size={26} strokeWidth={1.5} /></div>
-          <div className="flex-1 text-left"><h4 className="text-white text-base font-medium mb-0.5">{item.titulo}</h4><p className="text-[#D4AF37] text-[10px] mb-0.5">Categoria:</p><p className="text-[#A0B3A6] text-[10px] whitespace-pre-line">{item.categoria}</p></div>
-          <div className="flex flex-col items-end gap-1 text-right"><span className="text-[#D4AF37] text-[10px] font-medium bg-[#1A3020] px-2 py-0.5 rounded-full border border-[#D4AF37]/30">{item.fases} Fases</span><span className="text-[#D4AF37] text-[10px] font-medium bg-[#1A3020] px-2 py-0.5 rounded-full border border-[#D4AF37]/30">{item.dietas} Dietas</span></div>
-          <div className="text-[#D4AF37] ml-2 opacity-80"><ChevronRight size={18} strokeWidth={2} /></div>
-        </button>
-      ))}
-    </div>
-  );
-};
-
 const Notificacoes = () => {
   const { profile, setNotifCount, setActiveTab } = useApp();
   const [notificacoes, setNotificacoes] = useState([]);
@@ -2214,8 +1904,6 @@ const AdminPanel = ({ onExitAdmin }) => {
   const [progressoAluno, setProgressoAluno] = useState([]);
   const [showDesempenho, setShowDesempenho] = useState(false);
   const [ranking, setRanking] = useState([]);
-  
-  const [novaModalidade, setNovaModalidade] = useState({ titulo: '', categoria: '', fases: 10, dietas: 2 });
   const [ragAlunoId, setRagAlunoId] = useState('');
   const [ragInstrucoes, setRagInstrucoes] = useState('');
   const [ragGerando, setRagGerando] = useState(false);
@@ -2228,11 +1916,11 @@ const AdminPanel = ({ onExitAdmin }) => {
       if (data) {
         const alunosData = data.filter(p => getUserRole(p) === 'aluno');
         setAlunos(alunosData);
-        const { data: treinos } = await supabase.from('treinos_realizados').select('*');
-        if (treinos) {
+        const { data: execucoes } = await supabase.from('execucoes_treino').select('*').eq('status', 'concluido');
+        if (execucoes) {
           const r = alunosData.map(a => ({
             ...a,
-            treinosCount: treinos.filter(t => t.user_id === a.id).length
+            treinosCount: execucoes.filter(t => t.user_id === a.id).length
           })).sort((a, b) => b.treinosCount - a.treinosCount);
           setRanking(r);
         } else {
@@ -2252,23 +1940,6 @@ const AdminPanel = ({ onExitAdmin }) => {
     setStatusMsg('Enviando...');
     const { error } = await supabase.from('notificacoes').insert([{ user_id: alunoSelecionado, mensagem: mensagem, lida: false }]);
     if (!error) { setStatusMsg('Mensagem enviada!'); setMensagem(''); } else { setStatusMsg('Erro ao enviar.'); }
-    setTimeout(() => setStatusMsg(''), 3000);
-  };
-
-  const handleCriarModalidade = async () => {
-    if (!novaModalidade.titulo || !novaModalidade.categoria) {
-        setStatusMsg('Preencha título e categoria.');
-        setTimeout(() => setStatusMsg(''), 3000);
-        return;
-    }
-    setStatusMsg('Criando...');
-    const { error } = await supabase.from('modalidades_custom').insert([novaModalidade]);
-    if (!error) {
-        setStatusMsg('Criado com sucesso!');
-        setNovaModalidade({ titulo: '', categoria: '', fases: 10, dietas: 2 });
-    } else {
-        setStatusMsg('Erro ao criar modalidade.');
-    }
     setTimeout(() => setStatusMsg(''), 3000);
   };
 
@@ -2318,13 +1989,31 @@ const AdminPanel = ({ onExitAdmin }) => {
   };
 
   const handlePublicarTreinoRAG = async () => {
-    if (!ragPlanoId) return;
+    if (!ragPlanoId || !ragAlunoId) return;
     setStatusMsg('Publicando treino...');
+
+    const { data: publicados, error: loadError } = await supabase.from('planos_treino').select('*').eq('user_id', ragAlunoId).eq('status', 'publicado');
+    if (loadError) {
+      setStatusMsg('Não foi possível verificar o plano atual do aluno.');
+      return;
+    }
+
+    for (const planoPublicado of (publicados || [])) {
+      if (planoPublicado.id !== ragPlanoId) {
+        const { error: archiveError } = await supabase.from('planos_treino').update({ status: 'arquivado', updated_at: new Date().toISOString() }).eq('id', planoPublicado.id);
+        if (archiveError) {
+          setStatusMsg('Não foi possível arquivar o plano anterior.');
+          return;
+        }
+      }
+    }
+
     const { error } = await supabase.from('planos_treino').update({
       status: 'publicado',
-      published_at: new Date().toISOString()
+      published_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }).eq('id', ragPlanoId);
-    setStatusMsg(error ? 'Não foi possível publicar.' : 'Treino publicado para o aluno!');
+    setStatusMsg(error ? 'Não foi possível publicar.' : 'Treino publicado. O plano anterior foi arquivado automaticamente.');
   };
 
   useEffect(() => {
@@ -2549,34 +2238,6 @@ const AdminPanel = ({ onExitAdmin }) => {
               </div>
             )}
 
-            {gestaoView === 'criar_treinos' && (
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
-                <div className="flex justify-between items-center border-b border-[#1A4026] pb-2">
-                  <h4 className="text-[#D4AF37] font-medium flex items-center gap-2">Nova Modalidade <Plus size={14}/></h4>
-                  {statusMsg && <span className="text-[#D4AF37] text-xs font-medium">{statusMsg}</span>}
-                </div>
-                <div>
-                  <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Título da Modalidade</label>
-                  <input type="text" value={novaModalidade.titulo} onChange={e => setNovaModalidade({...novaModalidade, titulo: e.target.value})} placeholder="Ex: Crossfit" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
-                </div>
-                <div>
-                  <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Categoria / Descrição</label>
-                  <input type="text" value={novaModalidade.categoria} onChange={e => setNovaModalidade({...novaModalidade, categoria: e.target.value})} placeholder="Ex: Alta Intensidade" className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Nº de Fases</label>
-                    <input type="number" value={novaModalidade.fases} onChange={e => setNovaModalidade({...novaModalidade, fases: parseInt(e.target.value)})} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Nº de Dietas</label>
-                    <input type="number" value={novaModalidade.dietas} onChange={e => setNovaModalidade({...novaModalidade, dietas: parseInt(e.target.value)})} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none" />
-                  </div>
-                </div>
-                <button onClick={handleCriarModalidade} className="w-full bg-[#D4AF37] text-[#051109] font-bold py-3 rounded-xl mt-4 active:scale-95 transition-transform flex justify-center items-center gap-2">Salvar Modalidade <Save size={18}/></button>
-              </div>
-            )}
-
             {gestaoView === 'desempenho' && (
               <div className="space-y-4">
                 <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
@@ -2641,11 +2302,11 @@ const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
 );
 
 const NavBar = () => {
-  const { activeTab, setActiveTab, setSelectedModalidade } = useApp();
+  const { activeTab, setActiveTab } = useApp();
   const navItems = [
     { id: 'inicio', icon: Home, label: 'Início' },
     { id: 'diario', icon: Calendar, label: 'Diário' },
-    { id: 'planos', icon: Dumbbell, label: 'Meu Treino' },
+    { id: 'treino', icon: Dumbbell, label: 'Meu Treino' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
     { id: 'corrida', icon: RunnerIcon, label: 'Corrida' },
     { id: 'perfil', icon: User, label: 'Perfil' }
@@ -2655,7 +2316,7 @@ const NavBar = () => {
       <GlobalStyles />
       <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-1 sm:px-4 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <div className="flex justify-between items-center max-w-md mx-auto h-14 min-w-[320px]">
-          {navItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} isActive={activeTab === item.id} onClick={() => { setActiveTab(item.id); setSelectedModalidade(null); }} />)}
+          {navItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />)}
         </div>
       </nav>
     </>
@@ -2668,7 +2329,6 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('inicio');
-  const [selectedModalidade, setSelectedModalidade] = useState(null);
   const [loading, setLoading] = useState(true);
   const [adminView, setAdminView] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
@@ -2687,7 +2347,6 @@ export default function App() {
   const [proteinConquista, setProteinConquista] = useState(false);
   
   const [diarioData, setDiarioData] = useState({
-    treinosFeitos: { segunda: false, terca: false, quarta: false, quinta: false, sexta: false, sabado: false, domingo: false },
     nutricao: 50,
     horasSono: '',
     mentalidade: 50
@@ -2835,6 +2494,7 @@ export default function App() {
       desafios: data.desafios,
       estrutura: data.estrutura,
       disponibilidade: data.dias,
+      modalidade: data.modalidade || null,
       termos_aceitos: data.termos
     }]);
 
@@ -2883,7 +2543,6 @@ export default function App() {
   const ctx = {
     session, profile, setProfile,
     activeTab, setActiveTab,
-    selectedModalidade, setSelectedModalidade,
     handleLogout,
     reloadProfile: () => session && loadProfile(session.user.id, session.user.email, session.user.user_metadata),
     notifCount, setNotifCount,
@@ -2919,7 +2578,7 @@ export default function App() {
           ) : (
             <>
               <header className="flex justify-between items-center px-6 py-4 pt-[calc(1rem+env(safe-area-inset-top))] relative z-10 flex-shrink-0">
-                <button className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95" onClick={() => { setActiveTab('perfil'); setSelectedModalidade(null); }}>
+                <button className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95" onClick={() => setActiveTab('perfil')}>
                   {profile?.foto_url ? <img src={profile.foto_url} alt="Perfil" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><User size={20} strokeWidth={1.5} /></div>}
                 </button>
                 <h1 className="text-sm sm:text-base leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold whitespace-nowrap px-2">
@@ -2936,10 +2595,9 @@ export default function App() {
 
               <main className="flex-1 px-6 relative z-10 flex flex-col overflow-hidden">
                 {activeTab === 'inicio' && <Inicio />}
-                {activeTab === 'modalidades' && <Modalidades />}
                 {activeTab === 'diario' && <Diario />}
                 {activeTab === 'feed' && <Feed />}
-                {activeTab === 'planos' && <MeuTreinoIA />}
+                {activeTab === 'treino' && <MeuTreino />}
                 {activeTab === 'progresso' && <Progresso />}
                 {activeTab === 'corrida' && <Corrida />}
                 {activeTab === 'perfil' && <Perfil />}
