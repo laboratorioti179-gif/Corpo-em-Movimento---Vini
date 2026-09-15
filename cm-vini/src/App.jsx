@@ -537,8 +537,17 @@ const Onboarding = ({ profile, onComplete }) => {
                  Para oferecermos uma experiência personalizada, precisamos coletar e armazenar seus dados físicos, objetivos e preferências. 
                  Suas informações estão seguras conosco e não serão compartilhadas com terceiros sem seu consentimento explícito.
                </p>
-               <label className="flex items-start gap-3 cursor-pointer group">
-                 <div className={`w-6 h-6 rounded flex items-center justify-center border mt-0.5 flex-shrink-0 transition-colors ${formData.termos ? 'bg-[#D4AF37] border-[#D4AF37]' : 'bg-[#051109] border-[#1A4026] group-hover:border-[#D4AF37]'}`}>
+               <label className="flex items-start gap-3 cursor-pointer group select-none">
+                 <input
+                   type="checkbox"
+                   className="sr-only"
+                   checked={formData.termos}
+                   onChange={(e) => setFormData({ ...formData, termos: e.target.checked })}
+                 />
+                 <div
+                   aria-hidden="true"
+                   className={`w-6 h-6 rounded flex items-center justify-center border mt-0.5 flex-shrink-0 transition-colors ${formData.termos ? 'bg-[#D4AF37] border-[#D4AF37]' : 'bg-[#051109] border-[#1A4026] group-hover:border-[#D4AF37]'}`}
+                 >
                    {formData.termos && <CheckCircle size={16} className="text-[#051109]" />}
                  </div>
                  <span className="text-sm font-medium">Eu li e aceito os Termos e Condições e concordo com o processamento dos dados.</span>
