@@ -2426,6 +2426,9 @@ const AdminPanel = ({ onExitAdmin }) => {
   const [ragResumoAluno, setRagResumoAluno] = useState(null);
   const [ragResumoLoading, setRagResumoLoading] = useState(false);
   const [ragRascunhoLoading, setRagRascunhoLoading] = useState(false);
+  const [ragEditando, setRagEditando] = useState(false);
+  const [ragTreinoEditavel, setRagTreinoEditavel] = useState(null);
+  const [ragSalvandoEdicao, setRagSalvandoEdicao] = useState(false);
 
   const calcularIdade = (dataNasc) => {
     if (!dataNasc) return 'N/A';
@@ -2645,11 +2648,15 @@ const AdminPanel = ({ onExitAdmin }) => {
         if (maisRecente?.treino_json) {
           setRagTreino(maisRecente.treino_json);
           setRagPlanoId(maisRecente.id);
+          setRagEditando(false);
+          setRagTreinoEditavel(null);
           setRagInstrucoes(maisRecente.observacoes_profissional || '');
           setRagStatus('Rascunho salvo recuperado. Revise ou publique quando estiver pronto.');
         } else {
           setRagTreino(null);
           setRagPlanoId(null);
+          setRagEditando(false);
+          setRagTreinoEditavel(null);
           setRagInstrucoes('');
           setRagStatus('');
         }
@@ -2720,6 +2727,8 @@ const AdminPanel = ({ onExitAdmin }) => {
     setRagStatus('Consultando a base de conhecimento e gerando o treino...');
     setRagTreino(null);
     setRagPlanoId(null);
+    setRagEditando(false);
+    setRagTreinoEditavel(null);
 
     try {
       const resumo =
@@ -2770,8 +2779,168 @@ const AdminPanel = ({ onExitAdmin }) => {
     }
   };
 
+  const iniciarEdicaoTreinoRAG = () => {
+    if (!ragTreino || !ragPlanoId) return;
+    setRagTreinoEditavel(JSON.parse(JSON.stringify(ragTreino)));
+    setRagEditando(true);
+    setRagStatus('Modo de edição ativado. Salve as alterações antes de publicar.');
+  };
+
+  const cancelarEdicaoTreinoRAG = () => {
+    setRagTreinoEditavel(null);
+    setRagEditando(false);
+    setRagStatus('Edição cancelada. O rascunho salvo foi mantido sem alterações.');
+  };
+
+  const atualizarCampoPlanoRAG = (campo, valor) => {
+    setRagTreinoEditavel(prev => ({ ...(prev || {}), [campo]: valor }));
+  };
+
+  const atualizarCampoDiaRAG = (diaIndex, campo, valor) => {
+    setRagTreinoEditavel(prev => {
+      const proximo = JSON.parse(JSON.stringify(prev || {}));
+      if (!Array.isArray(proximo.dias)) proximo.dias = [];
+      if (!proximo.dias[diaIndex]) return prev;
+      proximo.dias[diaIndex][campo] = valor;
+      return proximo;
+    });
+  };
+
+  const atualizarCampoExercicioRAG = (diaIndex, exIndex, campo, valor) => {
+    setRagTreinoEditavel(prev => {
+      const proximo = JSON.parse(JSON.stringify(prev || {}));
+      const exercicios = proximo?.dias?.[diaIndex]?.exercicios;
+      if (!Array.isArray(exercicios) || !exercicios[exIndex]) return prev;
+      exercicios[exIndex][campo] = valor;
+      return proximo;
+    });
+  };
+
+  const adicionarExercicioRAG = (diaIndex) => {
+    setRagTreinoEditavel(prev => {
+      const proximo = JSON.parse(JSON.stringify(prev || {}));
+      if (!Array.isArray(proximo?.dias?.[diaIndex]?.exercicios)) return prev;
+      const numero = proximo.dias[diaIndex].exercicios.length + 1;
+      proximo.dias[diaIndex].exercicios.push({
+        id: `${proximo.dias[diaIndex].id || `D${diaIndex + 1}`}-E${numero}`,
+        nome: '',
+        series: 3,
+        repeticoes: '8 a 12',
+        descanso_seg: 90,
+        carga_orientacao: '',
+        observacoes: ''
+      });
+      return proximo;
+    });
+  };
+
+  const removerExercicioRAG = (diaIndex, exIndex) => {
+    setRagTreinoEditavel(prev => {
+      const proximo = JSON.parse(JSON.stringify(prev || {}));
+      const exercicios = proximo?.dias?.[diaIndex]?.exercicios;
+      if (!Array.isArray(exercicios)) return prev;
+      exercicios.splice(exIndex, 1);
+      return proximo;
+    });
+  };
+
+  const adicionarDiaRAG = () => {
+    setRagTreinoEditavel(prev => {
+      const proximo = JSON.parse(JSON.stringify(prev || {}));
+      if (!Array.isArray(proximo.dias)) proximo.dias = [];
+      const numero = proximo.dias.length + 1;
+      proximo.dias.push({
+        id: `DIA-${numero}`,
+        titulo: `Treino ${numero}`,
+        foco: '',
+        duracao_min: 60,
+        exercicios: []
+      });
+      return proximo;
+    });
+  };
+
+  const removerDiaRAG = (diaIndex) => {
+    setRagTreinoEditavel(prev => {
+      const proximo = JSON.parse(JSON.stringify(prev || {}));
+      if (!Array.isArray(proximo.dias)) return prev;
+      proximo.dias.splice(diaIndex, 1);
+      return proximo;
+    });
+  };
+
+  const normalizarTreinoEditadoRAG = (treino) => {
+    const numeroOuNulo = (valor) => {
+      if (valor === '' || valor == null) return null;
+      const n = Number(valor);
+      return Number.isFinite(n) ? n : null;
+    };
+
+    return {
+      ...treino,
+      duracao_semanas: numeroOuNulo(treino?.duracao_semanas),
+      frequencia_semanal: numeroOuNulo(treino?.frequencia_semanal),
+      dias: (Array.isArray(treino?.dias) ? treino.dias : []).map((dia, diaIndex) => ({
+        ...dia,
+        id: dia.id || `DIA-${diaIndex + 1}`,
+        duracao_min: numeroOuNulo(dia.duracao_min),
+        exercicios: (Array.isArray(dia.exercicios) ? dia.exercicios : []).map((ex, exIndex) => ({
+          ...ex,
+          id: ex.id || `${dia.id || `DIA-${diaIndex + 1}`}-E${exIndex + 1}`,
+          series: numeroOuNulo(ex.series),
+          descanso_seg: numeroOuNulo(ex.descanso_seg)
+        }))
+      }))
+    };
+  };
+
+  const salvarEdicaoTreinoRAG = async () => {
+    if (!ragPlanoId || !ragTreinoEditavel) return;
+
+    const dias = Array.isArray(ragTreinoEditavel.dias) ? ragTreinoEditavel.dias : [];
+    if (dias.length === 0) {
+      setRagStatus('O treino precisa ter pelo menos um dia antes de ser salvo.');
+      return;
+    }
+
+    const exercicioSemNome = dias.some(dia => (dia.exercicios || []).some(ex => !String(ex.nome || '').trim()));
+    if (exercicioSemNome) {
+      setRagStatus('Preencha o nome de todos os exercícios antes de salvar.');
+      return;
+    }
+
+    setRagSalvandoEdicao(true);
+    setRagStatus('Salvando alterações do rascunho...');
+
+    try {
+      const treinoNormalizado = normalizarTreinoEditadoRAG(ragTreinoEditavel);
+      const { error } = await supabase.from('planos_treino').update({
+        treino_json: treinoNormalizado,
+        objetivo: treinoNormalizado.objetivo || null,
+        observacoes_profissional: ragInstrucoes || null,
+        updated_at: new Date().toISOString()
+      }).eq('id', ragPlanoId).eq('status', 'rascunho');
+
+      if (error) throw error;
+
+      setRagTreino(treinoNormalizado);
+      setRagTreinoEditavel(null);
+      setRagEditando(false);
+      setRagStatus('Alterações salvas no rascunho. Revise e publique quando estiver pronto.');
+    } catch (error) {
+      console.error('Erro ao salvar edição do treino:', error);
+      setRagStatus(error?.message || 'Não foi possível salvar as alterações do treino.');
+    } finally {
+      setRagSalvandoEdicao(false);
+    }
+  };
+
   const handlePublicarTreinoRAG = async () => {
     if (!ragPlanoId || !ragAlunoId) return;
+    if (ragEditando) {
+      setRagStatus('Salve ou cancele a edição antes de publicar.');
+      return;
+    }
     setRagStatus('Publicando treino...');
     const { data: publicados, error: loadError } = await supabase.from('planos_treino').select('*').eq('user_id', ragAlunoId).eq('status', 'publicado');
     if (loadError) {
@@ -2801,6 +2970,8 @@ const AdminPanel = ({ onExitAdmin }) => {
     setRagStatus('Treino publicado. O plano anterior foi arquivado automaticamente.');
     setRagTreino(null);
     setRagPlanoId(null);
+    setRagEditando(false);
+    setRagTreinoEditavel(null);
 
     // Atualiza o contexto do aluno para refletir imediatamente o novo plano publicado.
     try {
@@ -3036,7 +3207,7 @@ const AdminPanel = ({ onExitAdmin }) => {
               <div className="space-y-4">
                 <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
                   <div className="border-b border-[#1A4026] pb-3"><h4 className="text-[#D4AF37] font-medium flex items-center gap-2"><Target size={16}/> Gerar treino individual com IA</h4><p className="text-[#A0B3A6] text-[10px] mt-1">O próximo RAG receberá também frequência, esforço, últimas sessões, cargas e repetições registradas.</p></div>
-                  <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label><select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); setRagStatus(''); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none"><option value="">Selecione...</option>{alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}</select></div>
+                  <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label><select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); setRagEditando(false); setRagTreinoEditavel(null); setRagStatus(''); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none"><option value="">Selecione...</option>{alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}</select></div>
 
                   {ragResumoLoading && <p className="text-xs text-[#A0B3A6] text-center">Preparando histórico do aluno...</p>}
                   {ragResumoAluno && !ragResumoLoading && (
@@ -3056,16 +3227,119 @@ const AdminPanel = ({ onExitAdmin }) => {
 
                   <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Orientações do professor (opcional)</label><textarea value={ragInstrucoes} onChange={e => setRagInstrucoes(e.target.value)} rows="4" placeholder="Ex.: evitar impacto no joelho; priorizar posterior; manter 4 treinos por semana..." className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none resize-none text-sm" /></div>
                   {ragRascunhoLoading && <p className="text-[#A0B3A6] text-xs text-center">Carregando rascunho salvo...</p>}
-                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || ragRascunhoLoading || !ragAlunoId} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">{ragGerando ? 'Gerando com IA...' : 'Gerar treino com RAG'}</button>
+
+                  {ragResumoAluno?.planoAtual && !ragTreino && !ragRascunhoLoading && (
+                    <div className="bg-[#051109] border border-green-500/30 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-wider text-green-400">Treino atual publicado</p>
+                          <p className="text-sm font-bold text-white mt-1">{ragResumoAluno.planoAtual?.treino_json?.nome_plano || 'Treino Personalizado'}</p>
+                          <p className="text-[10px] text-[#A0B3A6] mt-1">Você pode gerar um novo rascunho sem retirar o treino atual do aluno. O atual só será arquivado quando o novo for aprovado e publicado.</p>
+                        </div>
+                        <CheckCircle size={18} className="text-green-400 shrink-0 mt-1" />
+                      </div>
+                    </div>
+                  )}
+
+                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || ragRascunhoLoading || !ragAlunoId || ragEditando} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">
+                    {ragGerando ? 'Gerando com IA...' : ragTreino ? 'Gerar outro rascunho com RAG' : ragResumoAluno?.planoAtual ? 'Gerar novo treino com RAG' : 'Gerar treino com RAG'}
+                  </button>
                   {ragStatus && <p className="text-[#D4AF37] text-xs text-center">{ragStatus}</p>}
                 </div>
 
                 {ragTreino && (
                   <div className="bg-[#0A1A10] border border-[#D4AF37]/40 rounded-2xl p-4 space-y-4">
-                    <div className="flex justify-between items-start gap-3"><div><p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">Rascunho da IA</p><h4 className="font-bold text-lg">{ragTreino.nome_plano || 'Treino Personalizado'}</h4><p className="text-[#A0B3A6] text-xs">{ragTreino.objetivo || ''}</p></div><span className="text-[9px] border border-yellow-500/40 text-yellow-400 px-2 py-1 rounded-full">AGUARDANDO REVISÃO</span></div>
-                    {(ragTreino.dias || []).map((dia, i) => <div key={dia.id || i} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3"><h5 className="text-sm font-bold text-[#D4AF37]">{dia.titulo || `Treino ${i+1}`}</h5><p className="text-[10px] text-[#A0B3A6] mb-2">{dia.foco || ''}</p><div className="space-y-1">{(dia.exercicios || []).map((ex, j) => <p key={ex.id || j} className="text-xs text-gray-200">{j+1}. {ex.nome} — {ex.series || '-'} × {ex.repeticoes || '-'}</p>)}</div></div>)}
-                    <div className="bg-[#1A3020] border border-[#1A4026] rounded-xl p-3 text-[10px] text-[#A0B3A6]">Antes de publicar, confira o histórico acima, exercícios, volume, frequência, restrições e observações do aluno.</div>
-                    <button onClick={handlePublicarTreinoRAG} disabled={!ragPlanoId} className="w-full bg-[#1A3020] border border-[#D4AF37] text-[#D4AF37] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95">Aprovar e publicar para o aluno</button>
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">Rascunho da IA</p>
+                        <h4 className="font-bold text-lg">{ragTreino.nome_plano || 'Treino Personalizado'}</h4>
+                        <p className="text-[#A0B3A6] text-xs">{ragTreino.objetivo || ''}</p>
+                      </div>
+                      <span className="text-[9px] border border-yellow-500/40 text-yellow-400 px-2 py-1 rounded-full">AGUARDANDO REVISÃO</span>
+                    </div>
+
+                    {!ragEditando ? (
+                      <>
+                        {(ragTreino.dias || []).map((dia, i) => (
+                          <div key={dia.id || i} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
+                            <h5 className="text-sm font-bold text-[#D4AF37]">{dia.titulo || `Treino ${i+1}`}</h5>
+                            <p className="text-[10px] text-[#A0B3A6] mb-2">{dia.foco || ''}</p>
+                            <div className="space-y-1">
+                              {(dia.exercicios || []).map((ex, j) => (
+                                <p key={ex.id || j} className="text-xs text-gray-200">{j+1}. {ex.nome} — {ex.series || '-'} × {ex.repeticoes || '-'}{ex.descanso_seg ? ` • ${ex.descanso_seg}s` : ''}</p>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={iniciarEdicaoTreinoRAG} className="w-full bg-[#051109] border border-[#1A4026] text-white font-medium py-3 rounded-xl active:scale-95 flex items-center justify-center gap-2"><Edit2 size={15}/> Editar treino</button>
+                          <button onClick={handleGerarTreinoRAG} disabled={ragGerando} className="w-full bg-[#051109] border border-[#1A4026] text-[#D4AF37] font-medium py-3 rounded-xl active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"><RotateCcw size={15}/> Gerar novamente</button>
+                        </div>
+
+                        <div className="bg-[#1A3020] border border-[#1A4026] rounded-xl p-3 text-[10px] text-[#A0B3A6]">Antes de publicar, confira o histórico acima, exercícios, volume, frequência, restrições e observações do aluno. Se necessário, edite o rascunho diretamente.</div>
+                        <button onClick={handlePublicarTreinoRAG} disabled={!ragPlanoId} className="w-full bg-[#1A3020] border border-[#D4AF37] text-[#D4AF37] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95">Aprovar e publicar para o aluno</button>
+                      </>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="bg-[#051109] border border-[#D4AF37]/30 rounded-xl p-3 space-y-3">
+                          <p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">Editar informações gerais</p>
+                          <div>
+                            <label className="text-[9px] text-[#A0B3A6] uppercase">Nome do plano</label>
+                            <input value={ragTreinoEditavel?.nome_plano || ''} onChange={e => atualizarCampoPlanoRAG('nome_plano', e.target.value)} className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" />
+                          </div>
+                          <div>
+                            <label className="text-[9px] text-[#A0B3A6] uppercase">Objetivo</label>
+                            <textarea value={ragTreinoEditavel?.objetivo || ''} onChange={e => atualizarCampoPlanoRAG('objetivo', e.target.value)} rows="2" className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37] resize-none" />
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div><label className="text-[9px] text-[#A0B3A6] uppercase">Semanas</label><input type="number" min="1" value={ragTreinoEditavel?.duracao_semanas ?? ''} onChange={e => atualizarCampoPlanoRAG('duracao_semanas', e.target.value)} className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" /></div>
+                            <div><label className="text-[9px] text-[#A0B3A6] uppercase">Frequência/semana</label><input type="number" min="1" value={ragTreinoEditavel?.frequencia_semanal ?? ''} onChange={e => atualizarCampoPlanoRAG('frequencia_semanal', e.target.value)} className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" /></div>
+                          </div>
+                        </div>
+
+                        {(ragTreinoEditavel?.dias || []).map((dia, diaIndex) => (
+                          <div key={dia.id || diaIndex} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3 space-y-3">
+                            <div className="flex justify-between items-center gap-2">
+                              <p className="text-xs font-bold text-[#D4AF37]">Dia {diaIndex + 1}</p>
+                              <button type="button" onClick={() => removerDiaRAG(diaIndex)} className="text-red-300 text-[10px] flex items-center gap-1"><X size={13}/> Remover dia</button>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div><label className="text-[9px] text-[#A0B3A6] uppercase">Título</label><input value={dia.titulo || ''} onChange={e => atualizarCampoDiaRAG(diaIndex, 'titulo', e.target.value)} className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" /></div>
+                              <div><label className="text-[9px] text-[#A0B3A6] uppercase">Foco</label><input value={dia.foco || ''} onChange={e => atualizarCampoDiaRAG(diaIndex, 'foco', e.target.value)} className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" /></div>
+                            </div>
+                            <div><label className="text-[9px] text-[#A0B3A6] uppercase">Duração (min)</label><input type="number" min="1" value={dia.duracao_min ?? ''} onChange={e => atualizarCampoDiaRAG(diaIndex, 'duracao_min', e.target.value)} className="w-full mt-1 bg-[#0A1A10] border border-[#1A4026] rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-[#D4AF37]" /></div>
+
+                            <div className="space-y-3">
+                              {(dia.exercicios || []).map((ex, exIndex) => (
+                                <div key={ex.id || exIndex} className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-3 space-y-2">
+                                  <div className="flex justify-between items-center gap-2">
+                                    <p className="text-[10px] font-bold text-white">Exercício {exIndex + 1}</p>
+                                    <button type="button" onClick={() => removerExercicioRAG(diaIndex, exIndex)} className="text-red-300 text-[10px] flex items-center gap-1"><X size={12}/> Remover</button>
+                                  </div>
+                                  <div><label className="text-[9px] text-[#A0B3A6] uppercase">Exercício</label><input value={ex.nome || ''} onChange={e => atualizarCampoExercicioRAG(diaIndex, exIndex, 'nome', e.target.value)} className="w-full mt-1 bg-[#051109] border border-[#1A4026] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#D4AF37]" /></div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <div><label className="text-[9px] text-[#A0B3A6] uppercase">Séries</label><input type="number" min="1" value={ex.series ?? ''} onChange={e => atualizarCampoExercicioRAG(diaIndex, exIndex, 'series', e.target.value)} className="w-full mt-1 bg-[#051109] border border-[#1A4026] rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-[#D4AF37]" /></div>
+                                    <div><label className="text-[9px] text-[#A0B3A6] uppercase">Repetições</label><input value={ex.repeticoes || ''} onChange={e => atualizarCampoExercicioRAG(diaIndex, exIndex, 'repeticoes', e.target.value)} className="w-full mt-1 bg-[#051109] border border-[#1A4026] rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-[#D4AF37]" /></div>
+                                    <div><label className="text-[9px] text-[#A0B3A6] uppercase">Descanso (s)</label><input type="number" min="0" value={ex.descanso_seg ?? ''} onChange={e => atualizarCampoExercicioRAG(diaIndex, exIndex, 'descanso_seg', e.target.value)} className="w-full mt-1 bg-[#051109] border border-[#1A4026] rounded-lg px-2 py-2 text-xs text-white outline-none focus:border-[#D4AF37]" /></div>
+                                  </div>
+                                  <div><label className="text-[9px] text-[#A0B3A6] uppercase">Orientação de carga</label><input value={ex.carga_orientacao || ''} onChange={e => atualizarCampoExercicioRAG(diaIndex, exIndex, 'carga_orientacao', e.target.value)} className="w-full mt-1 bg-[#051109] border border-[#1A4026] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#D4AF37]" /></div>
+                                  <div><label className="text-[9px] text-[#A0B3A6] uppercase">Observações</label><textarea value={ex.observacoes || ''} onChange={e => atualizarCampoExercicioRAG(diaIndex, exIndex, 'observacoes', e.target.value)} rows="2" className="w-full mt-1 bg-[#051109] border border-[#1A4026] rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-[#D4AF37] resize-none" /></div>
+                                </div>
+                              ))}
+                              <button type="button" onClick={() => adicionarExercicioRAG(diaIndex)} className="w-full border border-dashed border-[#D4AF37]/50 text-[#D4AF37] py-2 rounded-lg text-xs flex items-center justify-center gap-1"><Plus size={14}/> Adicionar exercício</button>
+                            </div>
+                          </div>
+                        ))}
+
+                        <button type="button" onClick={adicionarDiaRAG} className="w-full border border-dashed border-[#D4AF37]/50 text-[#D4AF37] py-3 rounded-xl text-xs flex items-center justify-center gap-1"><Plus size={15}/> Adicionar dia de treino</button>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={cancelarEdicaoTreinoRAG} disabled={ragSalvandoEdicao} className="w-full border border-[#1A4026] text-[#A0B3A6] font-medium py-3 rounded-xl disabled:opacity-50">Cancelar</button>
+                          <button onClick={salvarEdicaoTreinoRAG} disabled={ragSalvandoEdicao} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 flex items-center justify-center gap-2"><Save size={15}/>{ragSalvandoEdicao ? 'Salvando...' : 'Salvar alterações'}</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
