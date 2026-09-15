@@ -2425,6 +2425,7 @@ const AdminPanel = ({ onExitAdmin }) => {
   const [ragStatus, setRagStatus] = useState('');
   const [ragResumoAluno, setRagResumoAluno] = useState(null);
   const [ragResumoLoading, setRagResumoLoading] = useState(false);
+  const [ragRascunhoLoading, setRagRascunhoLoading] = useState(false);
 
   const calcularIdade = (dataNasc) => {
     if (!dataNasc) return 'N/A';
@@ -2607,6 +2608,67 @@ const AdminPanel = ({ onExitAdmin }) => {
     return () => { ativo = false; };
   }, [ragAlunoId]);
 
+  // Recupera o rascunho mais recente salvo no Supabase sempre que um aluno é selecionado.
+  // Assim, atualizar a página não faz o treino em revisão desaparecer do painel.
+  useEffect(() => {
+    if (!ragAlunoId) {
+      setRagTreino(null);
+      setRagPlanoId(null);
+      setRagRascunhoLoading(false);
+      return;
+    }
+
+    let ativo = true;
+
+    const carregarRascunhoSalvo = async () => {
+      setRagRascunhoLoading(true);
+
+      try {
+        const { data, error } = await supabase
+          .from('planos_treino')
+          .select('*')
+          .eq('user_id', ragAlunoId)
+          .eq('status', 'rascunho');
+
+        if (!ativo) return;
+        if (error) throw error;
+
+        const rascunhos = Array.isArray(data) ? data : (data ? [data] : []);
+        rascunhos.sort((a, b) => {
+          const dataA = new Date(a.updated_at || a.created_at || 0).getTime();
+          const dataB = new Date(b.updated_at || b.created_at || 0).getTime();
+          return dataB - dataA;
+        });
+
+        const maisRecente = rascunhos[0] || null;
+
+        if (maisRecente?.treino_json) {
+          setRagTreino(maisRecente.treino_json);
+          setRagPlanoId(maisRecente.id);
+          setRagInstrucoes(maisRecente.observacoes_profissional || '');
+          setRagStatus('Rascunho salvo recuperado. Revise ou publique quando estiver pronto.');
+        } else {
+          setRagTreino(null);
+          setRagPlanoId(null);
+          setRagInstrucoes('');
+          setRagStatus('');
+        }
+      } catch (error) {
+        console.error('Erro ao carregar rascunho salvo:', error);
+        if (ativo) {
+          setRagTreino(null);
+          setRagPlanoId(null);
+          setRagStatus('Não foi possível carregar o rascunho salvo deste aluno.');
+        }
+      } finally {
+        if (ativo) setRagRascunhoLoading(false);
+      }
+    };
+
+    carregarRascunhoSalvo();
+    return () => { ativo = false; };
+  }, [ragAlunoId]);
+
   const handleEnviarMensagem = async () => {
     if (!alunoSelecionado || !mensagem.trim()) {
       setMensagemStatus('Selecione um aluno e digite a mensagem.');
@@ -2730,7 +2792,24 @@ const AdminPanel = ({ onExitAdmin }) => {
       published_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }).eq('id', ragPlanoId);
-    setRagStatus(error ? 'Não foi possível publicar.' : 'Treino publicado. O plano anterior foi arquivado automaticamente.');
+
+    if (error) {
+      setRagStatus('Não foi possível publicar.');
+      return;
+    }
+
+    setRagStatus('Treino publicado. O plano anterior foi arquivado automaticamente.');
+    setRagTreino(null);
+    setRagPlanoId(null);
+
+    // Atualiza o contexto do aluno para refletir imediatamente o novo plano publicado.
+    try {
+      const atualizado = await montarDossie(ragAlunoId);
+      setRagResumoAluno(atualizado);
+      if (alunoSelecionado === ragAlunoId) setDossieAluno(atualizado);
+    } catch (refreshError) {
+      console.error('Treino publicado, mas não foi possível atualizar o dossiê:', refreshError);
+    }
   };
 
   const alunoObj = alunos.find(a => a.id === alunoSelecionado);
@@ -2976,7 +3055,8 @@ const AdminPanel = ({ onExitAdmin }) => {
                   )}
 
                   <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Orientações do professor (opcional)</label><textarea value={ragInstrucoes} onChange={e => setRagInstrucoes(e.target.value)} rows="4" placeholder="Ex.: evitar impacto no joelho; priorizar posterior; manter 4 treinos por semana..." className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none resize-none text-sm" /></div>
-                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || !ragAlunoId} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">{ragGerando ? 'Gerando com IA...' : 'Gerar treino com RAG'}</button>
+                  {ragRascunhoLoading && <p className="text-[#A0B3A6] text-xs text-center">Carregando rascunho salvo...</p>}
+                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || ragRascunhoLoading || !ragAlunoId} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">{ragGerando ? 'Gerando com IA...' : 'Gerar treino com RAG'}</button>
                   {ragStatus && <p className="text-[#D4AF37] text-xs text-center">{ragStatus}</p>}
                 </div>
 
