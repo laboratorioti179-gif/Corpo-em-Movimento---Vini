@@ -7,7 +7,6 @@ import {
 } from 'lucide-react';
 
 const logoCorpoMovimento = '/logo_cm_semfundo.png';
-const simboloCorpoMovimento = '/simbolo-corpo-movimento.png';
 
 // --- CONFIGURAÇÃO SUPABASE REAL (VIA FETCH NATIVO) ---
 export const supabaseUrl = 'https://jaujldyuelyhsqyxyerc.supabase.co';
@@ -2875,10 +2874,7 @@ export default function App() {
         <GlobalStyles />
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-[#D4AF37] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <div className="flex items-center justify-center gap-2">
-            <img src={simboloCorpoMovimento} alt="" className="w-9 h-9 object-contain" />
-            <h1 className="text-[#D4AF37] playfair italic text-xl">Corpo em Movimento</h1>
-          </div>
+          <h1 className="text-[#D4AF37] playfair italic text-xl">Corpo em Movimento</h1>
         </div>
       </div>
     );
@@ -2926,16 +2922,9 @@ export default function App() {
                 <button className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95" onClick={() => { setActiveTab('perfil'); setSelectedModalidade(null); }}>
                   {profile?.foto_url ? <img src={profile.foto_url} alt="Perfil" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><User size={20} strokeWidth={1.5} /></div>}
                 </button>
-                <div className="flex items-center justify-center gap-2 min-w-0 px-2">
-                  <img
-                    src={simboloCorpoMovimento}
-                    alt="Símbolo Corpo em Movimento"
-                    className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 drop-shadow-[0_0_10px_rgba(212,175,55,0.18)]"
-                  />
-                  <span className="text-sm sm:text-base leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold whitespace-nowrap">
-                    Corpo em Movimento
-                  </span>
-                </div>
+                <h1 className="text-sm sm:text-base leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold whitespace-nowrap px-2">
+                  Corpo em Movimento
+                </h1>
                 <div className="flex items-center gap-2">
                   {hasStaffAccess(profile) && <button onClick={() => setAdminView(true)} title="Área Administrativa" className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95 transition-transform"><ShieldCheck size={18} /></button>}
                   <button onClick={() => setActiveTab('notificacoes')} className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative transition-transform active:scale-95">
