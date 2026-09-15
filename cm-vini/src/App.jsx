@@ -222,7 +222,7 @@ const hasStaffAccess = (profile) => ['admin', 'professor'].includes(getUserRole(
 
 // A Edge Function será responsável por consultar o RAG e retornar um treino estruturado.
 // O front-end nunca publica a resposta da IA automaticamente: primeiro salva como rascunho.
-const gerarTreinoComRAG = async ({ aluno, onboarding, progresso, instrucoesProfissional }) => {
+const gerarTreinoComRAG = async ({ aluno, onboarding, progresso, historicoTreinos = null, instrucoesProfissional }) => {
   if (!currentSession?.access_token) throw new Error('Sessão expirada. Entre novamente.');
 
   const res = await fetch(`${supabaseUrl}/functions/v1/gerar-treino-rag`, {
@@ -242,6 +242,7 @@ const gerarTreinoComRAG = async ({ aluno, onboarding, progresso, instrucoesProfi
       },
       onboarding: onboarding || null,
       progresso: progresso || [],
+      historico_treinos: historicoTreinos || null,
       instrucoes_profissional: instrucoesProfissional || ''
     })
   });
@@ -2367,75 +2368,302 @@ const Notificacoes = () => {
   );
 };
 
+const calcularDiasDesde = (valor) => {
+  if (!valor) return null;
+  const data = new Date(String(valor).length <= 10 ? `${valor}T12:00:00` : valor);
+  if (Number.isNaN(data.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - data.getTime()) / 86400000));
+};
+
+const mediaNumerica = (lista) => {
+  const validos = lista.map(Number).filter(v => Number.isFinite(v));
+  if (!validos.length) return null;
+  return validos.reduce((a, b) => a + b, 0) / validos.length;
+};
+
+const formatarNumero = (valor, casas = 0) => {
+  const n = Number(valor);
+  if (!Number.isFinite(n)) return '—';
+  return n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
+};
+
+const formatarDataHora = (valor) => {
+  if (!valor) return '—';
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return String(valor);
+  return d.toLocaleDateString('pt-BR') + ' • ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+};
+
+const StaffMetricCard = ({ titulo, valor, detalhe }) => (
+  <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3 min-h-[92px] flex flex-col justify-between">
+    <p className="text-[9px] text-[#A0B3A6] uppercase tracking-wider">{titulo}</p>
+    <p className="text-xl font-bold text-[#D4AF37] mt-1">{valor}</p>
+    {detalhe && <p className="text-[9px] text-[#A0B3A6] mt-1 leading-snug">{detalhe}</p>}
+  </div>
+);
+
 const AdminPanel = ({ onExitAdmin }) => {
   const { profile } = useApp();
   const [adminTab, setAdminTab] = useState('evolucao');
   const [gestaoView, setGestaoView] = useState('menu');
-  
   const [alunos, setAlunos] = useState([]);
+  const [execucoesAcademia, setExecucoesAcademia] = useState([]);
   const [alunoSelecionado, setAlunoSelecionado] = useState('');
   const [mensagem, setMensagem] = useState('');
-  const [statusMsg, setStatusMsg] = useState('');
-  const [progressoAluno, setProgressoAluno] = useState([]);
-  const [showDesempenho, setShowDesempenho] = useState(false);
+  const [mensagemStatus, setMensagemStatus] = useState('');
+  const [dossieAluno, setDossieAluno] = useState(null);
+  const [loadingDossie, setLoadingDossie] = useState(false);
+  const [historicoFiltroDias, setHistoricoFiltroDias] = useState(30);
+  const [historicoExpandidoId, setHistoricoExpandidoId] = useState(null);
   const [ranking, setRanking] = useState([]);
+
   const [ragAlunoId, setRagAlunoId] = useState('');
   const [ragInstrucoes, setRagInstrucoes] = useState('');
   const [ragGerando, setRagGerando] = useState(false);
   const [ragTreino, setRagTreino] = useState(null);
   const [ragPlanoId, setRagPlanoId] = useState(null);
+  const [ragStatus, setRagStatus] = useState('');
+  const [ragResumoAluno, setRagResumoAluno] = useState(null);
+  const [ragResumoLoading, setRagResumoLoading] = useState(false);
+
+  const calcularIdade = (dataNasc) => {
+    if (!dataNasc) return 'N/A';
+    const hoje = new Date();
+    const nasc = new Date(`${String(dataNasc).slice(0, 10)}T12:00:00`);
+    if (Number.isNaN(nasc.getTime())) return 'N/A';
+    let idade = hoje.getFullYear() - nasc.getFullYear();
+    const m = hoje.getMonth() - nasc.getMonth();
+    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
+    return idade;
+  };
+
+  const montarDossie = async (alunoId) => {
+    const { data: onboarding } = await supabase.from('onboarding_respostas').select('*').eq('user_id', alunoId).single();
+    const { data: progresso } = await supabase.from('progresso_mensal').select('*').eq('user_id', alunoId);
+    const { data: planos } = await supabase.from('planos_treino').select('*').eq('user_id', alunoId);
+    const { data: execucoes } = await supabase.from('execucoes_treino').select('*').eq('user_id', alunoId);
+    const { data: exercicios } = await supabase.from('execucoes_exercicios').select('*').eq('user_id', alunoId);
+    const { data: series } = await supabase.from('execucoes_series').select('*').eq('user_id', alunoId);
+
+    const progressoOrdenado = [...(progresso || [])].sort((a, b) => String(a.mes).localeCompare(String(b.mes)));
+    const execucoesOrdenadas = [...(execucoes || [])].sort((a, b) => {
+      const da = new Date(a.concluido_em || a.iniciado_em || a.created_at || 0).getTime();
+      const db = new Date(b.concluido_em || b.iniciado_em || b.created_at || 0).getTime();
+      return db - da;
+    });
+    const concluidas = execucoesOrdenadas.filter(e => e.status === 'concluido');
+    const hojeMs = Date.now();
+    const ultimos30 = concluidas.filter(e => hojeMs - new Date(e.concluido_em || e.iniciado_em || e.created_at).getTime() <= 30 * 86400000);
+    const ultimos7 = concluidas.filter(e => hojeMs - new Date(e.concluido_em || e.iniciado_em || e.created_at).getTime() <= 7 * 86400000);
+    const ultimaExecucao = concluidas[0] || null;
+
+    const planoAtual = [...(planos || [])]
+      .filter(p => p.status === 'publicado')
+      .sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0))[0] || null;
+
+    const exerciciosPorExecucao = {};
+    for (const ex of (exercicios || [])) {
+      if (!exerciciosPorExecucao[ex.execucao_treino_id]) exerciciosPorExecucao[ex.execucao_treino_id] = [];
+      exerciciosPorExecucao[ex.execucao_treino_id].push(ex);
+    }
+    Object.values(exerciciosPorExecucao).forEach(lista => lista.sort((a, b) => Number(a.ordem || 0) - Number(b.ordem || 0)));
+
+    const seriesPorExercicio = {};
+    for (const serie of (series || [])) {
+      if (!seriesPorExercicio[serie.execucao_exercicio_id]) seriesPorExercicio[serie.execucao_exercicio_id] = [];
+      seriesPorExercicio[serie.execucao_exercicio_id].push(serie);
+    }
+    Object.values(seriesPorExercicio).forEach(lista => lista.sort((a, b) => Number(a.numero_serie || 0) - Number(b.numero_serie || 0)));
+
+    const execucaoPorId = Object.fromEntries(execucoesOrdenadas.map(e => [e.id, e]));
+    const exerciciosMap = {};
+    for (const ex of (exercicios || [])) {
+      const execucao = execucaoPorId[ex.execucao_treino_id];
+      if (!execucao || execucao.status !== 'concluido') continue;
+      const listaSeries = (seriesPorExercicio[ex.id] || []).filter(s => s.concluida);
+      if (!listaSeries.length) continue;
+      const key = ex.exercicio_key || ex.nome_exercicio;
+      if (!exerciciosMap[key]) exerciciosMap[key] = { nome: ex.nome_exercicio, sessoes: [] };
+      const cargas = listaSeries.map(s => Number(s.carga_kg)).filter(Number.isFinite);
+      const reps = listaSeries.map(s => Number(s.repeticoes)).filter(Number.isFinite);
+      exerciciosMap[key].sessoes.push({
+        data: execucao.concluido_em || execucao.iniciado_em || execucao.created_at,
+        cargaMax: cargas.length ? Math.max(...cargas) : null,
+        repsTotal: reps.reduce((a, b) => a + b, 0),
+        series: listaSeries.length,
+        volume: listaSeries.reduce((acc, s) => {
+          const c = Number(s.carga_kg);
+          const r = Number(s.repeticoes);
+          return acc + (Number.isFinite(c) && Number.isFinite(r) ? c * r : 0);
+        }, 0)
+      });
+    }
+
+    const evolucaoExercicios = Object.values(exerciciosMap).map(item => {
+      const sessoes = item.sessoes.sort((a, b) => new Date(b.data) - new Date(a.data));
+      const atual = sessoes[0] || null;
+      const anterior = sessoes[1] || null;
+      return {
+        nome: item.nome,
+        atual,
+        anterior,
+        deltaCarga: atual?.cargaMax != null && anterior?.cargaMax != null ? atual.cargaMax - anterior.cargaMax : null,
+        deltaVolume: atual?.volume != null && anterior?.volume != null ? atual.volume - anterior.volume : null
+      };
+    }).sort((a, b) => new Date(b.atual?.data || 0) - new Date(a.atual?.data || 0));
+
+    const inicioFisico = progressoOrdenado[0] || null;
+    const atualFisico = progressoOrdenado[progressoOrdenado.length - 1] || null;
+    const pesoDelta = inicioFisico?.peso != null && atualFisico?.peso != null ? Number(atualFisico.peso) - Number(inicioFisico.peso) : null;
+    const cinturaDelta = inicioFisico?.cintura != null && atualFisico?.cintura != null ? Number(atualFisico.cintura) - Number(inicioFisico.cintura) : null;
+
+    const metricas = {
+      totalTreinos: concluidas.length,
+      treinos7d: ultimos7.length,
+      treinos30d: ultimos30.length,
+      frequenciaSemanal30d: ultimos30.length / (30 / 7),
+      ultimaData: ultimaExecucao?.concluido_em || ultimaExecucao?.data_execucao || null,
+      diasSemTreino: calcularDiasDesde(ultimaExecucao?.concluido_em || ultimaExecucao?.data_execucao),
+      esforcoMedio30d: mediaNumerica(ultimos30.map(e => e.percepcao_esforco)),
+      duracaoMedia30d: mediaNumerica(ultimos30.map(e => e.duracao_minutos)),
+      conclusaoMedia30d: mediaNumerica(ultimos30.map(e => e.percentual_conclusao)),
+      pesoAtual: atualFisico?.peso ?? null,
+      pesoDelta,
+      cinturaDelta,
+      seriesConcluidas30d: (series || []).filter(s => {
+        if (!s.concluida) return false;
+        const exec = execucaoPorId[s.execucao_treino_id];
+        if (!exec || exec.status !== 'concluido') return false;
+        const data = new Date(exec.concluido_em || exec.iniciado_em || exec.created_at || 0).getTime();
+        return hojeMs - data <= 30 * 86400000;
+      }).length
+    };
+
+    const alertas = [];
+    if (metricas.diasSemTreino != null && metricas.diasSemTreino >= 14) alertas.push({ nivel: 'alto', texto: `${metricas.diasSemTreino} dias sem treino concluído.` });
+    else if (metricas.diasSemTreino != null && metricas.diasSemTreino >= 7) alertas.push({ nivel: 'medio', texto: `${metricas.diasSemTreino} dias sem treino concluído.` });
+    if (metricas.esforcoMedio30d != null && metricas.esforcoMedio30d >= 9) alertas.push({ nivel: 'medio', texto: `Esforço médio elevado (${formatarNumero(metricas.esforcoMedio30d, 1)}/10).` });
+    if (metricas.conclusaoMedia30d != null && metricas.conclusaoMedia30d < 70) alertas.push({ nivel: 'medio', texto: `Conclusão média baixa (${formatarNumero(metricas.conclusaoMedia30d, 0)}%).` });
+    const observacaoRecente = concluidas.find(e => String(e.observacoes_aluno || '').trim());
+    if (observacaoRecente) alertas.push({ nivel: 'info', texto: `Observação recente: “${String(observacaoRecente.observacoes_aluno).slice(0, 100)}${String(observacaoRecente.observacoes_aluno).length > 100 ? '…' : ''}”` });
+
+    return {
+      onboarding: onboarding || null,
+      progresso: progressoOrdenado,
+      planos: planos || [],
+      planoAtual,
+      execucoes: execucoesOrdenadas,
+      exercicios: exercicios || [],
+      series: series || [],
+      exerciciosPorExecucao,
+      seriesPorExercicio,
+      evolucaoExercicios,
+      metricas,
+      alertas
+    };
+  };
 
   useEffect(() => {
-    const fetchAlunos = async () => {
+    const fetchBase = async () => {
       const { data } = await supabase.from('profiles').select('*');
-      if (data) {
-        const alunosData = data.filter(p => getUserRole(p) === 'aluno');
-        setAlunos(alunosData);
-        const { data: execucoes } = await supabase.from('execucoes_treino').select('*').eq('status', 'concluido');
-        if (execucoes) {
-          const r = alunosData.map(a => ({
-            ...a,
-            treinosCount: execucoes.filter(t => t.user_id === a.id).length
-          })).sort((a, b) => b.treinosCount - a.treinosCount);
-          setRanking(r);
-        } else {
-          setRanking(alunosData.map(a => ({...a, treinosCount: 0})));
-        }
-      }
+      const alunosData = (data || []).filter(p => getUserRole(p) === 'aluno');
+      setAlunos(alunosData);
+      const { data: execucoes } = await supabase.from('execucoes_treino').select('*').eq('status', 'concluido');
+      const todas = execucoes || [];
+      setExecucoesAcademia(todas);
+      const r = alunosData.map(a => ({ ...a, treinosCount: todas.filter(t => t.user_id === a.id).length }))
+        .sort((a, b) => b.treinosCount - a.treinosCount);
+      setRanking(r);
     };
-    fetchAlunos();
+    fetchBase();
   }, []);
 
-  const handleEnviarMensagem = async () => {
-    if (!alunoSelecionado || !mensagem) {
-      setStatusMsg('Selecione um aluno e digite a mensagem.');
-      setTimeout(() => setStatusMsg(''), 3000);
+  useEffect(() => {
+    if (!alunoSelecionado) {
+      setDossieAluno(null);
+      setHistoricoExpandidoId(null);
       return;
     }
-    setStatusMsg('Enviando...');
-    const { error } = await supabase.from('notificacoes').insert([{ user_id: alunoSelecionado, mensagem: mensagem, lida: false }]);
-    if (!error) { setStatusMsg('Mensagem enviada!'); setMensagem(''); } else { setStatusMsg('Erro ao enviar.'); }
-    setTimeout(() => setStatusMsg(''), 3000);
+    let ativo = true;
+    setLoadingDossie(true);
+    montarDossie(alunoSelecionado)
+      .then(d => { if (ativo) setDossieAluno(d); })
+      .catch(err => { console.error('Erro ao carregar histórico do aluno:', err); if (ativo) setDossieAluno(null); })
+      .finally(() => { if (ativo) setLoadingDossie(false); });
+    return () => { ativo = false; };
+  }, [alunoSelecionado]);
+
+  useEffect(() => {
+    if (!ragAlunoId) {
+      setRagResumoAluno(null);
+      return;
+    }
+    let ativo = true;
+    setRagResumoLoading(true);
+    montarDossie(ragAlunoId)
+      .then(d => { if (ativo) setRagResumoAluno(d); })
+      .catch(() => { if (ativo) setRagResumoAluno(null); })
+      .finally(() => { if (ativo) setRagResumoLoading(false); });
+    return () => { ativo = false; };
+  }, [ragAlunoId]);
+
+  const handleEnviarMensagem = async () => {
+    if (!alunoSelecionado || !mensagem.trim()) {
+      setMensagemStatus('Selecione um aluno e digite a mensagem.');
+      return;
+    }
+    setMensagemStatus('Enviando...');
+    const { error } = await supabase.from('notificacoes').insert([{ user_id: alunoSelecionado, mensagem: mensagem.trim(), lida: false }]);
+    if (!error) {
+      setMensagemStatus('Mensagem enviada!');
+      setMensagem('');
+    } else setMensagemStatus('Erro ao enviar.');
+    setTimeout(() => setMensagemStatus(''), 3000);
+  };
+
+  const montarHistoricoParaRag = (dossie) => {
+    if (!dossie) return null;
+    const recentes = dossie.execucoes.filter(e => e.status === 'concluido').slice(0, 12).map(e => {
+      const exs = dossie.exerciciosPorExecucao[e.id] || [];
+      return {
+        data: e.concluido_em || e.data_execucao,
+        sessao_key: e.sessao_key,
+        duracao_minutos: e.duracao_minutos,
+        percepcao_esforco: e.percepcao_esforco,
+        percentual_conclusao: e.percentual_conclusao,
+        observacoes_aluno: e.observacoes_aluno,
+        exercicios: exs.map(ex => ({
+          nome: ex.nome_exercicio,
+          series: (dossie.seriesPorExercicio[ex.id] || []).filter(s => s.concluida).map(s => ({
+            numero: s.numero_serie,
+            carga_kg: s.carga_kg,
+            repeticoes: s.repeticoes,
+            rpe: s.rpe
+          }))
+        }))
+      };
+    });
+    return { metricas: dossie.metricas, sessoes_recentes: recentes };
   };
 
   const handleGerarTreinoRAG = async () => {
     const aluno = alunos.find(a => a.id === ragAlunoId);
     if (!aluno) {
-      setStatusMsg('Selecione um aluno para gerar o treino.');
+      setRagStatus('Selecione um aluno para gerar o treino.');
       return;
     }
     setRagGerando(true);
-    setStatusMsg('Consultando a base de conhecimento e gerando o treino...');
+    setRagStatus('Consultando a base de conhecimento e gerando o treino...');
     setRagTreino(null);
     setRagPlanoId(null);
 
     try {
-      const { data: onboarding } = await supabase.from('onboarding_respostas').select('*').eq('user_id', aluno.id).single();
-      const { data: progresso } = await supabase.from('progresso_mensal').select('*').eq('user_id', aluno.id);
+      const resumo = ragResumoAluno || await montarDossie(aluno.id);
       const resultado = await gerarTreinoComRAG({
         aluno,
-        onboarding,
-        progresso: progresso || [],
+        onboarding: resumo?.onboarding || null,
+        progresso: resumo?.progresso || [],
+        historicoTreinos: montarHistoricoParaRag(resumo),
         instrucoesProfissional: ragInstrucoes
       });
 
@@ -2443,7 +2671,7 @@ const AdminPanel = ({ onExitAdmin }) => {
         user_id: aluno.id,
         created_by: currentSession?.user?.id || null,
         status: 'rascunho',
-        objetivo: resultado.treino?.objetivo || onboarding?.objetivo || null,
+        objetivo: resultado.treino?.objetivo || resumo?.onboarding?.objetivo || null,
         observacoes_profissional: ragInstrucoes || null,
         treino_json: resultado.treino,
         fontes_rag: resultado.fontes || resultado.fontes_rag || [],
@@ -2454,10 +2682,10 @@ const AdminPanel = ({ onExitAdmin }) => {
       if (saveError) throw saveError;
       setRagTreino(resultado.treino);
       setRagPlanoId(salvo?.id || null);
-      setStatusMsg('Treino gerado como rascunho. Revise antes de publicar.');
+      setRagStatus('Treino gerado como rascunho. Revise antes de publicar.');
     } catch (error) {
       console.error('Erro RAG:', error);
-      setStatusMsg(error.message || 'Erro ao gerar o treino.');
+      setRagStatus(error.message || 'Erro ao gerar o treino.');
     } finally {
       setRagGerando(false);
     }
@@ -2465,128 +2693,215 @@ const AdminPanel = ({ onExitAdmin }) => {
 
   const handlePublicarTreinoRAG = async () => {
     if (!ragPlanoId || !ragAlunoId) return;
-    setStatusMsg('Publicando treino...');
-
+    setRagStatus('Publicando treino...');
     const { data: publicados, error: loadError } = await supabase.from('planos_treino').select('*').eq('user_id', ragAlunoId).eq('status', 'publicado');
     if (loadError) {
-      setStatusMsg('Não foi possível verificar o plano atual do aluno.');
+      setRagStatus('Não foi possível verificar o plano atual do aluno.');
       return;
     }
-
     for (const planoPublicado of (publicados || [])) {
       if (planoPublicado.id !== ragPlanoId) {
         const { error: archiveError } = await supabase.from('planos_treino').update({ status: 'arquivado', updated_at: new Date().toISOString() }).eq('id', planoPublicado.id);
         if (archiveError) {
-          setStatusMsg('Não foi possível arquivar o plano anterior.');
+          setRagStatus('Não foi possível arquivar o plano anterior.');
           return;
         }
       }
     }
-
     const { error } = await supabase.from('planos_treino').update({
       status: 'publicado',
       published_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     }).eq('id', ragPlanoId);
-    setStatusMsg(error ? 'Não foi possível publicar.' : 'Treino publicado. O plano anterior foi arquivado automaticamente.');
+    setRagStatus(error ? 'Não foi possível publicar.' : 'Treino publicado. O plano anterior foi arquivado automaticamente.');
   };
-
-  useEffect(() => {
-    if (alunoSelecionado) {
-      const fetchProgresso = async () => {
-        const { data } = await supabase.from('progresso_mensal').select('*').eq('user_id', alunoSelecionado);
-        if (data) setProgressoAluno(data.sort((a, b) => a.mes.localeCompare(b.mes)));
-      };
-      fetchProgresso();
-      setShowDesempenho(false);
-    } else {
-      setProgressoAluno([]);
-      setShowDesempenho(false);
-    }
-  }, [alunoSelecionado]);
 
   const alunoObj = alunos.find(a => a.id === alunoSelecionado);
+  const agora = Date.now();
+  const treino7dUsuarios = new Set(execucoesAcademia.filter(e => agora - new Date(e.concluido_em || e.iniciado_em || e.created_at || 0).getTime() <= 7 * 86400000).map(e => e.user_id));
+  const treino14dUsuarios = new Set(execucoesAcademia.filter(e => agora - new Date(e.concluido_em || e.iniciado_em || e.created_at || 0).getTime() <= 14 * 86400000).map(e => e.user_id));
+  const exec30d = execucoesAcademia.filter(e => agora - new Date(e.concluido_em || e.iniciado_em || e.created_at || 0).getTime() <= 30 * 86400000);
+  const alunosSem7d = alunos.filter(a => !treino7dUsuarios.has(a.id)).length;
+  const alunosSem14d = alunos.filter(a => !treino14dUsuarios.has(a.id)).length;
 
-  const calcularIdade = (dataNasc) => {
-    if (!dataNasc) return 'N/A';
-    const hoje = new Date();
-    const nasc = new Date(dataNasc);
-    let idade = hoje.getFullYear() - nasc.getFullYear();
-    const m = hoje.getMonth() - nasc.getMonth();
-    if (m < 0 || (m === 0 && hoje.getDate() < nasc.getDate())) idade--;
-    return idade;
-  };
+  const semanas = Array.from({ length: 6 }).map((_, idx) => {
+    const fim = new Date();
+    fim.setHours(23, 59, 59, 999);
+    fim.setDate(fim.getDate() - (5 - idx) * 7);
+    const inicio = new Date(fim);
+    inicio.setDate(inicio.getDate() - 6);
+    inicio.setHours(0, 0, 0, 0);
+    const total = execucoesAcademia.filter(e => {
+      const d = new Date(e.concluido_em || e.iniciado_em || e.created_at || 0);
+      return d >= inicio && d <= fim;
+    }).length;
+    return { label: `${inicio.getDate()}/${inicio.getMonth() + 1}`, total };
+  });
+  const maxSemana = Math.max(1, ...semanas.map(s => s.total));
+
+  const execucoesFiltradas = (dossieAluno?.execucoes || []).filter(e => {
+    if (e.status !== 'concluido') return false;
+    if (historicoFiltroDias === 0) return true;
+    const d = new Date(e.concluido_em || e.iniciado_em || e.created_at || 0).getTime();
+    return agora - d <= historicoFiltroDias * 86400000;
+  });
+
+  const renderSeletorAluno = () => (
+    <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+      <label className="text-xs text-[#A0B3A6] mb-2 block">Selecione o aluno</label>
+      <select className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg focus:border-[#D4AF37] outline-none" value={alunoSelecionado} onChange={(e) => setAlunoSelecionado(e.target.value)}>
+        <option value="">Selecione um aluno...</option>
+        {alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}
+      </select>
+    </div>
+  );
 
   return (
     <div className="flex-1 flex flex-col text-white z-10 w-full h-full relative overflow-hidden bg-[#051109]">
       <GlobalStyles />
       <div className="px-6 py-4 pt-[calc(1.5rem+env(safe-area-inset-top))] border-b border-[#1A4026] flex items-center justify-between shrink-0">
-        <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic">{hasAdminAccess(profile) ? 'Área Administrativa' : 'Área do Professor'}</h2>
+        <div>
+          <h2 className="text-2xl font-bold text-[#D4AF37] playfair italic">{hasAdminAccess(profile) ? 'Área Administrativa' : 'Área do Professor'}</h2>
+          <p className="text-[10px] text-[#A0B3A6]">Acompanhamento real dos alunos e preparação para o próximo treino</p>
+        </div>
         <button onClick={onExitAdmin} className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95"><LogOut size={18} /></button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-6 custom-scrollbar pb-24">
         {adminTab === 'evolucao' && (
-          <div className="space-y-6">
-            <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Evolução de Aluno</h3>
-            <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-              <label className="text-xs text-[#A0B3A6] mb-2 block">Selecione o Aluno</label>
-              <select className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg focus:border-[#D4AF37] outline-none" value={alunoSelecionado} onChange={(e) => setAlunoSelecionado(e.target.value)}>
-                <option value="">Selecione um aluno...</option>
-                {alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}
-              </select>
-            </div>
+          <div className="space-y-5">
+            <h3 className="text-xl font-medium border-l-2 border-[#D4AF37] pl-3">Visão 360º do aluno</h3>
+            {renderSeletorAluno()}
 
-            {alunoObj && (
+            {loadingDossie && <div className="text-center text-[#A0B3A6] text-sm py-8">Carregando histórico real do aluno...</div>}
+
+            {alunoObj && dossieAluno && !loadingDossie && (
               <>
                 <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-3">
-                  <h4 className="text-[#D4AF37] font-medium border-b border-[#1A4026] pb-2">Informações do Aluno</h4>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="col-span-2"><span className="text-[#A0B3A6] text-[10px] uppercase block">E-mail</span><span className="break-all">{alunoObj.email}</span></div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Telefone</span>{alunoObj.phone || 'Não informado'}</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">CPF</span>{alunoObj.cpf || 'Não informado'}</div>
-                    <div className="col-span-2"><span className="text-[#A0B3A6] text-[10px] uppercase block">Endereço (Cidade/Estado)</span>{alunoObj.cidade_estado || 'Não informado'}</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Idade</span>{calcularIdade(alunoObj.data_nascimento)} anos</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Modalidade</span>Não definida</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Peso Atual</span>{alunoObj.peso_atual ? `${alunoObj.peso_atual} kg` : (progressoAluno.length > 0 ? `${progressoAluno[progressoAluno.length - 1].peso} kg` : 'Não informado')}</div>
-                    <div><span className="text-[#A0B3A6] text-[10px] uppercase block">Altura</span>{alunoObj.altura ? `${alunoObj.altura} m` : 'Não informada'}</div>
+                  <div className="flex justify-between items-start gap-3 border-b border-[#1A4026] pb-3">
+                    <div>
+                      <h4 className="text-lg font-bold text-white">{alunoObj.nome || 'Aluno'}</h4>
+                      <p className="text-[10px] text-[#A0B3A6]">{alunoObj.email}</p>
+                    </div>
+                    <span className="text-[9px] border border-[#D4AF37]/40 text-[#D4AF37] px-2 py-1 rounded-full">{dossieAluno.onboarding?.modalidade || 'Modalidade não informada'}</span>
                   </div>
+                  <div className="grid grid-cols-2 gap-3 text-xs">
+                    <div><span className="text-[#A0B3A6] block text-[9px] uppercase">Objetivo</span>{dossieAluno.onboarding?.objetivo || 'Não informado'}</div>
+                    <div><span className="text-[#A0B3A6] block text-[9px] uppercase">Idade</span>{calcularIdade(alunoObj.data_nascimento)} anos</div>
+                    <div><span className="text-[#A0B3A6] block text-[9px] uppercase">Nível</span>{dossieAluno.onboarding?.nivel_atividade || 'Não informado'}</div>
+                    <div><span className="text-[#A0B3A6] block text-[9px] uppercase">Estrutura</span>{dossieAluno.onboarding?.estrutura || 'Não informada'}</div>
+                    <div><span className="text-[#A0B3A6] block text-[9px] uppercase">Peso atual</span>{dossieAluno.metricas.pesoAtual != null ? `${formatarNumero(dossieAluno.metricas.pesoAtual, 1)} kg` : (alunoObj.peso_atual ? `${alunoObj.peso_atual} kg` : 'Não informado')}</div>
+                    <div><span className="text-[#A0B3A6] block text-[9px] uppercase">Altura</span>{alunoObj.altura ? `${alunoObj.altura} m` : 'Não informada'}</div>
+                  </div>
+                  {Array.isArray(dossieAluno.onboarding?.disponibilidade) && dossieAluno.onboarding.disponibilidade.length > 0 && <p className="text-[10px] text-[#A0B3A6] pt-2 border-t border-[#1A4026]">Disponibilidade: <span className="text-white">{dossieAluno.onboarding.disponibilidade.join(', ')}</span></p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-[#1A3020] border border-[#D4AF37]/30 p-4 rounded-2xl flex flex-col justify-between">
-                    <div>
-                      <Edit2 className="mx-auto text-[#D4AF37] mb-2" size={24} />
-                      <span className="text-sm font-medium block text-center mb-2">Enviar Mensagem</span>
-                      <textarea value={mensagem} onChange={e => setMensagem(e.target.value)} placeholder="Digite a mensagem..." className="w-full bg-[#051109] border border-[#1A4026] text-white p-2 rounded-lg text-xs outline-none resize-none mb-2 custom-scrollbar" rows="2" />
-                    </div>
-                    <div>
-                      <button onClick={handleEnviarMensagem} className="w-full bg-[#D4AF37] text-[#051109] font-bold py-1.5 rounded-lg text-xs active:scale-95">Enviar</button>
-                      {statusMsg && <p className="text-[#D4AF37] text-[10px] text-center mt-1">{statusMsg}</p>}
-                    </div>
-                  </div>
-                  <button onClick={() => setShowDesempenho(!showDesempenho)} className="bg-[#1A3020] border border-[#D4AF37]/30 p-4 rounded-2xl text-center active:scale-95 flex flex-col items-center justify-center">
-                    <Target className="mx-auto text-[#D4AF37] mb-2" size={24} />
-                    <span className="text-sm font-medium">{showDesempenho ? 'Ocultar Desempenho' : 'Visualizar Desempenho'}</span>
-                  </button>
+                <div className="grid grid-cols-2 gap-3">
+                  <StaffMetricCard titulo="Treinos • 30 dias" valor={dossieAluno.metricas.treinos30d} detalhe={`${formatarNumero(dossieAluno.metricas.frequenciaSemanal30d, 1)} por semana`} />
+                  <StaffMetricCard titulo="Último treino" valor={dossieAluno.metricas.diasSemTreino == null ? '—' : dossieAluno.metricas.diasSemTreino === 0 ? 'Hoje' : `${dossieAluno.metricas.diasSemTreino}d`} detalhe={dossieAluno.metricas.ultimaData ? formatarDataExecucao(String(dossieAluno.metricas.ultimaData).slice(0,10)) : 'Sem registro'} />
+                  <StaffMetricCard titulo="Esforço médio" valor={dossieAluno.metricas.esforcoMedio30d == null ? '—' : `${formatarNumero(dossieAluno.metricas.esforcoMedio30d, 1)}/10`} detalhe="Percepção do aluno nos últimos 30 dias" />
+                  <StaffMetricCard titulo="Conclusão média" valor={dossieAluno.metricas.conclusaoMedia30d == null ? '—' : `${formatarNumero(dossieAluno.metricas.conclusaoMedia30d, 0)}%`} detalhe={`${dossieAluno.metricas.seriesConcluidas30d} séries concluídas`} />
                 </div>
 
-                {showDesempenho && (
+                {dossieAluno.alertas.length > 0 && (
                   <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-                    <h4 className="text-[#D4AF37] font-medium mb-3">Gráfico de Evolução Física</h4>
-                    <div className="h-40 flex items-end gap-2 pt-4 border-b border-[#1A4026] opacity-80">
-                      {progressoAluno.length > 0 ? progressoAluno.map((h, i) => (
-                        <div key={i} className="flex-1 bg-[#D4AF37] rounded-t-sm" style={{ height: `${Math.min((h.peso / 150) * 100, 100)}%` }}></div>
-                      )) : (
-                        <div className="w-full text-center text-[#A0B3A6] text-xs pb-4">Nenhum dado registrado para este aluno.</div>
-                      )}
+                    <h4 className="text-[#D4AF37] font-medium mb-3">Pontos de atenção</h4>
+                    <div className="space-y-2">
+                      {dossieAluno.alertas.map((a, i) => (
+                        <div key={i} className={`text-xs p-3 rounded-xl border ${a.nivel === 'alto' ? 'bg-red-950/30 border-red-500/40 text-red-300' : a.nivel === 'medio' ? 'bg-yellow-950/20 border-yellow-500/30 text-yellow-200' : 'bg-[#1A3020] border-[#1A4026] text-[#A0B3A6]'}`}>{a.texto}</div>
+                      ))}
                     </div>
-                    <div className="flex justify-between text-[#A0B3A6] text-[10px] mt-2 overflow-x-auto gap-4 custom-scrollbar">
-                      {progressoAluno.map((h, i) => {
-                        const [ano, mes] = h.mes.split('-');
-                        return <span key={i} className="whitespace-nowrap">{mes}/{ano}</span>;
-                      })}
+                  </div>
+                )}
+
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <div><h4 className="text-[#D4AF37] font-medium">Treino atual</h4><p className="text-[10px] text-[#A0B3A6]">Plano que está liberado para o aluno</p></div>
+                    {dossieAluno.planoAtual && <span className="text-[9px] text-green-400 border border-green-500/30 px-2 py-1 rounded-full">PUBLICADO</span>}
+                  </div>
+                  {dossieAluno.planoAtual ? (
+                    <div className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
+                      <p className="font-bold text-sm">{dossieAluno.planoAtual.treino_json?.nome_plano || 'Treino personalizado'}</p>
+                      <p className="text-[10px] text-[#A0B3A6] mt-1">{dossieAluno.planoAtual.objetivo || dossieAluno.planoAtual.treino_json?.objetivo || 'Objetivo não informado'}</p>
+                      <p className="text-[9px] text-[#A0B3A6] mt-2">Publicado em {formatarDataHora(dossieAluno.planoAtual.published_at || dossieAluno.planoAtual.created_at)}</p>
                     </div>
+                  ) : <p className="text-xs text-[#A0B3A6]">Nenhum treino publicado para este aluno.</p>}
+                </div>
+
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+                  <h4 className="text-[#D4AF37] font-medium mb-3">Evolução física</h4>
+                  {dossieAluno.progresso.length ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <StaffMetricCard titulo="Variação de peso" valor={dossieAluno.metricas.pesoDelta == null ? '—' : `${dossieAluno.metricas.pesoDelta > 0 ? '+' : ''}${formatarNumero(dossieAluno.metricas.pesoDelta, 1)} kg`} detalhe="Do primeiro ao último registro" />
+                        <StaffMetricCard titulo="Variação de cintura" valor={dossieAluno.metricas.cinturaDelta == null ? '—' : `${dossieAluno.metricas.cinturaDelta > 0 ? '+' : ''}${formatarNumero(dossieAluno.metricas.cinturaDelta, 1)} cm`} detalhe="Do primeiro ao último registro" />
+                      </div>
+                      <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
+                        {dossieAluno.progresso.map((p, i) => <div key={i} className="min-w-[105px] bg-[#051109] border border-[#1A4026] rounded-xl p-3"><p className="text-[9px] text-[#A0B3A6]">{p.mes}</p><p className="text-sm font-bold mt-1">{p.peso != null ? `${p.peso} kg` : '—'}</p><p className="text-[9px] text-[#A0B3A6] mt-1">Cintura: {p.cintura != null ? `${p.cintura} cm` : '—'}</p></div>)}
+                      </div>
+                    </>
+                  ) : <p className="text-xs text-[#A0B3A6]">Nenhuma medida física registrada ainda.</p>}
+                </div>
+
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
+                  <div className="flex justify-between items-center mb-3"><div><h4 className="text-[#D4AF37] font-medium">Evolução de cargas</h4><p className="text-[10px] text-[#A0B3A6]">Última execução comparada à anterior</p></div><Dumbbell size={20} className="text-[#D4AF37]" /></div>
+                  {dossieAluno.evolucaoExercicios.length ? (
+                    <div className="space-y-2">
+                      {dossieAluno.evolucaoExercicios.slice(0, 8).map((ex, i) => (
+                        <div key={i} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3 flex justify-between gap-3 items-center">
+                          <div className="min-w-0"><p className="text-xs font-medium truncate">{ex.nome}</p><p className="text-[9px] text-[#A0B3A6]">{ex.atual?.series || 0} séries • {ex.atual?.repsTotal || 0} reps</p></div>
+                          <div className="text-right shrink-0"><p className="text-sm font-bold text-[#D4AF37]">{ex.atual?.cargaMax != null ? `${formatarNumero(ex.atual.cargaMax, 1)} kg` : 'Sem carga'}</p>{ex.deltaCarga != null && <p className={`text-[9px] ${ex.deltaCarga > 0 ? 'text-green-400' : ex.deltaCarga < 0 ? 'text-yellow-300' : 'text-[#A0B3A6]'}`}>{ex.deltaCarga > 0 ? '+' : ''}{formatarNumero(ex.deltaCarga, 1)} kg vs. anterior</p>}</div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p className="text-xs text-[#A0B3A6]">Ainda não há séries concluídas suficientes para comparar cargas.</p>}
+                </div>
+
+                <div className="bg-[#1A3020] border border-[#D4AF37]/30 p-4 rounded-2xl">
+                  <h4 className="text-sm font-medium text-[#D4AF37] mb-2">Mensagem para o aluno</h4>
+                  <textarea value={mensagem} onChange={e => setMensagem(e.target.value)} placeholder="Ex.: ótimo progresso esta semana. Vamos manter a frequência..." className="w-full bg-[#051109] border border-[#1A4026] text-white p-3 rounded-xl text-xs outline-none resize-none mb-2 custom-scrollbar" rows="3" />
+                  <button onClick={handleEnviarMensagem} className="w-full bg-[#D4AF37] text-[#051109] font-bold py-2 rounded-xl text-xs active:scale-95">Enviar mensagem</button>
+                  {mensagemStatus && <p className="text-[#D4AF37] text-[10px] text-center mt-2">{mensagemStatus}</p>}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {adminTab === 'historico' && (
+          <div className="space-y-5">
+            <h3 className="text-xl font-medium border-l-2 border-[#D4AF37] pl-3">Histórico real de treinos</h3>
+            {renderSeletorAluno()}
+            {loadingDossie && <div className="text-center text-[#A0B3A6] text-sm py-8">Carregando sessões...</div>}
+            {alunoObj && dossieAluno && !loadingDossie && (
+              <>
+                <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
+                  {[{d:30,l:'30 dias'},{d:60,l:'60 dias'},{d:90,l:'90 dias'},{d:0,l:'Tudo'}].map(f => <button key={f.d} onClick={() => setHistoricoFiltroDias(f.d)} className={`px-3 py-2 rounded-full text-[10px] whitespace-nowrap border ${historicoFiltroDias === f.d ? 'bg-[#D4AF37] text-[#051109] border-[#D4AF37] font-bold' : 'bg-[#0A1A10] text-[#A0B3A6] border-[#1A4026]'}`}>{f.l}</button>)}
+                </div>
+
+                {execucoesFiltradas.length === 0 ? <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center text-[#A0B3A6] text-sm">Nenhum treino concluído nesse período.</div> : (
+                  <div className="space-y-3">
+                    {execucoesFiltradas.map(exec => {
+                      const aberta = historicoExpandidoId === exec.id;
+                      const exs = dossieAluno.exerciciosPorExecucao[exec.id] || [];
+                      return (
+                        <div key={exec.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden">
+                          <button onClick={() => setHistoricoExpandidoId(aberta ? null : exec.id)} className="w-full p-4 text-left flex justify-between gap-3 items-center">
+                            <div><p className="text-sm font-bold">{String(exec.sessao_key || 'Treino').replaceAll('-', ' ')}</p><p className="text-[10px] text-[#A0B3A6] mt-1">{formatarDataHora(exec.concluido_em || exec.iniciado_em || exec.created_at)}</p></div>
+                            <div className="text-right"><p className="text-xs text-[#D4AF37] font-bold">{exec.percentual_conclusao != null ? `${Math.round(Number(exec.percentual_conclusao))}%` : 'Concluído'}</p><p className="text-[9px] text-[#A0B3A6]">{exec.duracao_minutos ? `${exec.duracao_minutos} min` : ''}{exec.percepcao_esforco ? ` • esforço ${exec.percepcao_esforco}/10` : ''}</p></div>
+                          </button>
+                          {aberta && (
+                            <div className="px-4 pb-4 border-t border-[#1A4026] pt-3 space-y-3">
+                              {exec.observacoes_aluno && <div className="bg-[#1A3020] border border-[#1A4026] rounded-xl p-3 text-xs"><span className="text-[#D4AF37] font-medium">Observação do aluno: </span>{exec.observacoes_aluno}</div>}
+                              {exs.map(ex => {
+                                const sets = dossieAluno.seriesPorExercicio[ex.id] || [];
+                                return <div key={ex.id} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3"><div className="flex justify-between items-center mb-2"><p className="text-xs font-bold text-[#D4AF37]">{ex.nome_exercicio}</p><p className="text-[9px] text-[#A0B3A6]">Planejado: {ex.series_planejadas} × {ex.repeticoes_planejadas || '—'}</p></div><div className="space-y-1">{sets.map(s => <div key={s.id} className="grid grid-cols-4 gap-1 text-[10px] bg-[#0A1A10] rounded-lg px-2 py-1.5"><span>S{s.numero_serie}</span><span>{s.carga_kg != null ? `${s.carga_kg} kg` : '—'}</span><span>{s.repeticoes != null ? `${s.repeticoes} reps` : s.duracao_segundos ? `${s.duracao_segundos}s` : '—'}</span><span className={s.concluida ? 'text-green-400 text-right' : 'text-[#A0B3A6] text-right'}>{s.concluida ? '✓' : '—'}</span></div>)}</div></div>;
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </>
@@ -2594,49 +2909,13 @@ const AdminPanel = ({ onExitAdmin }) => {
           </div>
         )}
 
-        {adminTab === 'historico' && (
-          <div className="space-y-6">
-            <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Histórico de Alunos</h3>
-            <div className="space-y-3">
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Histórico de Treinos</h4><p className="text-xs text-[#A0B3A6]">Consultar treinos realizados</p></div><ChevronRight className="text-[#D4AF37]" size={20} />
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Histórico Alimentar/Dieta</h4><p className="text-xs text-[#A0B3A6]">Revisão de planos da nutrição</p></div><ChevronRight className="text-[#D4AF37]" size={20} />
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center">
-                <div><h4 className="font-medium">Consulta de Registros Anteriores</h4><p className="text-xs text-[#A0B3A6]">Avaliação geral</p></div><ChevronRight className="text-[#D4AF37]" size={20} />
-              </div>
-            </div>
-          </div>
-        )}
-
         {adminTab === 'financeiro' && (
           <div className="space-y-6">
-            <h3 className="text-xl font-medium mb-4 border-l-2 border-[#D4AF37] pl-3">Gestão Financeira</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 text-center">
-                <p className="text-xs text-[#A0B3A6] uppercase">Receita do Mês</p>
-                <p className="text-2xl font-bold text-[#D4AF37] mt-1">R$ 14.5K</p>
-              </div>
-              <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 text-center">
-                <p className="text-xs text-[#A0B3A6] uppercase">Inadimplentes</p>
-                <p className="text-2xl font-bold text-red-500 mt-1">3 Alunos</p>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <button className="w-full bg-[#1A3020] border border-[#D4AF37]/30 p-4 rounded-xl flex items-center justify-between text-left active:scale-95">
-                <div><h4 className="font-medium">Controle Financeiro Interno</h4></div><DollarSign className="text-[#D4AF37]" size={20} />
-              </button>
-              <button className="w-full bg-[#1A3020] border border-[#D4AF37]/30 p-4 rounded-xl flex items-center justify-between text-left active:scale-95">
-                <div><h4 className="font-medium">Visualização de Pagamentos</h4></div><FileText className="text-[#D4AF37]" size={20} />
-              </button>
-              <button className="w-full bg-[#1A3020] border border-[#D4AF37]/30 p-4 rounded-xl flex items-center justify-between text-left active:scale-95">
-                <div><h4 className="font-medium">Controle de Mensalidades</h4></div><Calendar className="text-[#D4AF37]" size={20} />
-              </button>
-              <button className="w-full bg-red-900/30 border border-red-500/50 text-red-400 p-4 rounded-xl flex items-center justify-between text-left active:scale-95 mt-4">
-                <div><h4 className="font-medium">Enviar Lembrete de Pagamento</h4></div><Bell size={20} />
-              </button>
+            <h3 className="text-xl font-medium border-l-2 border-[#D4AF37] pl-3">Gestão Financeira</h3>
+            <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center">
+              <DollarSign className="text-[#D4AF37] mx-auto mb-3" size={28} />
+              <h4 className="font-bold text-white">Financeiro ainda não integrado</h4>
+              <p className="text-xs text-[#A0B3A6] mt-2 leading-relaxed">Para evitar números fictícios, o aplicativo não exibe receita ou inadimplência até a integração com a fonte financeira real da academia.</p>
             </div>
           </div>
         )}
@@ -2645,68 +2924,50 @@ const AdminPanel = ({ onExitAdmin }) => {
           <div className="space-y-6">
             <div className="flex items-center justify-between mb-4 border-l-2 border-[#D4AF37] pl-3">
               <h3 className="text-xl font-medium">Acompanhamento e Gestão</h3>
-              {gestaoView !== 'menu' && (
-                <button onClick={() => setGestaoView('menu')} className="text-[#D4AF37] text-xs flex items-center gap-1 bg-[#1A3020] px-3 py-1 rounded-full"><ChevronLeft size={14}/> Voltar</button>
-              )}
+              {gestaoView !== 'menu' && <button onClick={() => setGestaoView('menu')} className="text-[#D4AF37] text-xs flex items-center gap-1 bg-[#1A3020] px-3 py-1 rounded-full"><ChevronLeft size={14}/> Voltar</button>}
             </div>
 
             {gestaoView === 'menu' && (
               <div className="space-y-3">
-                <button onClick={() => setGestaoView('desempenho')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
-                  <div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Rankings e métricas</p></div><Activity className="text-[#D4AF37]" size={20} />
-                </button>
-                <button onClick={() => { setAdminTab('evolucao'); setAlunoSelecionado(''); }} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
-                  <div className="text-left"><h4 className="font-medium">Histórico Individual</h4><p className="text-xs text-[#A0B3A6]">Fichas de cada aluno</p></div><User className="text-[#D4AF37]" size={20} />
-                </button>
-                <button onClick={() => setGestaoView('relatorios')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform">
-                  <div className="text-left"><h4 className="font-medium">Relatórios e Gráficos de Desenvolvimento</h4><p className="text-xs text-[#A0B3A6]">Evolutivos gerais da academia</p></div><TrendingUp className="text-[#D4AF37]" size={20} />
-                </button>
-                <button onClick={() => { setGestaoView('treinos_rag'); setRagTreino(null); setRagPlanoId(null); }} className="w-full bg-[#1A3020] border border-[#D4AF37]/50 rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform mt-6 shadow-[0_0_15px_rgba(212,175,55,0.1)]">
-                  <div className="text-left"><h4 className="font-medium text-[#D4AF37]">Treinos com IA (RAG)</h4><p className="text-xs text-[#A0B3A6]">Gerar, revisar e publicar o treino individual</p></div><Target className="text-[#D4AF37]" size={20} />
-                </button>
+                <button onClick={() => setGestaoView('desempenho')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform"><div className="text-left"><h4 className="font-medium">Desempenho dos Alunos</h4><p className="text-xs text-[#A0B3A6]">Ranking baseado em treinos realmente concluídos</p></div><Activity className="text-[#D4AF37]" size={20} /></button>
+                <button onClick={() => { setAdminTab('evolucao'); setAlunoSelecionado(''); }} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform"><div className="text-left"><h4 className="font-medium">Visão 360º do aluno</h4><p className="text-xs text-[#A0B3A6]">Frequência, cargas, medidas e pontos de atenção</p></div><User className="text-[#D4AF37]" size={20} /></button>
+                <button onClick={() => setGestaoView('relatorios')} className="w-full bg-[#0A1A10] border border-[#1A4026] rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform"><div className="text-left"><h4 className="font-medium">Indicadores da Academia</h4><p className="text-xs text-[#A0B3A6]">Dados reais de frequência e atividade</p></div><TrendingUp className="text-[#D4AF37]" size={20} /></button>
+                <button onClick={() => { setGestaoView('treinos_rag'); setRagTreino(null); setRagPlanoId(null); }} className="w-full bg-[#1A3020] border border-[#D4AF37]/50 rounded-xl p-4 flex justify-between items-center active:scale-95 transition-transform mt-6 shadow-[0_0_15px_rgba(212,175,55,0.1)]"><div className="text-left"><h4 className="font-medium text-[#D4AF37]">Treinos com IA (RAG)</h4><p className="text-xs text-[#A0B3A6]">Histórico real acompanha a geração do próximo treino</p></div><Target className="text-[#D4AF37]" size={20} /></button>
               </div>
             )}
 
             {gestaoView === 'treinos_rag' && (
               <div className="space-y-4">
                 <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
-                  <div className="border-b border-[#1A4026] pb-3">
-                    <h4 className="text-[#D4AF37] font-medium flex items-center gap-2"><Target size={16}/> Gerar treino individual com IA</h4>
-                    <p className="text-[#A0B3A6] text-[10px] mt-1">A IA consulta o RAG da academia. O resultado fica em rascunho até a revisão profissional.</p>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label>
-                    <select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none">
-                      <option value="">Selecione...</option>
-                      {alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Orientações do professor (opcional)</label>
-                    <textarea value={ragInstrucoes} onChange={e => setRagInstrucoes(e.target.value)} rows="4" placeholder="Ex.: evitar impacto no joelho; priorizar fortalecimento de posterior; 4 treinos por semana..." className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none resize-none text-sm" />
-                  </div>
-                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || !ragAlunoId} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">
-                    {ragGerando ? 'Gerando com IA...' : 'Gerar treino com RAG'}
-                  </button>
-                  {statusMsg && <p className="text-[#D4AF37] text-xs text-center">{statusMsg}</p>}
+                  <div className="border-b border-[#1A4026] pb-3"><h4 className="text-[#D4AF37] font-medium flex items-center gap-2"><Target size={16}/> Gerar treino individual com IA</h4><p className="text-[#A0B3A6] text-[10px] mt-1">O próximo RAG receberá também frequência, esforço, últimas sessões, cargas e repetições registradas.</p></div>
+                  <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label><select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); setRagStatus(''); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none"><option value="">Selecione...</option>{alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}</select></div>
+
+                  {ragResumoLoading && <p className="text-xs text-[#A0B3A6] text-center">Preparando histórico do aluno...</p>}
+                  {ragResumoAluno && !ragResumoLoading && (
+                    <div className="bg-[#051109] border border-[#D4AF37]/30 rounded-xl p-3">
+                      <p className="text-[10px] text-[#D4AF37] uppercase tracking-wider mb-2">Contexto disponível para a IA</p>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div><span className="text-[#A0B3A6] block">Modalidade</span>{ragResumoAluno.onboarding?.modalidade || '—'}</div>
+                        <div><span className="text-[#A0B3A6] block">Objetivo</span>{ragResumoAluno.onboarding?.objetivo || '—'}</div>
+                        <div><span className="text-[#A0B3A6] block">Treinos 30d</span>{ragResumoAluno.metricas.treinos30d}</div>
+                        <div><span className="text-[#A0B3A6] block">Esforço médio</span>{ragResumoAluno.metricas.esforcoMedio30d == null ? '—' : `${formatarNumero(ragResumoAluno.metricas.esforcoMedio30d,1)}/10`}</div>
+                        <div><span className="text-[#A0B3A6] block">Conclusão média</span>{ragResumoAluno.metricas.conclusaoMedia30d == null ? '—' : `${formatarNumero(ragResumoAluno.metricas.conclusaoMedia30d,0)}%`}</div>
+                        <div><span className="text-[#A0B3A6] block">Último treino</span>{ragResumoAluno.metricas.diasSemTreino == null ? '—' : `${ragResumoAluno.metricas.diasSemTreino} dia(s)`}</div>
+                      </div>
+                      <button onClick={() => { setAlunoSelecionado(ragAlunoId); setAdminTab('historico'); setGestaoView('menu'); }} className="w-full mt-3 border border-[#1A4026] text-[#D4AF37] py-2 rounded-lg text-[10px]">Abrir histórico completo deste aluno</button>
+                    </div>
+                  )}
+
+                  <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Orientações do professor (opcional)</label><textarea value={ragInstrucoes} onChange={e => setRagInstrucoes(e.target.value)} rows="4" placeholder="Ex.: evitar impacto no joelho; priorizar posterior; manter 4 treinos por semana..." className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none resize-none text-sm" /></div>
+                  <button onClick={handleGerarTreinoRAG} disabled={ragGerando || !ragAlunoId} className="w-full bg-gradient-to-r from-[#CFB375] to-[#AC915B] text-[#051109] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95 transition-transform">{ragGerando ? 'Gerando com IA...' : 'Gerar treino com RAG'}</button>
+                  {ragStatus && <p className="text-[#D4AF37] text-xs text-center">{ragStatus}</p>}
                 </div>
 
                 {ragTreino && (
                   <div className="bg-[#0A1A10] border border-[#D4AF37]/40 rounded-2xl p-4 space-y-4">
-                    <div className="flex justify-between items-start gap-3">
-                      <div><p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">Rascunho da IA</p><h4 className="font-bold text-lg">{ragTreino.nome_plano || 'Treino Personalizado'}</h4><p className="text-[#A0B3A6] text-xs">{ragTreino.objetivo || ''}</p></div>
-                      <span className="text-[9px] border border-yellow-500/40 text-yellow-400 px-2 py-1 rounded-full">AGUARDANDO REVISÃO</span>
-                    </div>
-                    {(ragTreino.dias || []).map((dia, i) => (
-                      <div key={dia.id || i} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3">
-                        <h5 className="text-sm font-bold text-[#D4AF37]">{dia.titulo || `Treino ${i+1}`}</h5>
-                        <p className="text-[10px] text-[#A0B3A6] mb-2">{dia.foco || ''}</p>
-                        <div className="space-y-1">
-                          {(dia.exercicios || []).map((ex, j) => <p key={ex.id || j} className="text-xs text-gray-200">{j+1}. {ex.nome} — {ex.series || '-'} × {ex.repeticoes || '-'}</p>)}
-                        </div>
-                      </div>
-                    ))}
-                    <div className="bg-[#1A3020] border border-[#1A4026] rounded-xl p-3 text-[10px] text-[#A0B3A6]">Antes de publicar, confira exercícios, volume, frequência, restrições do aluno e coerência com a orientação profissional.</div>
+                    <div className="flex justify-between items-start gap-3"><div><p className="text-[10px] text-[#D4AF37] uppercase tracking-wider">Rascunho da IA</p><h4 className="font-bold text-lg">{ragTreino.nome_plano || 'Treino Personalizado'}</h4><p className="text-[#A0B3A6] text-xs">{ragTreino.objetivo || ''}</p></div><span className="text-[9px] border border-yellow-500/40 text-yellow-400 px-2 py-1 rounded-full">AGUARDANDO REVISÃO</span></div>
+                    {(ragTreino.dias || []).map((dia, i) => <div key={dia.id || i} className="bg-[#051109] border border-[#1A4026] rounded-xl p-3"><h5 className="text-sm font-bold text-[#D4AF37]">{dia.titulo || `Treino ${i+1}`}</h5><p className="text-[10px] text-[#A0B3A6] mb-2">{dia.foco || ''}</p><div className="space-y-1">{(dia.exercicios || []).map((ex, j) => <p key={ex.id || j} className="text-xs text-gray-200">{j+1}. {ex.nome} — {ex.series || '-'} × {ex.repeticoes || '-'}</p>)}</div></div>)}
+                    <div className="bg-[#1A3020] border border-[#1A4026] rounded-xl p-3 text-[10px] text-[#A0B3A6]">Antes de publicar, confira o histórico acima, exercícios, volume, frequência, restrições e observações do aluno.</div>
                     <button onClick={handlePublicarTreinoRAG} disabled={!ragPlanoId} className="w-full bg-[#1A3020] border border-[#D4AF37] text-[#D4AF37] font-bold py-3 rounded-xl disabled:opacity-50 active:scale-95">Aprovar e publicar para o aluno</button>
                   </div>
                 )}
@@ -2715,38 +2976,19 @@ const AdminPanel = ({ onExitAdmin }) => {
 
             {gestaoView === 'desempenho' && (
               <div className="space-y-4">
-                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-                  <h4 className="text-[#D4AF37] font-medium mb-3">Ranking de Treinos Realizados</h4>
-                  <div className="space-y-3">
-                    {ranking.slice(0,5).map((a, i) => (
-                      <div key={a.id} className="flex justify-between items-center border-b border-[#1A4026] pb-2 last:border-0 last:pb-0">
-                        <div className="flex items-center gap-3">
-                          <span className={`font-bold ${i===0 ? 'text-[#D4AF37]' : 'text-[#A0B3A6]'}`}>{i+1}º</span>
-                          <div>
-                            <p className="text-sm text-white font-medium">{a.nome || 'Aluno Sem Nome'}</p>
-                            <p className="text-[10px] text-[#A0B3A6]">{a.treinosCount || 0} treinos registrados</p>
-                          </div>
-                        </div>
-                        <Award size={18} className={i===0 ? 'text-[#D4AF37]' : 'text-transparent'} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><h4 className="text-[#D4AF37] font-medium mb-3">Ranking de Treinos Realizados</h4><div className="space-y-3">{ranking.slice(0,10).map((a, i) => <div key={a.id} className="flex justify-between items-center border-b border-[#1A4026] pb-2 last:border-0 last:pb-0"><div className="flex items-center gap-3"><span className={`font-bold ${i===0 ? 'text-[#D4AF37]' : 'text-[#A0B3A6]'}`}>{i+1}º</span><div><p className="text-sm text-white font-medium">{a.nome || 'Aluno Sem Nome'}</p><p className="text-[10px] text-[#A0B3A6]">{a.treinosCount || 0} treinos concluídos</p></div></div><Award size={18} className={i===0 ? 'text-[#D4AF37]' : 'text-transparent'} /></div>)}</div></div>
               </div>
             )}
 
             {gestaoView === 'relatorios' && (
               <div className="space-y-4">
-                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-                  <h4 className="text-[#D4AF37] font-medium mb-3">Retenção e Crescimento (Média)</h4>
-                  <div className="h-40 flex items-end justify-around gap-2 pt-4 border-b border-[#1A4026] opacity-80">
-                    {[30, 45, 60, 50, 75, 90, 85].map((h, i) => <div key={i} className="w-6 bg-[#D4AF37] rounded-t-sm" style={{ height: `${h}%` }}></div>)}
-                  </div>
-                  <div className="flex justify-around text-[#A0B3A6] text-[10px] mt-2">
-                    <span>Jan</span><span>Fev</span><span>Mar</span><span>Abr</span><span>Mai</span><span>Jun</span><span>Jul</span>
-                  </div>
-                  <p className="text-xs text-[#A0B3A6] text-center mt-4 pt-4 border-t border-[#1A4026]">Análise geral do progresso de perda de peso e ganho de massa de todos os alunos ativos na plataforma.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <StaffMetricCard titulo="Alunos cadastrados" valor={alunos.length} detalhe="Perfis de aluno no aplicativo" />
+                  <StaffMetricCard titulo="Treinaram em 7 dias" valor={treino7dUsuarios.size} detalhe={`${alunosSem7d} sem treino nos últimos 7 dias`} />
+                  <StaffMetricCard titulo="Sem treino há 14d" valor={alunosSem14d} detalhe="Prioridade para acompanhamento" />
+                  <StaffMetricCard titulo="Sessões • 30 dias" valor={exec30d.length} detalhe="Treinos realmente concluídos" />
                 </div>
+                <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><h4 className="text-[#D4AF37] font-medium mb-1">Treinos concluídos por semana</h4><p className="text-[10px] text-[#A0B3A6] mb-4">Últimas 6 semanas • dados reais</p><div className="h-40 flex items-end justify-around gap-2 pt-4 border-b border-[#1A4026]">{semanas.map((sem, i) => <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-1"><span className="text-[9px] text-[#A0B3A6]">{sem.total}</span><div className="w-full max-w-8 bg-[#D4AF37] rounded-t-sm min-h-[3px]" style={{ height: `${Math.max(3, (sem.total / maxSemana) * 100)}%` }}></div></div>)}</div><div className="flex justify-around text-[#A0B3A6] text-[9px] mt-2">{semanas.map((sem,i) => <span key={i}>{sem.label}</span>)}</div></div>
               </div>
             )}
           </div>
@@ -2756,17 +2998,15 @@ const AdminPanel = ({ onExitAdmin }) => {
       <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-4 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
         <div className="flex justify-between items-center max-w-md mx-auto h-14">
           {[
-            { id: 'evolucao', label: 'Evolução', icon: TrendingUp },
+            { id: 'evolucao', label: 'Aluno 360', icon: TrendingUp },
             { id: 'historico', label: 'Histórico', icon: Calendar },
             ...(hasAdminAccess(profile) ? [{ id: 'financeiro', label: 'Financeiro', icon: DollarSign }] : []),
             { id: 'acompanhamento', label: 'Gestão', icon: FileText },
-          ].map(tab => (
-            <NavItem key={tab.id} icon={tab.icon} label={tab.label} isActive={adminTab === tab.id} onClick={() => { setAdminTab(tab.id); setGestaoView('menu'); }} />
-          ))}
+          ].map(tab => <NavItem key={tab.id} icon={tab.icon} label={tab.label} isActive={adminTab === tab.id} onClick={() => { setAdminTab(tab.id); setGestaoView('menu'); }} />)}
         </div>
       </nav>
     </div>
-  )
+  );
 };
 
 const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
