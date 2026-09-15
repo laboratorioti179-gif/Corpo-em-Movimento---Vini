@@ -384,7 +384,7 @@ const Login = () => {
   );
 };
 
-const Onboarding = ({ profile, onClose, onComplete }) => {
+const Onboarding = ({ profile, onComplete }) => {
   const [step, setStep] = useState(1);
   const totalSteps = 12;
   const [formData, setFormData] = useState({
@@ -410,7 +410,7 @@ const Onboarding = ({ profile, onClose, onComplete }) => {
   return (
     <div className="absolute inset-0 bg-[#051109] z-50 flex flex-col text-white">
       <div className="flex items-center justify-between p-6 pb-2 border-b border-[#1A4026]">
-        <button onClick={onClose} className="text-[#A0B3A6] hover:text-white p-1"><X size={24} /></button>
+        <div className="w-6 h-6" aria-hidden="true" />
         <div className="text-sm font-medium text-[#D4AF37]">{step} de {totalSteps}</div>
       </div>
       <div className="h-1 bg-[#1A3020] w-full">
@@ -3141,6 +3141,8 @@ export default function App() {
 
       if (error && error.code !== 'PGRST116' && !isMissingTable) throw error;
 
+      let effectiveProfile;
+
       if (!data || isMissingTable) {
         const nome = userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário';
         const phone = userMetadata?.phone || null;
@@ -3154,53 +3156,73 @@ export default function App() {
 
         if (!isMissingTable) {
           const { data: np, error: insertError } = await supabase.from('profiles').insert([localProfile]).select().single();
-          if (!insertError && np) { setProfile(np); } 
-          else { setProfile(localProfile); }
+          effectiveProfile = (!insertError && np) ? np : localProfile;
         } else {
-          setProfile(localProfile);
+          effectiveProfile = localProfile;
         }
       } else {
         if (userEmail === 'corpoemmovimento.adm@gmail.com') data.is_admin = true;
         if (!data.role) data.role = data.is_admin ? 'admin' : 'aluno';
-        setProfile(data);
+        effectiveProfile = data;
       }
 
-      // SEMPRE desativa a view de admin no carregamento do perfil, forçando a visão de aluno primeiro
-      setAdminView(false);
+      setProfile(effectiveProfile);
 
-      const storedOnboarding = localStorage.getItem(`onboarding_${userId}`);
-      if (storedOnboarding) {
+      const role = getUserRole(effectiveProfile);
+      const isStudent = role === 'aluno';
+      const isStaff = ['admin', 'professor'].includes(role);
+
+      // Admin e professor entram direto na área administrativa e NUNCA fazem o onboarding do aluno.
+      setAdminView(isStaff);
+      setShowTransition(false);
+
+      // O questionário de 12 etapas é exclusivo do aluno e aparece somente enquanto
+      // ainda não existir uma resposta de onboarding salva no banco para esse usuário.
+      if (!isStudent) {
         setNeedsOnboarding(false);
       } else {
-        const { data: onbData } = await supabase.from('onboarding_respostas').select('id').eq('user_id', userId).single();
-        if (onbData) {
-          localStorage.setItem(`onboarding_${userId}`, 'true');
+        const { data: onbRows, error: onbError } = await supabase
+          .from('onboarding_respostas')
+          .select('id')
+          .eq('user_id', userId);
+
+        if (onbError) {
+          console.error('Erro ao verificar onboarding do aluno:', onbError);
           setNeedsOnboarding(false);
         } else {
-          setNeedsOnboarding(true);
+          const hasOnboarding = Array.isArray(onbRows) && onbRows.length > 0;
+          setNeedsOnboarding(!hasOnboarding);
         }
       }
 
       const { count, error: notifError } = await supabase.from('notificacoes').select('*', { count: 'exact', head: true }).eq('user_id', userId).eq('lida', false);
       if (!notifError) setNotifCount(count || 0); else setNotifCount(0);
-      
+
     } catch (err) {
       console.error('Erro ao carregar perfil:', err);
       const fallbackIsAdmin = userEmail === 'corpoemmovimento.adm@gmail.com';
       const fallbackProfile = { id: userId, email: userEmail || '', nome: userMetadata?.nome || userEmail?.split('@')[0] || 'Usuário', phone: userMetadata?.phone || null, is_admin: fallbackIsAdmin, role: fallbackIsAdmin ? 'admin' : 'aluno' };
       setProfile(fallbackProfile);
-      setAdminView(false);
+
+      if (fallbackIsAdmin) {
+        setNeedsOnboarding(false);
+        setAdminView(true);
+      } else {
+        setAdminView(false);
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const handleFinishOnboarding = async (data) => {
-    setNeedsOnboarding(false);
-    setShowTransition(true);
-    localStorage.setItem(`onboarding_${profile.id}`, 'true');
+    // Proteção extra: somente perfis de aluno podem gravar este questionário.
+    if (!profile || getUserRole(profile) !== 'aluno') {
+      setNeedsOnboarding(false);
+      return;
+    }
 
-    await supabase.from('onboarding_respostas').insert([{
+    const { error: onboardingError } = await supabase.from('onboarding_respostas').insert([{
       user_id: profile.id,
       genero: data.genero,
       objetivo: data.objetivo,
@@ -3213,17 +3235,29 @@ export default function App() {
       termos_aceitos: data.termos
     }]);
 
-    await supabase.from('profiles').update({
+    if (onboardingError) {
+      console.error('Erro ao salvar onboarding:', onboardingError);
+      alert('Não foi possível salvar suas respostas. Tente novamente.');
+      return;
+    }
+
+    const { error: profileError } = await supabase.from('profiles').update({
       nome: data.nome,
       altura: data.altura ? Number(data.altura) : null,
       peso_atual: data.peso ? Number(data.peso) : null
     }).eq('id', profile.id);
 
+    if (profileError) {
+      console.error('Erro ao atualizar dados físicos do aluno:', profileError);
+    }
+
     setProfile({ ...profile, nome: data.nome, altura: data.altura, peso_atual: data.peso });
+    setNeedsOnboarding(false);
+    setShowTransition(true);
 
     setTimeout(() => {
       setShowTransition(false);
-    }, 3000);
+    }, 3500);
   };
 
   const handleLogout = async () => {
@@ -3284,8 +3318,8 @@ export default function App() {
 
           {!session ? (
             <Login />
-          ) : needsOnboarding ? (
-            <Onboarding profile={profile} onClose={() => setNeedsOnboarding(false)} onComplete={handleFinishOnboarding} />
+          ) : getUserRole(profile) === 'aluno' && needsOnboarding ? (
+            <Onboarding profile={profile} onComplete={handleFinishOnboarding} />
           ) : showTransition ? (
             <OnboardingTransition nome={profile?.nome} onDone={() => setShowTransition(false)} />
           ) : hasStaffAccess(profile) && adminView ? (
