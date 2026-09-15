@@ -2648,17 +2648,22 @@ const AdminPanel = ({ onExitAdmin }) => {
 
   const handleGerarTreinoRAG = async () => {
     const aluno = alunos.find(a => a.id === ragAlunoId);
+
     if (!aluno) {
       setRagStatus('Selecione um aluno para gerar o treino.');
       return;
     }
+
     setRagGerando(true);
     setRagStatus('Consultando a base de conhecimento e gerando o treino...');
     setRagTreino(null);
     setRagPlanoId(null);
 
     try {
-      const resumo = ragResumoAluno || await montarDossie(aluno.id);
+      const resumo =
+        ragResumoAluno ||
+        await montarDossie(aluno.id);
+
       const resultado = await gerarTreinoComRAG({
         aluno,
         onboarding: resumo?.onboarding || null,
@@ -2667,25 +2672,37 @@ const AdminPanel = ({ onExitAdmin }) => {
         instrucoesProfissional: ragInstrucoes
       });
 
-      const { data: salvo, error: saveError } = await supabase.from('planos_treino').insert([{
-        user_id: aluno.id,
-        created_by: currentSession?.user?.id || null,
-        status: 'rascunho',
-        objetivo: resultado.treino?.objetivo || resumo?.onboarding?.objetivo || null,
-        observacoes_profissional: ragInstrucoes || null,
-        treino_json: resultado.treino,
-        fontes_rag: resultado.fontes || resultado.fontes_rag || [],
-        rag_version: resultado.rag_version || 'v1',
-        model_name: resultado.model || null
-      }]).select().single();
+      if (!resultado?.treino) {
+        throw new Error(
+          resultado?.motivo ||
+          resultado?.mensagem ||
+          'O RAG não retornou um treino válido.'
+        );
+      }
 
-      if (saveError) throw saveError;
+      if (!resultado?.plano_id) {
+        throw new Error(
+          'O treino foi gerado, mas o ID do rascunho não foi retornado pelo n8n.'
+        );
+      }
+
+      // O rascunho já foi salvo pelo n8n.
+      // O aplicativo NÃO salva novamente.
       setRagTreino(resultado.treino);
-      setRagPlanoId(salvo?.id || null);
-      setRagStatus('Treino gerado como rascunho. Revise antes de publicar.');
+      setRagPlanoId(resultado.plano_id);
+
+      setRagStatus(
+        resultado.mensagem ||
+        'Treino gerado e salvo como rascunho. Revise antes de publicar.'
+      );
+
     } catch (error) {
       console.error('Erro RAG:', error);
-      setRagStatus(error.message || 'Erro ao gerar o treino.');
+
+      setRagStatus(
+        error?.message ||
+        'Erro ao gerar o treino.'
+      );
     } finally {
       setRagGerando(false);
     }
