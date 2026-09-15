@@ -2567,20 +2567,41 @@ const AdminPanel = ({ onExitAdmin }) => {
     };
   };
 
+  const carregarBaseAdmin = async () => {
+    const { data: profilesData, error: profilesError } = await supabase.from('profiles').select('*');
+
+    if (profilesError) {
+      console.error('Erro ao carregar alunos:', profilesError);
+      setAlunos([]);
+      if (gestaoView === 'treinos_rag') {
+        setRagStatus(profilesError?.message || 'Não foi possível carregar os alunos.');
+      }
+      return;
+    }
+
+    // Considera aluno todo perfil que não seja da equipe. Isso também mantém
+    // compatibilidade com cadastros antigos que ainda não possuem role preenchido.
+    const alunosData = (profilesData || []).filter(p => {
+      const role = getUserRole(p);
+      return !['admin', 'professor'].includes(role);
+    });
+
+    setAlunos(alunosData);
+
+    const { data: execucoes, error: execucoesError } = await supabase.from('execucoes_treino').select('*').eq('status', 'concluido');
+    if (execucoesError) console.error('Erro ao carregar execuções da academia:', execucoesError);
+
+    const todas = execucoes || [];
+    setExecucoesAcademia(todas);
+    const r = alunosData
+      .map(a => ({ ...a, treinosCount: todas.filter(t => t.user_id === a.id).length }))
+      .sort((a, b) => b.treinosCount - a.treinosCount);
+    setRanking(r);
+  };
+
   useEffect(() => {
-    const fetchBase = async () => {
-      const { data } = await supabase.from('profiles').select('*');
-      const alunosData = (data || []).filter(p => getUserRole(p) === 'aluno');
-      setAlunos(alunosData);
-      const { data: execucoes } = await supabase.from('execucoes_treino').select('*').eq('status', 'concluido');
-      const todas = execucoes || [];
-      setExecucoesAcademia(todas);
-      const r = alunosData.map(a => ({ ...a, treinosCount: todas.filter(t => t.user_id === a.id).length }))
-        .sort((a, b) => b.treinosCount - a.treinosCount);
-      setRanking(r);
-    };
-    fetchBase();
-  }, []);
+    if (profile?.id) carregarBaseAdmin();
+  }, [profile?.id, gestaoView]);
 
   useEffect(() => {
     if (!alunoSelecionado) {
@@ -3207,7 +3228,14 @@ const AdminPanel = ({ onExitAdmin }) => {
               <div className="space-y-4">
                 <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
                   <div className="border-b border-[#1A4026] pb-3"><h4 className="text-[#D4AF37] font-medium flex items-center gap-2"><Target size={16}/> Gerar treino individual com IA</h4><p className="text-[#A0B3A6] text-[10px] mt-1">O próximo RAG receberá também frequência, esforço, últimas sessões, cargas e repetições registradas.</p></div>
-                  <div><label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label><select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); setRagEditando(false); setRagTreinoEditavel(null); setRagStatus(''); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none"><option value="">Selecione...</option>{alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email}</option>)}</select></div>
+                  <div>
+                    <label className="text-[10px] text-[#A0B3A6] uppercase tracking-wider">Aluno</label>
+                    <select value={ragAlunoId} onChange={e => { setRagAlunoId(e.target.value); setRagTreino(null); setRagPlanoId(null); setRagEditando(false); setRagTreinoEditavel(null); setRagStatus(''); }} className="w-full bg-[#051109] border border-[#1A4026] text-white px-3 py-2 rounded-lg mt-1 focus:border-[#D4AF37] outline-none">
+                      <option value="">{alunos.length ? 'Selecione...' : 'Nenhum aluno carregado'}</option>
+                      {alunos.map(a => <option key={a.id} value={a.id}>{a.nome || a.email || `Aluno ${String(a.id).slice(0, 8)}`}</option>)}
+                    </select>
+                    <button type="button" onClick={carregarBaseAdmin} className="mt-2 text-[10px] text-[#D4AF37] underline underline-offset-2">Atualizar lista de alunos</button>
+                  </div>
 
                   {ragResumoLoading && <p className="text-xs text-[#A0B3A6] text-center">Preparando histórico do aluno...</p>}
                   {ragResumoAluno && !ragResumoLoading && (
