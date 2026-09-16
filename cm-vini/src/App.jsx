@@ -268,7 +268,7 @@ const modalidadesData = [
 
 // --- COMPONENTES ---
 
-const RunnerIcon = Footprints;
+const RunnerIcon = Navigation;
 
 const GlobalStyles = () => (
   <style dangerouslySetInnerHTML={{__html: `
@@ -2004,6 +2004,124 @@ const Progresso = () => {
   );
 };
 
+// --- CORRIDA PRO: mapa real, elevação, zonas, metas, conquistas e Feed ---
+let leafletPromise = null;
+const ensureLeaflet = () => {
+  if (typeof window === 'undefined') return Promise.reject(new Error('Mapa indisponível neste ambiente.'));
+  if (window.L) return Promise.resolve(window.L);
+  if (leafletPromise) return leafletPromise;
+
+  leafletPromise = new Promise((resolve, reject) => {
+    const cssId = 'cem-leaflet-css';
+    if (!document.getElementById(cssId)) {
+      const link = document.createElement('link');
+      link.id = cssId;
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+      link.crossOrigin = '';
+      document.head.appendChild(link);
+    }
+
+    const existing = document.getElementById('cem-leaflet-js');
+    if (existing) {
+      existing.addEventListener('load', () => resolve(window.L), { once: true });
+      existing.addEventListener('error', () => reject(new Error('Não foi possível carregar o mapa.')), { once: true });
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'cem-leaflet-js';
+    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+    script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+    script.crossOrigin = '';
+    script.onload = () => resolve(window.L);
+    script.onerror = () => reject(new Error('Não foi possível carregar o mapa.'));
+    document.head.appendChild(script);
+  });
+
+  return leafletPromise;
+};
+
+const StreetRouteMap = ({ points = [], heightClass = 'h-52', followLast = false }) => {
+  const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const routeRef = useRef(null);
+  const startMarkerRef = useRef(null);
+  const endMarkerRef = useRef(null);
+  const [mapError, setMapError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    let resizeTimer = null;
+
+    ensureLeaflet().then((L) => {
+      if (cancelled || !containerRef.current) return;
+      if (!mapRef.current) {
+        const validPoints = (points || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+        const initial = validPoints.length ? [Number(validPoints[validPoints.length - 1].lat), Number(validPoints[validPoints.length - 1].lng)] : [-14.235, -51.9253];
+        const zoom = validPoints.length ? 15 : 3;
+        const map = L.map(containerRef.current, { zoomControl: true, attributionControl: true }).setView(initial, zoom);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        mapRef.current = map;
+        resizeTimer = setTimeout(() => map.invalidateSize(), 120);
+      }
+
+      const map = mapRef.current;
+      const validPoints = (points || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+      if (!validPoints.length) return;
+      const latlngs = validPoints.map(p => [Number(p.lat), Number(p.lng)]);
+
+      if (!routeRef.current) {
+        routeRef.current = L.polyline(latlngs, { color: '#FC4C02', weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(map);
+      } else {
+        routeRef.current.setLatLngs(latlngs);
+      }
+
+      if (!startMarkerRef.current && latlngs.length) {
+        startMarkerRef.current = L.circleMarker(latlngs[0], { radius: 6, color: '#D4AF37', fillColor: '#D4AF37', fillOpacity: 1, weight: 2 }).addTo(map).bindTooltip('Início');
+      }
+
+      const last = latlngs[latlngs.length - 1];
+      if (!endMarkerRef.current) {
+        endMarkerRef.current = L.circleMarker(last, { radius: 6, color: '#FC4C02', fillColor: '#FC4C02', fillOpacity: 1, weight: 2 }).addTo(map).bindTooltip('Atual');
+      } else {
+        endMarkerRef.current.setLatLng(last);
+      }
+
+      if (followLast) {
+        map.panTo(last, { animate: false });
+      } else if (latlngs.length > 1) {
+        const bounds = L.latLngBounds(latlngs);
+        map.fitBounds(bounds, { padding: [22, 22], maxZoom: 16 });
+      } else {
+        map.setView(last, 16);
+      }
+    }).catch((e) => setMapError(e.message || 'Mapa indisponível.'));
+
+    return () => {
+      cancelled = true;
+      if (resizeTimer) clearTimeout(resizeTimer);
+    };
+  }, [points, followLast]);
+
+  useEffect(() => () => {
+    if (mapRef.current) {
+      mapRef.current.remove();
+      mapRef.current = null;
+    }
+  }, []);
+
+  if (mapError) {
+    return <div className={`${heightClass} bg-[#051109] rounded-2xl border border-[#1A4026] flex items-center justify-center text-xs text-[#A0B3A6] px-4 text-center`}>{mapError}</div>;
+  }
+
+  return <div ref={containerRef} className={`${heightClass} w-full rounded-2xl overflow-hidden border border-[#1A4026] bg-[#051109]`} />;
+};
+
 const Corrida = () => {
   const { profile } = useApp();
   const [atividades, setAtividades] = useState([]);
@@ -2017,6 +2135,12 @@ const Corrida = () => {
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
   const [routePoints, setRoutePoints] = useState([]);
   const [splits, setSplits] = useState([]);
+  const [meta, setMeta] = useState({ weekly_distance_km: 15, weekly_runs: 3, reference_pace_sec_km: null });
+  const [editingMeta, setEditingMeta] = useState(false);
+  const [metaDraft, setMetaDraft] = useState({ weekly_distance_km: 15, weekly_runs: 3, reference_pace: '' });
+  const [conquistas, setConquistas] = useState([]);
+  const [atividadeSelecionada, setAtividadeSelecionada] = useState(null);
+  const [sharingFeedId, setSharingFeedId] = useState(null);
 
   const watchIdRef = useRef(null);
   const timerRef = useRef(null);
@@ -2024,12 +2148,9 @@ const Corrida = () => {
   const elapsedRef = useRef(0);
   const distanceRef = useRef(0);
   const pointsRef = useRef([]);
-  const splitsRef = useRef([]);
   const lastPointRef = useRef(null);
   const startedAtRef = useRef(null);
   const maxSpeedRef = useRef(0);
-  const lastSplitKmRef = useRef(0);
-  const lastSplitElapsedRef = useRef(0);
 
   const formatDuration = (totalSeconds = 0) => {
     const sec = Math.max(0, Math.round(Number(totalSeconds) || 0));
@@ -2049,13 +2170,22 @@ const Corrida = () => {
     return `${min}:${String(rem).padStart(2, '0')}`;
   };
 
+  const parsePace = (value) => {
+    const text = String(value || '').trim();
+    if (!text) return null;
+    const parts = text.split(':').map(Number);
+    if (parts.some(v => !Number.isFinite(v))) return null;
+    if (parts.length === 1) return Math.round(parts[0] * 60);
+    return Math.round(parts[0] * 60 + parts[1]);
+  };
+
   const haversineMeters = (a, b) => {
     const R = 6371000;
     const toRad = (v) => (v * Math.PI) / 180;
-    const dLat = toRad(b.lat - a.lat);
-    const dLng = toRad(b.lng - a.lng);
-    const lat1 = toRad(a.lat);
-    const lat2 = toRad(b.lat);
+    const dLat = toRad(Number(b.lat) - Number(a.lat));
+    const dLng = toRad(Number(b.lng) - Number(a.lng));
+    const lat1 = toRad(Number(a.lat));
+    const lat2 = toRad(Number(b.lat));
     const sinLat = Math.sin(dLat / 2);
     const sinLng = Math.sin(dLng / 2);
     const h = sinLat * sinLat + Math.cos(lat1) * Math.cos(lat2) * sinLng * sinLng;
@@ -2078,25 +2208,189 @@ const Corrida = () => {
     }).join(' ');
   };
 
+  const sampleRoute = (points, max = 100) => {
+    const valid = (points || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lng)));
+    if (valid.length <= max) return valid;
+    const sampled = [];
+    for (let i = 0; i < max; i++) {
+      sampled.push(valid[Math.round((i * (valid.length - 1)) / (max - 1))]);
+    }
+    return sampled;
+  };
+
+  const buscarPerfilElevacao = async (points) => {
+    // Privacidade: a rota não é enviada a um serviço externo de elevação.
+    // Usamos somente a altitude que o próprio GPS do aparelho fornecer.
+    const sampled = sampleRoute(points, 300);
+    const raw = sampled
+      .filter(p => Number.isFinite(Number(p.altitude)) && (!Number.isFinite(Number(p.altitude_accuracy)) || Number(p.altitude_accuracy) <= 50))
+      .map(p => ({ ...p, elevation_m: Number(p.altitude) }));
+    if (raw.length < 2) return [];
+
+    // Suavização local simples para reduzir ruído vertical do GPS.
+    return raw.map((p, i) => {
+      const from = Math.max(0, i - 2);
+      const to = Math.min(raw.length, i + 3);
+      const vals = raw.slice(from, to).map(x => Number(x.elevation_m)).filter(Number.isFinite);
+      const smooth = vals.reduce((a,b) => a+b, 0) / Math.max(1, vals.length);
+      return { ...p, elevation_m: Number(smooth.toFixed(1)) };
+    });
+  };
+
+  const calcularElevacao = (profilePoints) => {
+    if (!Array.isArray(profilePoints) || profilePoints.length < 2) return { gain: null, loss: null, min: null, max: null };
+    const vals = profilePoints.map(p => Number(p.elevation_m)).filter(Number.isFinite);
+    if (vals.length < 2) return { gain: null, loss: null, min: null, max: null };
+    let gain = 0;
+    let loss = 0;
+    for (let i = 1; i < profilePoints.length; i++) {
+      const a = Number(profilePoints[i - 1].elevation_m);
+      const b = Number(profilePoints[i].elevation_m);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+      const delta = b - a;
+      // Pequeno filtro antirruído para DEM/GPS.
+      if (Math.abs(delta) < 1.5 || Math.abs(delta) > 40) continue;
+      if (delta > 0) gain += delta;
+      else loss += Math.abs(delta);
+    }
+    return { gain: Math.round(gain), loss: Math.round(loss), min: Math.round(Math.min(...vals)), max: Math.round(Math.max(...vals)) };
+  };
+
+  const getReferencePace = (list = atividades) => {
+    const configured = Number(meta?.reference_pace_sec_km);
+    if (configured > 0) return configured;
+    const values = (list || []).slice(0, 8).map(a => Number(a.avg_pace_sec_km)).filter(v => Number.isFinite(v) && v > 0 && v < 1800).sort((a,b) => a-b);
+    if (!values.length) return 420;
+    return values[Math.floor(values.length / 2)];
+  };
+
+  const zoneForPace = (pace, reference) => {
+    if (!Number.isFinite(pace) || pace <= 0 || !Number.isFinite(reference) || reference <= 0) return null;
+    if (pace >= reference * 1.20) return 'Z1';
+    if (pace >= reference * 1.10) return 'Z2';
+    if (pace >= reference) return 'Z3';
+    if (pace >= reference * 0.92) return 'Z4';
+    return 'Z5';
+  };
+
+  const calcularZonas = (points, referencePace) => {
+    const zones = { Z1: 0, Z2: 0, Z3: 0, Z4: 0, Z5: 0 };
+    for (let i = 1; i < (points || []).length; i++) {
+      const a = points[i - 1];
+      const b = points[i];
+      const dd = Number(b.distance_m) - Number(a.distance_m);
+      const dt = Number(b.elapsed_s) - Number(a.elapsed_s);
+      if (!Number.isFinite(dd) || !Number.isFinite(dt) || dd < 3 || dt <= 0 || dt > 120) continue;
+      const pace = dt / (dd / 1000);
+      if (pace < 120 || pace > 1800) continue;
+      const z = zoneForPace(pace, referencePace);
+      if (z) zones[z] += dt;
+    }
+    return Object.entries(zones).map(([zone, seconds]) => ({ zone, seconds: Math.round(seconds) }));
+  };
+
+  const calcularSplitsDetalhados = (points, elevationProfile = []) => {
+    if (!Array.isArray(points) || points.length < 2) return [];
+    const totalDistance = Number(points[points.length - 1]?.distance_m || 0);
+    if (totalDistance <= 0) return [];
+    const fullKm = Math.floor(totalDistance / 1000);
+    const result = [];
+    let prevElapsed = 0;
+
+    const ganhoNoIntervalo = (fromM, toM) => {
+      const filtered = elevationProfile.filter(p => Number(p.distance_m) >= fromM && Number(p.distance_m) <= toM);
+      const calc = calcularElevacao(filtered);
+      return calc.gain;
+    };
+
+    for (let km = 1; km <= fullKm; km++) {
+      const target = km * 1000;
+      const point = points.find(p => Number(p.distance_m) >= target) || points[points.length - 1];
+      const elapsedAt = Number(point.elapsed_s || 0);
+      const splitTime = Math.max(1, elapsedAt - prevElapsed);
+      result.push({ km, distance_km: 1, tempo_s: splitTime, pace_sec_km: splitTime, elev_gain_m: ganhoNoIntervalo((km - 1) * 1000, km * 1000), acumulado_s: elapsedAt, parcial: false });
+      prevElapsed = elapsedAt;
+    }
+
+    const remainder = totalDistance - fullKm * 1000;
+    if (remainder >= 200) {
+      const last = points[points.length - 1];
+      const elapsedAt = Number(last.elapsed_s || 0);
+      const splitTime = Math.max(1, elapsedAt - prevElapsed);
+      const kmDistance = remainder / 1000;
+      result.push({ km: fullKm + 1, distance_km: Number(kmDistance.toFixed(2)), tempo_s: splitTime, pace_sec_km: Math.round(splitTime / kmDistance), elev_gain_m: ganhoNoIntervalo(fullKm * 1000, totalDistance), acumulado_s: elapsedAt, parcial: true });
+    }
+    return result;
+  };
+
   const carregarAtividades = async () => {
-    if (!profile?.id) return;
+    if (!profile?.id) return [];
     setLoadingAtividades(true);
     try {
-      const url = `${supabaseUrl}/rest/v1/corridas?select=*&user_id=eq.${encodeURIComponent(profile.id)}&status=eq.concluida&order=started_at.desc&limit=30`;
+      const url = `${supabaseUrl}/rest/v1/corridas?select=*&user_id=eq.${encodeURIComponent(profile.id)}&status=eq.concluida&order=started_at.desc&limit=60`;
       const res = await fetch(url, { headers: getHeaders() });
       const data = await res.json().catch(() => []);
       if (!res.ok) throw new Error(data?.message || 'Erro ao carregar corridas.');
-      setAtividades(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setAtividades(list);
+      return list;
     } catch (e) {
       console.error(e);
       setStatusMsg('Não foi possível carregar o histórico de corrida.');
+      return [];
     } finally {
       setLoadingAtividades(false);
     }
   };
 
+  const carregarMeta = async () => {
+    if (!profile?.id) return;
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/corrida_metas?select=*&user_id=eq.${encodeURIComponent(profile.id)}&limit=1`, { headers: getHeaders() });
+      const data = await res.json();
+      if (res.ok && Array.isArray(data) && data[0]) {
+        const m = data[0];
+        setMeta(m);
+        setMetaDraft({ weekly_distance_km: m.weekly_distance_km ?? 15, weekly_runs: m.weekly_runs ?? 3, reference_pace: m.reference_pace_sec_km ? formatPace(m.reference_pace_sec_km) : '' });
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const salvarMeta = async () => {
+    const weeklyKm = Math.max(1, Math.min(300, Number(metaDraft.weekly_distance_km) || 15));
+    const weeklyRuns = Math.max(1, Math.min(14, Number(metaDraft.weekly_runs) || 3));
+    const reference = parsePace(metaDraft.reference_pace);
+    const payload = { user_id: profile.id, weekly_distance_km: weeklyKm, weekly_runs: weeklyRuns, reference_pace_sec_km: reference, updated_at: new Date().toISOString() };
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/corrida_metas?on_conflict=user_id`, {
+        method: 'POST',
+        headers: { ...getHeaders(), 'Prefer': 'resolution=merge-duplicates,return=representation' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(() => []);
+      if (!res.ok) throw new Error(data?.message || 'Erro ao salvar meta.');
+      setMeta(Array.isArray(data) ? data[0] || payload : payload);
+      setEditingMeta(false);
+      setStatusMsg('Meta semanal atualizada.');
+    } catch (e) {
+      console.error(e);
+      setStatusMsg('Não foi possível salvar a meta semanal.');
+    }
+  };
+
+  const carregarConquistas = async () => {
+    if (!profile?.id) return;
+    try {
+      const res = await fetch(`${supabaseUrl}/rest/v1/corrida_conquistas?select=*&user_id=eq.${encodeURIComponent(profile.id)}&order=unlocked_at.desc`, { headers: getHeaders() });
+      const data = await res.json();
+      if (res.ok) setConquistas(Array.isArray(data) ? data : []);
+    } catch (e) { console.error(e); }
+  };
+
   useEffect(() => {
     carregarAtividades();
+    carregarMeta();
+    carregarConquistas();
     return () => {
       if (watchIdRef.current != null && navigator.geolocation) navigator.geolocation.clearWatch(watchIdRef.current);
       if (timerRef.current) clearInterval(timerRef.current);
@@ -2133,44 +2427,38 @@ const Corrida = () => {
     elapsedRef.current = 0;
     distanceRef.current = 0;
     pointsRef.current = [];
-    splitsRef.current = [];
     lastPointRef.current = null;
     startedAtRef.current = Date.now();
     maxSpeedRef.current = 0;
-    lastSplitKmRef.current = 0;
-    lastSplitElapsedRef.current = 0;
 
     timerRef.current = setInterval(() => {
       if (!pausedRef.current) {
         elapsedRef.current += 1;
         setElapsed(elapsedRef.current);
-        if (distanceRef.current >= 100) {
-          const pace = elapsedRef.current / (distanceRef.current / 1000);
-          setPaceSecKm(pace);
-        }
+        if (distanceRef.current >= 100) setPaceSecKm(elapsedRef.current / (distanceRef.current / 1000));
       }
     }, 1000);
 
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const { latitude, longitude, accuracy, speed } = pos.coords;
+        const { latitude, longitude, accuracy, speed, altitude, altitudeAccuracy } = pos.coords;
         setGpsAccuracy(Math.round(accuracy || 0));
         if (pausedRef.current) return;
+        if (accuracy && accuracy > 80) {
+          setStatusMsg('GPS com baixa precisão. Aguardando sinal melhor...');
+          return;
+        }
 
         const point = {
           lat: latitude,
           lng: longitude,
           accuracy: accuracy || null,
+          altitude: Number.isFinite(altitude) ? altitude : null,
+          altitude_accuracy: Number.isFinite(altitudeAccuracy) ? altitudeAccuracy : null,
           timestamp: pos.timestamp || Date.now(),
           elapsed_s: elapsedRef.current,
           distance_m: distanceRef.current
         };
-
-        // Evita que um ponto de GPS muito ruim crie saltos falsos no percurso.
-        if (accuracy && accuracy > 80) {
-          setStatusMsg('GPS com baixa precisão. Aguardando sinal melhor...');
-          return;
-        }
 
         const last = lastPointRef.current;
         if (last) {
@@ -2179,32 +2467,20 @@ const Corrida = () => {
             distanceRef.current += delta;
             point.distance_m = distanceRef.current;
             setDistanceM(distanceRef.current);
-
-            const kmAtual = Math.floor(distanceRef.current / 1000);
-            if (kmAtual > lastSplitKmRef.current) {
-              const splitSeconds = elapsedRef.current - lastSplitElapsedRef.current;
-              const novoSplit = { km: kmAtual, tempo_s: splitSeconds, acumulado_s: elapsedRef.current };
-              splitsRef.current = [...splitsRef.current, novoSplit];
-              setSplits(splitsRef.current);
-              lastSplitKmRef.current = kmAtual;
-              lastSplitElapsedRef.current = elapsedRef.current;
-            }
           }
         }
 
-        if (typeof speed === 'number' && speed > 0) {
-          maxSpeedRef.current = Math.max(maxSpeedRef.current, speed * 3.6);
-        }
-
+        if (typeof speed === 'number' && speed > 0) maxSpeedRef.current = Math.max(maxSpeedRef.current, speed * 3.6);
         lastPointRef.current = point;
-        pointsRef.current = [...pointsRef.current, point].slice(-3000);
+        pointsRef.current = [...pointsRef.current, point].slice(-5000);
         setRoutePoints(pointsRef.current);
+
+        const liveSplits = calcularSplitsDetalhados(pointsRef.current, []);
+        setSplits(liveSplits);
         setStatusMsg('GPS conectado');
       },
       (error) => {
-        const msg = error?.code === 1
-          ? 'Permita o acesso à localização para registrar a corrida.'
-          : 'Não foi possível obter sua localização. Verifique o GPS.';
+        const msg = error?.code === 1 ? 'Permita o acesso à localização para registrar a corrida.' : 'Não foi possível obter sua localização. Verifique o GPS.';
         setStatusMsg(msg);
       },
       { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
@@ -2216,6 +2492,41 @@ const Corrida = () => {
     pausedRef.current = next;
     setPaused(next);
     setStatusMsg(next ? 'Corrida pausada' : 'Corrida retomada');
+  };
+
+  const avaliarConquistas = async (nova, listaCompleta) => {
+    const now = new Date();
+    const day = now.getDay();
+    const monday = new Date(now);
+    monday.setHours(0,0,0,0);
+    monday.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+    const week = listaCompleta.filter(a => new Date(a.started_at) >= monday);
+    const kmWeek = week.reduce((s,a) => s + Number(a.distance_m || 0), 0) / 1000;
+    const totalKm = listaCompleta.reduce((s,a) => s + Number(a.distance_m || 0), 0) / 1000;
+
+    const defs = [
+      { code:'primeira_corrida', title:'Primeiros passos', description:'Concluiu a primeira corrida registrada.', ok: listaCompleta.length >= 1 },
+      { code:'5k', title:'5K concluído', description:'Completou uma corrida de pelo menos 5 km.', ok: Number(nova.distance_m) >= 5000 },
+      { code:'10k', title:'10K concluído', description:'Completou uma corrida de pelo menos 10 km.', ok: Number(nova.distance_m) >= 10000 },
+      { code:'3_semana', title:'Trinca da semana', description:'Concluiu 3 corridas na mesma semana.', ok: week.length >= 3 },
+      { code:'25k_semana', title:'Semana de 25K', description:'Somou 25 km ou mais na semana.', ok: kmWeek >= 25 },
+      { code:'50k_total', title:'50K acumulados', description:'Somou 50 km em corridas registradas.', ok: totalKm >= 50 },
+      { code:'100m_elevacao', title:'Subida forte', description:'Acumulou 100 m ou mais de ganho de elevação em uma corrida.', ok: Number(nova.elevation_gain_m || 0) >= 100 }
+    ].filter(d => d.ok);
+
+    const existingCodes = new Set(conquistas.map(c => c.code));
+    const novas = defs.filter(d => !existingCodes.has(d.code));
+    for (const d of novas) {
+      await fetch(`${supabaseUrl}/rest/v1/corrida_conquistas`, {
+        method: 'POST',
+        headers: { ...getHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ user_id: profile.id, corrida_id: nova.id, code: d.code, title: d.title, description: d.description })
+      }).catch(() => null);
+    }
+    if (novas.length) {
+      setStatusMsg(`Nova conquista: ${novas[0].title}!`);
+      await carregarConquistas();
+    }
   };
 
   const finalizarCorrida = async () => {
@@ -2230,11 +2541,17 @@ const Corrida = () => {
     const totalDistance = Math.round(distanceRef.current);
     const totalElapsed = elapsedRef.current;
     const avgPace = totalDistance >= 100 ? Math.round(totalElapsed / (totalDistance / 1000)) : null;
-
     if (totalDistance < 20 || totalElapsed < 10) {
       setStatusMsg('Atividade muito curta. Ela não foi salva.');
       return;
     }
+
+    setStatusMsg('Calculando elevação e parciais...');
+    const elevationProfile = await buscarPerfilElevacao(pointsRef.current);
+    const elevation = calcularElevacao(elevationProfile);
+    const referencePace = getReferencePace();
+    const detailedSplits = calcularSplitsDetalhados(pointsRef.current, elevationProfile);
+    const paceZones = calcularZonas(pointsRef.current, referencePace);
 
     setStatusMsg('Salvando sua corrida...');
     const payload = {
@@ -2245,102 +2562,136 @@ const Corrida = () => {
       distance_m: totalDistance,
       avg_pace_sec_km: avgPace,
       max_speed_kmh: Number(maxSpeedRef.current.toFixed(2)) || null,
+      elevation_gain_m: elevation.gain,
+      elevation_loss_m: elevation.loss,
+      min_elevation_m: elevation.min,
+      max_elevation_m: elevation.max,
       route_points: pointsRef.current,
-      splits: splitsRef.current,
+      elevation_profile: elevationProfile,
+      splits: detailedSplits,
+      pace_zones: paceZones,
+      pace_reference_sec_km: referencePace,
       source: 'gps_web',
       status: 'concluida'
     };
 
-    const { error } = await supabase.from('corridas').insert([payload]);
-    if (error) {
+    const { data: saved, error } = await supabase.from('corridas').insert([payload]).select('*').single();
+    if (error || !saved) {
       console.error(error);
       setStatusMsg('A corrida terminou, mas houve erro ao salvar no histórico.');
       return;
     }
 
+    const lista = [saved, ...atividades];
+    setAtividades(lista);
+    await avaliarConquistas(saved, lista);
+    setAtividadeSelecionada(saved);
     setStatusMsg('Corrida salva com sucesso!');
-    await carregarAtividades();
   };
 
-  const compartilharCorrida = async (atividade) => {
-    if (!atividade) return;
+  const criarCardBlob = (atividade) => new Promise((resolve) => {
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
-    canvas.height = 1920;
+    canvas.height = 1350;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
+    if (!ctx) return resolve(null);
+    const gradient = ctx.createLinearGradient(0, 0, 0, 1350);
     gradient.addColorStop(0, '#102417');
     gradient.addColorStop(1, '#051109');
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1920);
-
-    ctx.fillStyle = '#D4AF37';
-    ctx.font = 'italic bold 64px Arial';
+    ctx.fillRect(0,0,1080,1350);
     ctx.textAlign = 'center';
-    ctx.fillText('Corpo em Movimento', 540, 150);
-
+    ctx.fillStyle = '#D4AF37';
+    ctx.font = 'italic bold 55px Arial';
+    ctx.fillText('Corpo em Movimento', 540, 105);
     ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 78px Arial';
-    ctx.fillText(`${(Number(atividade.distance_m || 0) / 1000).toFixed(2)} km`, 540, 360);
-    ctx.font = '32px Arial';
+    ctx.font = 'bold 92px Arial';
+    ctx.fillText(`${(Number(atividade.distance_m||0)/1000).toFixed(2)} km`, 540, 250);
     ctx.fillStyle = '#A0B3A6';
-    ctx.fillText('CORRIDA', 540, 420);
+    ctx.font = '28px Arial';
+    ctx.fillText('CORRIDA', 540, 300);
 
     const pts = Array.isArray(atividade.route_points) ? atividade.route_points : [];
     if (pts.length > 1) {
-      const poly = routePolyline(pts, 900, 620, 40).split(' ').map(p => p.split(',').map(Number));
+      const poly = routePolyline(pts, 860, 430, 35).split(' ').map(p => p.split(',').map(Number));
       ctx.save();
-      ctx.translate(90, 510);
-      ctx.strokeStyle = '#D4AF37';
-      ctx.lineWidth = 16;
+      ctx.translate(110, 360);
+      ctx.strokeStyle = '#FC4C02';
+      ctx.lineWidth = 14;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      poly.forEach(([x,y], i) => i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y));
+      poly.forEach(([x,y], i) => i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
       ctx.stroke();
       ctx.restore();
     }
 
-    ctx.fillStyle = 'rgba(10,26,16,0.92)';
-    ctx.roundRect(90, 1240, 900, 420, 38);
+    ctx.fillStyle = 'rgba(10,26,16,0.94)';
+    ctx.roundRect(80, 870, 920, 300, 34);
     ctx.fill();
-    ctx.strokeStyle = '#1A4026';
-    ctx.lineWidth = 4;
-    ctx.stroke();
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 60px Arial';
-    ctx.fillText(formatPace(atividade.avg_pace_sec_km), 300, 1420);
-    ctx.fillText(formatDuration(atividade.duration_seconds), 780, 1420);
-    ctx.font = '28px Arial';
-    ctx.fillStyle = '#A0B3A6';
-    ctx.fillText('PACE / KM', 300, 1480);
-    ctx.fillText('TEMPO', 780, 1480);
-
-    ctx.font = '30px Arial';
+    const metrics = [
+      [formatPace(atividade.avg_pace_sec_km), 'PACE / KM'],
+      [formatDuration(atividade.duration_seconds), 'TEMPO'],
+      [atividade.elevation_gain_m != null ? `${Math.round(Number(atividade.elevation_gain_m))} m` : '—', 'ELEVAÇÃO']
+    ];
+    metrics.forEach((m,i) => {
+      const x = 230 + i*310;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 45px Arial';
+      ctx.fillText(m[0], x, 1010);
+      ctx.fillStyle = '#A0B3A6';
+      ctx.font = '22px Arial';
+      ctx.fillText(m[1], x, 1055);
+    });
     ctx.fillStyle = '#D4AF37';
-    ctx.fillText('Cada passo conta.', 540, 1770);
+    ctx.font = '28px Arial';
+    ctx.fillText('Cada passo conta.', 540, 1260);
+    canvas.toBlob(blob => resolve(blob), 'image/png', 0.92);
+  });
 
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
-      const file = new File([blob], 'corrida-corpo-em-movimento.png', { type: 'image/png' });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        try {
-          await navigator.share({ title: 'Minha corrida', text: 'Minha corrida no Corpo em Movimento', files: [file] });
-        } catch (e) {
-          if (e?.name !== 'AbortError') console.error(e);
-        }
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = file.name;
-        a.click();
-        URL.revokeObjectURL(url);
-      }
-    }, 'image/png');
+  const compartilharCorrida = async (atividade) => {
+    const blob = await criarCardBlob(atividade);
+    if (!blob) return;
+    const file = new File([blob], 'corrida-corpo-em-movimento.png', { type: 'image/png' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files:[file] })) {
+      try { await navigator.share({ title:'Minha corrida', text:'Minha corrida no Corpo em Movimento', files:[file] }); } catch(e) { if (e?.name !== 'AbortError') console.error(e); }
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  const compartilharNoFeed = async (atividade) => {
+    if (!atividade || sharingFeedId) return;
+    setSharingFeedId(atividade.id);
+    setStatusMsg('Preparando publicação no Feed...');
+    try {
+      const blob = await criarCardBlob(atividade);
+      if (!blob) throw new Error('Não foi possível gerar o card.');
+      const fileName = `${profile.id}-${Date.now()}-corrida.png`;
+      const file = new File([blob], fileName, { type:'image/png' });
+      const { error: uploadError } = await supabase.storage.from('feed_images').upload(fileName, file);
+      if (uploadError) throw uploadError;
+      const imageUrl = supabase.storage.from('feed_images').getPublicUrl(fileName).data.publicUrl;
+      const elev = atividade.elevation_gain_m != null ? ` • ${Math.round(Number(atividade.elevation_gain_m))} m de elevação` : '';
+      const content = `🏃 ${(Number(atividade.distance_m||0)/1000).toFixed(2)} km • pace ${formatPace(atividade.avg_pace_sec_km)}/km • ${formatDuration(atividade.duration_seconds)}${elev}`;
+      const { error: postError } = await supabase.from('feed_posts').insert([{ user_id: profile.id, content, image_url: imageUrl, tag:'Corrida' }]);
+      if (postError) throw postError;
+      await supabase.from('corridas').update({ shared_to_feed_at: new Date().toISOString() }).eq('id', atividade.id).eq('user_id', profile.id);
+      const sharedAt = new Date().toISOString();
+      setAtividades(prev => prev.map(a => a.id === atividade.id ? { ...a, shared_to_feed_at: sharedAt } : a));
+      setAtividadeSelecionada(prev => prev?.id === atividade.id ? { ...prev, shared_to_feed_at: sharedAt } : prev);
+      setStatusMsg('Corrida publicada no Feed!');
+    } catch (e) {
+      console.error(e);
+      setStatusMsg('Não foi possível publicar a corrida no Feed.');
+    } finally {
+      setSharingFeedId(null);
+    }
   };
 
   const inicioSemana = new Date();
@@ -2349,209 +2700,104 @@ const Corrida = () => {
   inicioSemana.setHours(0,0,0,0);
   inicioSemana.setDate(inicioSemana.getDate() - diff);
   const atividadesSemana = atividades.filter(a => new Date(a.started_at) >= inicioSemana);
-  const kmSemana = atividadesSemana.reduce((acc, a) => acc + Number(a.distance_m || 0), 0) / 1000;
-  const tempoSemana = atividadesSemana.reduce((acc, a) => acc + Number(a.duration_seconds || 0), 0);
-  const paceSemana = kmSemana > 0 ? tempoSemana / kmSemana : null;
-  const ultima = atividades[0] || null;
-  const maiorDistancia = atividades.length ? Math.max(...atividades.map(a => Number(a.distance_m || 0))) : 0;
-  const melhoresPaces = atividades.map(a => Number(a.avg_pace_sec_km)).filter(v => Number.isFinite(v) && v > 0);
+  const kmSemana = atividadesSemana.reduce((acc,a) => acc + Number(a.distance_m||0),0)/1000;
+  const tempoSemana = atividadesSemana.reduce((acc,a) => acc + Number(a.duration_seconds||0),0);
+  const paceSemana = kmSemana > 0 ? tempoSemana/kmSemana : null;
+  const maiorDistancia = atividades.length ? Math.max(...atividades.map(a => Number(a.distance_m||0))) : 0;
+  const melhoresPaces = atividades.map(a => Number(a.avg_pace_sec_km)).filter(v => Number.isFinite(v)&&v>0);
   const melhorPace = melhoresPaces.length ? Math.min(...melhoresPaces) : null;
+  const metaKm = Math.max(1, Number(meta.weekly_distance_km)||15);
+  const metaRuns = Math.max(1, Number(meta.weekly_runs)||3);
+  const pctKm = Math.min(100, Math.round((kmSemana/metaKm)*100));
+  const pctRuns = Math.min(100, Math.round((atividadesSemana.length/metaRuns)*100));
+  const liveZone = zoneForPace(Number(paceSecKm), getReferencePace());
 
-  const semanas = Array.from({ length: 4 }, (_, idx) => {
-    const end = new Date();
-    end.setHours(23,59,59,999);
-    end.setDate(end.getDate() - idx * 7);
-    const start = new Date(end);
-    start.setDate(start.getDate() - 6);
-    start.setHours(0,0,0,0);
-    const km = atividades
-      .filter(a => {
-        const d = new Date(a.started_at);
-        return d >= start && d <= end;
-      })
-      .reduce((acc, a) => acc + Number(a.distance_m || 0), 0) / 1000;
-    return { label: idx === 0 ? 'Atual' : `-${idx} sem`, km };
+  const zoneLabels = {
+    Z1:['Recuperação','#6BAED6'],
+    Z2:['Leve','#63BE7B'],
+    Z3:['Moderado','#D4AF37'],
+    Z4:['Ritmo','#FF8C42'],
+    Z5:['Forte','#E95A5A']
+  };
+
+  const semanas = Array.from({ length:4 }, (_,idx) => {
+    const end = new Date(); end.setHours(23,59,59,999); end.setDate(end.getDate()-idx*7);
+    const start = new Date(end); start.setDate(start.getDate()-6); start.setHours(0,0,0,0);
+    const km = atividades.filter(a => { const d = new Date(a.started_at); return d>=start&&d<=end; }).reduce((acc,a) => acc+Number(a.distance_m||0),0)/1000;
+    return { label: idx===0?'Atual':`-${idx} sem`, km };
   }).reverse();
-  const maxKmGrafico = Math.max(1, ...semanas.map(s => s.km));
+  const maxKmGrafico = Math.max(1,...semanas.map(s=>s.km));
+
+  const renderZones = (atividade) => {
+    const zones = Array.isArray(atividade?.pace_zones) ? atividade.pace_zones : [];
+    const total = zones.reduce((s,z)=>s+Number(z.seconds||0),0);
+    if (!total) return <p className="text-xs text-[#A0B3A6]">Zonas indisponíveis para esta atividade.</p>;
+    return (
+      <div className="space-y-2">
+        {zones.map(z => {
+          const [label,color] = zoneLabels[z.zone] || [z.zone,'#888'];
+          const pct = Math.round((Number(z.seconds||0)/total)*100);
+          return <div key={z.zone} className="grid grid-cols-[72px_1fr_48px] gap-2 items-center text-[10px]"><span>{z.zone} · {label}</span><div className="h-2 bg-[#051109] rounded-full overflow-hidden"><div className="h-full rounded-full" style={{width:`${pct}%`,backgroundColor:color}} /></div><span className="text-right text-[#A0B3A6]">{pct}%</span></div>;
+        })}
+      </div>
+    );
+  };
 
   return (
     <div className="flex-1 overflow-y-auto pr-2 space-y-5 custom-scrollbar pb-24 text-white pt-3">
       <div className="flex items-start justify-between gap-3">
-        <div className="border-l-2 border-[#D4AF37] pl-3 py-1">
-          <div className="flex items-center gap-2 text-[#D4AF37] mb-1">
-            <Footprints size={17} />
-            <span className="text-[10px] font-semibold tracking-[0.15em] uppercase">Corrida</span>
-          </div>
-          <h2 className="text-white text-2xl font-bold">Seu espaço de corrida</h2>
-          <p className="text-[#A0B3A6] text-xs mt-1">GPS, ritmo, distância, parciais e histórico em um só lugar.</p>
+        <div className="border-l-2 border-[#FC4C02] pl-3 py-1">
+          <div className="flex items-center gap-2 text-[#FC4C02] mb-1"><Navigation size={17}/><span className="text-[10px] font-semibold tracking-[0.15em] uppercase">Corrida</span></div>
+          <h2 className="text-white text-2xl font-bold">Corrida & Rotas</h2>
+          <p className="text-[#A0B3A6] text-xs mt-1">GPS, mapa de ruas, elevação, splits, zonas e evolução.</p>
         </div>
       </div>
 
       {!tracking ? (
-        <button onClick={iniciarCorrida} className="w-full bg-[#FF6B35] text-white rounded-2xl p-4 flex items-center justify-between shadow-lg active:scale-[0.98] transition-transform">
-          <div className="text-left">
-            <p className="font-bold text-lg">Iniciar corrida</p>
-            <p className="text-white/80 text-xs">Ative o GPS e registre seu percurso real</p>
-          </div>
-          <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center"><Play size={24} fill="currentColor" /></div>
+        <button onClick={iniciarCorrida} className="w-full bg-[#FC4C02] text-white rounded-2xl p-4 flex items-center justify-between shadow-lg active:scale-[0.98] transition-transform">
+          <div className="text-left"><p className="font-bold text-lg">Iniciar corrida</p><p className="text-white/80 text-xs">Registrar percurso com GPS</p></div>
+          <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center"><Play size={24} fill="currentColor"/></div>
         </button>
       ) : (
-        <div className="bg-[#0A1A10] border border-[#FF6B35]/60 rounded-3xl p-5 shadow-xl space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-[#FFB199] text-[10px] uppercase tracking-[0.16em] font-bold">Atividade em andamento</p>
-              <h3 className="text-xl font-bold">{paused ? 'Corrida pausada' : 'Correndo agora'}</h3>
-            </div>
-            <div className={`w-3 h-3 rounded-full ${paused ? 'bg-yellow-400' : 'bg-green-400 animate-pulse'}`} />
+        <div className="bg-[#0A1A10] border border-[#FC4C02]/60 rounded-3xl p-4 shadow-xl space-y-4">
+          <div className="flex items-center justify-between"><div><p className="text-[#FFB199] text-[10px] uppercase tracking-[0.16em] font-bold">Atividade em andamento</p><h3 className="text-xl font-bold">{paused?'Corrida pausada':'Correndo agora'}</h3></div><div className={`w-3 h-3 rounded-full ${paused?'bg-yellow-400':'bg-green-400 animate-pulse'}`}/></div>
+          <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="bg-[#051109] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6] uppercase">Distância</p><p className="text-lg font-bold">{(distanceM/1000).toFixed(2)}</p><p className="text-[8px] text-[#A0B3A6]">km</p></div>
+            <div className="bg-[#051109] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6] uppercase">Pace</p><p className="text-lg font-bold">{formatPace(paceSecKm)}</p><p className="text-[8px] text-[#A0B3A6]">/km</p></div>
+            <div className="bg-[#051109] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6] uppercase">Tempo</p><p className="text-lg font-bold">{formatDuration(elapsed)}</p></div>
+            <div className="bg-[#051109] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6] uppercase">Zona</p><p className="text-lg font-bold text-[#FC4C02]">{liveZone||'—'}</p></div>
           </div>
-
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="bg-[#051109] border border-[#1A4026] rounded-2xl p-3">
-              <p className="text-[9px] text-[#A0B3A6] uppercase">Distância</p>
-              <p className="text-xl font-bold mt-1">{(distanceM/1000).toFixed(2)}</p>
-              <p className="text-[9px] text-[#A0B3A6]">km</p>
-            </div>
-            <div className="bg-[#051109] border border-[#1A4026] rounded-2xl p-3">
-              <p className="text-[9px] text-[#A0B3A6] uppercase">Pace</p>
-              <p className="text-xl font-bold mt-1">{formatPace(paceSecKm)}</p>
-              <p className="text-[9px] text-[#A0B3A6]">min/km</p>
-            </div>
-            <div className="bg-[#051109] border border-[#1A4026] rounded-2xl p-3">
-              <p className="text-[9px] text-[#A0B3A6] uppercase">Tempo</p>
-              <p className="text-xl font-bold mt-1">{formatDuration(elapsed)}</p>
-              <p className="text-[9px] text-[#A0B3A6]">ativo</p>
-            </div>
-          </div>
-
-          <div className="w-full h-44 bg-[#051109] rounded-2xl border border-[#1A4026] relative overflow-hidden">
-            <div className="absolute inset-0 opacity-20" style={{backgroundImage:'linear-gradient(#1A4026 1px, transparent 1px), linear-gradient(90deg, #1A4026 1px, transparent 1px)', backgroundSize:'28px 28px'}} />
-            {routePoints.length > 1 ? (
-              <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full p-3" preserveAspectRatio="none">
-                <polyline points={routePolyline(routePoints)} fill="none" stroke="#FF6B35" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-[#A0B3A6] text-xs gap-2"><Navigation size={24} /><span>Aguardando movimento...</span></div>
-            )}
-            <div className="absolute left-3 bottom-3 bg-[#0A1A10]/90 border border-[#1A4026] px-2 py-1 rounded-full text-[9px] flex items-center gap-1"><MapPin size={11} /> GPS {gpsAccuracy ? `±${gpsAccuracy} m` : '...'}</div>
-          </div>
-
-          {splits.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-[#D4AF37] mb-2">Parciais por quilômetro</p>
-              <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">
-                {splits.slice(-5).map(s => <div key={s.km} className="min-w-[86px] bg-[#051109] border border-[#1A4026] rounded-xl p-2 text-center"><p className="text-[9px] text-[#A0B3A6]">KM {s.km}</p><p className="font-bold text-sm">{formatDuration(s.tempo_s)}</p></div>)}
-              </div>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <button onClick={alternarPausa} className="bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95">
-              {paused ? <><Play size={18} /> Retomar</> : <><Pause size={18} /> Pausar</>}
-            </button>
-            <button onClick={finalizarCorrida} className="bg-red-950/50 border border-red-700/60 text-red-300 py-3 rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95"><Square size={16} fill="currentColor" /> Finalizar</button>
-          </div>
+          {routePoints.length ? <StreetRouteMap points={routePoints} heightClass="h-56" followLast /> : <div className="h-56 bg-[#051109] rounded-2xl border border-[#1A4026] flex items-center justify-center text-[#A0B3A6] text-xs">Aguardando posição GPS...</div>}
+          <div className="flex items-center justify-between text-[9px] text-[#A0B3A6]"><span className="flex items-center gap-1"><MapPin size={11}/> GPS {gpsAccuracy?`±${gpsAccuracy} m`:'...'}</span><span>Zonas relativas ao seu ritmo de referência</span></div>
+          {splits.length>0 && <div><p className="text-xs font-medium text-[#D4AF37] mb-2">Splits</p><div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">{splits.slice(-5).map((s,i)=><div key={`${s.km}-${i}`} className="min-w-[95px] bg-[#051109] border border-[#1A4026] rounded-xl p-2 text-center"><p className="text-[9px] text-[#A0B3A6]">{s.parcial?'PARCIAL':`KM ${s.km}`}</p><p className="font-bold text-sm">{formatPace(s.pace_sec_km)}</p><p className="text-[8px] text-[#6F8174]">{s.distance_km?.toFixed?.(2)||'1.00'} km</p></div>)}</div></div>}
+          <div className="grid grid-cols-2 gap-3"><button onClick={alternarPausa} className="bg-[#1A3020] border border-[#D4AF37]/40 text-[#D4AF37] py-3 rounded-xl font-bold flex items-center justify-center gap-2">{paused?<><Play size={18}/>Retomar</>:<><Pause size={18}/>Pausar</>}</button><button onClick={finalizarCorrida} className="bg-red-950/50 border border-red-700/60 text-red-300 py-3 rounded-xl font-bold flex items-center justify-center gap-2"><Square size={16} fill="currentColor"/>Finalizar</button></div>
         </div>
       )}
 
       {statusMsg && <div className="text-center text-[10px] text-[#A0B3A6] -mt-2">{statusMsg}</div>}
 
-      <div className="grid grid-cols-3 gap-2">
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3">
-          <p className="text-[9px] text-[#A0B3A6] uppercase">Esta semana</p>
-          <p className="text-xl font-bold mt-1">{kmSemana.toFixed(1)}<span className="text-[10px] font-normal text-[#A0B3A6]"> km</span></p>
-        </div>
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3">
-          <p className="text-[9px] text-[#A0B3A6] uppercase">Atividades</p>
-          <p className="text-xl font-bold mt-1">{atividadesSemana.length}</p>
-        </div>
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3">
-          <p className="text-[9px] text-[#A0B3A6] uppercase">Pace médio</p>
-          <p className="text-xl font-bold mt-1">{formatPace(paceSemana)}</p>
-        </div>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 space-y-4">
+        <div className="flex items-center justify-between"><div><h4 className="font-semibold">Meta semanal</h4><p className="text-[10px] text-[#A0B3A6]">Construa consistência, não só recordes.</p></div><button onClick={()=>setEditingMeta(v=>!v)} className="text-[10px] px-3 py-1.5 rounded-full border border-[#D4AF37]/40 text-[#D4AF37]">{editingMeta?'Cancelar':'Editar meta'}</button></div>
+        {editingMeta ? <div className="grid grid-cols-3 gap-2"><label className="text-[9px] text-[#A0B3A6]">Km/sem<input type="number" min="1" max="300" value={metaDraft.weekly_distance_km} onChange={e=>setMetaDraft({...metaDraft,weekly_distance_km:e.target.value})} className="mt-1 w-full bg-[#051109] border border-[#1A4026] rounded-lg p-2 text-white"/></label><label className="text-[9px] text-[#A0B3A6]">Corridas<input type="number" min="1" max="14" value={metaDraft.weekly_runs} onChange={e=>setMetaDraft({...metaDraft,weekly_runs:e.target.value})} className="mt-1 w-full bg-[#051109] border border-[#1A4026] rounded-lg p-2 text-white"/></label><label className="text-[9px] text-[#A0B3A6]">Ritmo ref.<input type="text" placeholder="6:30" value={metaDraft.reference_pace} onChange={e=>setMetaDraft({...metaDraft,reference_pace:e.target.value})} className="mt-1 w-full bg-[#051109] border border-[#1A4026] rounded-lg p-2 text-white"/></label><button onClick={salvarMeta} className="col-span-3 bg-[#D4AF37] text-[#051109] rounded-xl py-2 font-bold text-xs">Salvar meta</button></div> : <><div><div className="flex justify-between text-xs mb-1"><span>{kmSemana.toFixed(1)} / {metaKm.toFixed(1)} km</span><span>{pctKm}%</span></div><div className="h-2 bg-[#051109] rounded-full overflow-hidden"><div className="h-full bg-[#FC4C02] rounded-full" style={{width:`${pctKm}%`}}/></div></div><div><div className="flex justify-between text-xs mb-1"><span>{atividadesSemana.length} / {metaRuns} corridas</span><span>{pctRuns}%</span></div><div className="h-2 bg-[#051109] rounded-full overflow-hidden"><div className="h-full bg-[#D4AF37] rounded-full" style={{width:`${pctRuns}%`}}/></div></div></>}
       </div>
 
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-        <div className="flex justify-between items-center mb-4">
-          <div><h4 className="font-semibold">Volume de corrida</h4><p className="text-[10px] text-[#A0B3A6]">Quilômetros nas últimas 4 semanas</p></div>
-          <TrendingUp size={20} className="text-[#D4AF37]" />
-        </div>
-        <div className="h-28 flex items-end gap-3">
-          {semanas.map((s, i) => (
-            <div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-1">
-              <span className="text-[9px] text-[#A0B3A6]">{s.km.toFixed(1)}</span>
-              <div className="w-full max-w-10 bg-[#FF6B35] rounded-t-lg min-h-[4px]" style={{height:`${Math.max(4,(s.km/maxKmGrafico)*82)}px`}} />
-              <span className="text-[8px] text-[#6F8174]">{s.label}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <div className="grid grid-cols-3 gap-2"><div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3"><p className="text-[9px] text-[#A0B3A6] uppercase">Esta semana</p><p className="text-xl font-bold mt-1">{kmSemana.toFixed(1)}<span className="text-[10px] font-normal text-[#A0B3A6]"> km</span></p></div><div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3"><p className="text-[9px] text-[#A0B3A6] uppercase">Atividades</p><p className="text-xl font-bold mt-1">{atividadesSemana.length}</p></div><div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-3"><p className="text-[9px] text-[#A0B3A6] uppercase">Pace médio</p><p className="text-xl font-bold mt-1">{formatPace(paceSemana)}</p></div></div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-          <Award className="text-[#D4AF37] mb-2" size={19}/>
-          <p className="text-[9px] uppercase text-[#A0B3A6]">Maior distância</p>
-          <p className="font-bold text-lg">{(maiorDistancia/1000).toFixed(2)} km</p>
-        </div>
-        <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4">
-          <Activity className="text-[#D4AF37] mb-2" size={19}/>
-          <p className="text-[9px] uppercase text-[#A0B3A6]">Melhor pace médio</p>
-          <p className="font-bold text-lg">{formatPace(melhorPace)} <span className="text-[9px] text-[#A0B3A6] font-normal">/km</span></p>
-        </div>
-      </div>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><div className="flex justify-between items-center mb-4"><div><h4 className="font-semibold">Volume de corrida</h4><p className="text-[10px] text-[#A0B3A6]">Últimas 4 semanas</p></div><TrendingUp size={20} className="text-[#D4AF37]"/></div><div className="h-28 flex items-end gap-3">{semanas.map((s,i)=><div key={i} className="flex-1 h-full flex flex-col justify-end items-center gap-1"><span className="text-[9px] text-[#A0B3A6]">{s.km.toFixed(1)}</span><div className="w-full max-w-10 bg-[#FC4C02] rounded-t-lg min-h-[4px]" style={{height:`${Math.max(4,(s.km/maxKmGrafico)*82)}px`}}/><span className="text-[8px] text-[#6F8174]">{s.label}</span></div>)}</div></div>
 
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <div><h4 className="font-semibold text-lg">Atividades recentes</h4><p className="text-[10px] text-[#A0B3A6]">Seu histórico de corridas</p></div>
-        </div>
+      <div className="grid grid-cols-2 gap-3"><div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><Award className="text-[#D4AF37] mb-2" size={19}/><p className="text-[9px] uppercase text-[#A0B3A6]">Maior distância</p><p className="font-bold text-lg">{(maiorDistancia/1000).toFixed(2)} km</p></div><div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><Activity className="text-[#D4AF37] mb-2" size={19}/><p className="text-[9px] uppercase text-[#A0B3A6]">Melhor pace médio</p><p className="font-bold text-lg">{formatPace(melhorPace)} <span className="text-[9px] text-[#A0B3A6] font-normal">/km</span></p></div></div>
 
-        {loadingAtividades ? (
-          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center text-[#A0B3A6] text-sm">Carregando atividades...</div>
-        ) : atividades.length === 0 ? (
-          <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center">
-            <Footprints size={30} className="text-[#D4AF37] mx-auto mb-3" />
-            <p className="font-medium">Sua primeira corrida aparecerá aqui.</p>
-            <p className="text-xs text-[#A0B3A6] mt-1">Use “Iniciar corrida” para começar.</p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {atividades.slice(0, 8).map((a) => {
-              const pts = Array.isArray(a.route_points) ? a.route_points : [];
-              return (
-                <div key={a.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden">
-                  <div className="p-4 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="flex items-center gap-2"><Footprints size={16} className="text-[#FF6B35]"/><p className="font-bold">Corrida</p></div>
-                      <p className="text-[10px] text-[#A0B3A6] mt-1">{new Date(a.started_at).toLocaleDateString('pt-BR', { weekday:'short', day:'2-digit', month:'short' })} • {new Date(a.started_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p>
-                    </div>
-                    <button onClick={() => compartilharCorrida(a)} className="w-9 h-9 rounded-full border border-[#1A4026] flex items-center justify-center text-[#D4AF37] active:scale-95" title="Compartilhar"><Share2 size={16}/></button>
-                  </div>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><div className="flex items-center justify-between mb-3"><div><h4 className="font-semibold">Conquistas</h4><p className="text-[10px] text-[#A0B3A6]">Marcos desbloqueados</p></div><Award size={20} className="text-[#D4AF37]"/></div>{conquistas.length?<div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">{conquistas.slice(0,10).map(c=><div key={c.id} className="min-w-[150px] bg-[#051109] border border-[#D4AF37]/25 rounded-xl p-3"><div className="w-8 h-8 rounded-full bg-[#D4AF37]/15 flex items-center justify-center mb-2"><Award size={16} className="text-[#D4AF37]"/></div><p className="text-xs font-bold">{c.title}</p><p className="text-[9px] text-[#A0B3A6] mt-1 leading-snug">{c.description}</p></div>)}</div>:<p className="text-xs text-[#A0B3A6]">Conclua sua primeira corrida para desbloquear a primeira conquista.</p>}</div>
 
-                  {pts.length > 1 && (
-                    <div className="h-36 bg-[#051109] relative overflow-hidden border-y border-[#1A4026]">
-                      <div className="absolute inset-0 opacity-20" style={{backgroundImage:'linear-gradient(#1A4026 1px, transparent 1px), linear-gradient(90deg, #1A4026 1px, transparent 1px)', backgroundSize:'26px 26px'}} />
-                      <svg viewBox="0 0 100 60" className="absolute inset-0 w-full h-full p-3" preserveAspectRatio="none"><polyline points={routePolyline(pts)} fill="none" stroke="#FF6B35" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                    </div>
-                  )}
+      <div><div className="flex items-center justify-between mb-3"><div><h4 className="font-semibold text-lg">Atividades recentes</h4><p className="text-[10px] text-[#A0B3A6]">Toque em uma corrida para ver os detalhes.</p></div></div>{loadingAtividades?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center text-[#A0B3A6] text-sm">Carregando atividades...</div>:atividades.length===0?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center"><Navigation size={30} className="text-[#D4AF37] mx-auto mb-3"/><p className="font-medium">Sua primeira corrida aparecerá aqui.</p></div>:<div className="space-y-3">{atividades.slice(0,8).map(a=><div key={a.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden"><button onClick={()=>setAtividadeSelecionada(a)} className="w-full text-left"><div className="p-4 flex items-start justify-between"><div><div className="flex items-center gap-2"><Navigation size={16} className="text-[#FC4C02]"/><p className="font-bold">Corrida</p></div><p className="text-[10px] text-[#A0B3A6] mt-1">{new Date(a.started_at).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})} • {new Date(a.started_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p></div><ChevronRight size={18} className="text-[#A0B3A6]"/></div><div className="grid grid-cols-4 gap-2 px-4 pb-4 text-center"><div><p className="text-[8px] text-[#A0B3A6] uppercase">Distância</p><p className="font-bold text-xs">{(Number(a.distance_m||0)/1000).toFixed(2)} km</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Pace</p><p className="font-bold text-xs">{formatPace(a.avg_pace_sec_km)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Tempo</p><p className="font-bold text-xs">{formatDuration(a.duration_seconds)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Elevação</p><p className="font-bold text-xs">{a.elevation_gain_m!=null?`${Math.round(Number(a.elevation_gain_m))} m`:'—'}</p></div></div></button><div className="border-t border-[#1A4026] p-3 flex gap-2"><button onClick={()=>compartilharCorrida(a)} className="flex-1 border border-[#1A4026] rounded-xl py-2 text-[10px] text-[#D4AF37] flex items-center justify-center gap-1"><Share2 size={14}/>Compartilhar</button><button onClick={()=>compartilharNoFeed(a)} disabled={!!sharingFeedId || !!a.shared_to_feed_at} className="flex-1 bg-[#1A3020] border border-[#D4AF37]/30 rounded-xl py-2 text-[10px] text-[#D4AF37] disabled:opacity-50">{a.shared_to_feed_at?'Publicado no Feed':sharingFeedId===a.id?'Publicando...':'Publicar no Feed'}</button></div></div>)}</div>}</div>
 
-                  <div className="grid grid-cols-3 gap-2 p-4 text-center">
-                    <div><p className="text-[9px] text-[#A0B3A6] uppercase">Distância</p><p className="font-bold">{(Number(a.distance_m||0)/1000).toFixed(2)} km</p></div>
-                    <div><p className="text-[9px] text-[#A0B3A6] uppercase">Pace</p><p className="font-bold">{formatPace(a.avg_pace_sec_km)} /km</p></div>
-                    <div><p className="text-[9px] text-[#A0B3A6] uppercase">Tempo</p><p className="font-bold">{formatDuration(a.duration_seconds)}</p></div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex gap-3 items-start"><Clock size={20} className="text-[#D4AF37] shrink-0 mt-0.5"/><div><p className="text-xs font-medium">Sobre o rastreamento</p><p className="text-[10px] text-[#A0B3A6] mt-1 leading-relaxed">O GPS funciona melhor ao ar livre, com localização precisa permitida. O mapa usa OpenStreetMap. A elevação é calculada localmente com a altitude fornecida pelo GPS, quando o aparelho disponibiliza esse dado. Em navegadores móveis, bloquear a tela pode interromper o rastreamento.</p></div></div>
 
-      <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex gap-3 items-start">
-        <Clock size={20} className="text-[#D4AF37] shrink-0 mt-0.5" />
-        <div><p className="text-xs font-medium">Sobre o rastreamento</p><p className="text-[10px] text-[#A0B3A6] mt-1 leading-relaxed">O GPS funciona melhor ao ar livre, com o app aberto e permissão de localização precisa. Em navegadores móveis, bloquear a tela pode reduzir ou interromper o rastreamento.</p></div>
-      </div>
+      {atividadeSelecionada && <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"><div className="w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar bg-[#07140C] border border-[#1A4026] rounded-t-3xl sm:rounded-3xl p-5 space-y-5"><div className="flex items-start justify-between"><div><p className="text-[#FC4C02] text-[10px] uppercase font-bold tracking-wider">Detalhes da corrida</p><h3 className="text-2xl font-bold">{(Number(atividadeSelecionada.distance_m||0)/1000).toFixed(2)} km</h3><p className="text-xs text-[#A0B3A6]">{new Date(atividadeSelecionada.started_at).toLocaleString('pt-BR')}</p></div><button onClick={()=>setAtividadeSelecionada(null)} className="w-9 h-9 rounded-full bg-[#0A1A10] border border-[#1A4026] flex items-center justify-center"><X size={18}/></button></div>{Array.isArray(atividadeSelecionada.route_points)&&atividadeSelecionada.route_points.length?<StreetRouteMap points={atividadeSelecionada.route_points} heightClass="h-64"/>:null}<div className="grid grid-cols-4 gap-2 text-center"><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">PACE</p><p className="font-bold text-sm">{formatPace(atividadeSelecionada.avg_pace_sec_km)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">TEMPO</p><p className="font-bold text-sm">{formatDuration(atividadeSelecionada.duration_seconds)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">GANHO</p><p className="font-bold text-sm">{atividadeSelecionada.elevation_gain_m!=null?`${Math.round(Number(atividadeSelecionada.elevation_gain_m))} m`:'—'}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">MÁX.</p><p className="font-bold text-sm">{atividadeSelecionada.max_elevation_m!=null?`${Math.round(Number(atividadeSelecionada.max_elevation_m))} m`:'—'}</p></div></div><div><h4 className="font-semibold mb-3">Splits detalhados</h4><div className="space-y-2">{Array.isArray(atividadeSelecionada.splits)&&atividadeSelecionada.splits.length?atividadeSelecionada.splits.map((s,i)=><div key={i} className="grid grid-cols-[60px_1fr_80px_70px] items-center bg-[#0A1A10] rounded-xl px-3 py-2 text-xs"><span className="font-bold">{s.parcial?'Final':`KM ${s.km}`}</span><span className="text-[#A0B3A6]">{Number(s.distance_km||1).toFixed(2)} km</span><span className="font-bold">{formatPace(s.pace_sec_km)}/km</span><span className="text-right text-[#D4AF37]">{s.elev_gain_m!=null?`+${Math.round(Number(s.elev_gain_m))} m`:'—'}</span></div>):<p className="text-xs text-[#A0B3A6]">Sem splits disponíveis.</p>}</div></div><div><h4 className="font-semibold mb-3">Zonas de ritmo</h4>{renderZones(atividadeSelecionada)}<p className="text-[9px] text-[#6F8174] mt-2">As zonas são relativas ao ritmo de referência configurado no app e não representam zonas fisiológicas ou cardíacas.</p></div><div className="grid grid-cols-2 gap-2"><button onClick={()=>compartilharCorrida(atividadeSelecionada)} className="border border-[#1A4026] rounded-xl py-3 text-xs text-[#D4AF37] flex items-center justify-center gap-2"><Share2 size={15}/>Compartilhar</button><button onClick={()=>compartilharNoFeed(atividadeSelecionada)} disabled={!!sharingFeedId || !!atividadeSelecionada.shared_to_feed_at} className="bg-[#D4AF37] text-[#051109] rounded-xl py-3 text-xs font-bold disabled:opacity-50">{atividadeSelecionada.shared_to_feed_at?'Já publicado':'Publicar no Feed'}</button></div></div></div>}
     </div>
   );
 };
+
 
 const Perfil = () => {
   const { profile, handleLogout, setProfile, setAdminView } = useApp();
