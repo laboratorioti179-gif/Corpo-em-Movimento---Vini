@@ -3418,7 +3418,7 @@ const AdminPanel = ({ onExitAdmin }) => {
 };
 
 const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
-  <button onClick={onClick} className={`flex flex-col items-center justify-center w-12 sm:w-14 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}`}>
+  <button onClick={onClick} className={`flex flex-col items-center justify-center w-10 sm:w-12 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}`}>
     {isActive && <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#D4AF37] rounded-b-md shadow-[0_2px_8px_rgba(212,175,55,0.5)]" />}
     <Icon size={20} strokeWidth={isActive ? 2 : 1.5} className="mb-1" /><span className="text-[8px] sm:text-[9px] font-medium tracking-wide">{label}</span>
   </button>
@@ -3429,6 +3429,7 @@ const NavBar = () => {
   const navItems = [
     { id: 'inicio', icon: Home, label: 'Início' },
     { id: 'diario', icon: Calendar, label: 'Diário' },
+    { id: 'feed', icon: MessageCircle, label: 'Feed' },
     { id: 'treino', icon: Dumbbell, label: 'Meu Treino' },
     { id: 'progresso', icon: Activity, label: 'Evolução' },
     { id: 'corrida', icon: RunnerIcon, label: 'Corrida' },
