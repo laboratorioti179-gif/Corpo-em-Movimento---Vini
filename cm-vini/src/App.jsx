@@ -744,7 +744,7 @@ const Feed = () => {
   const loadPosts = async () => {
     setLoading(true);
     const { data: postsData } = await supabase.from('feed_posts').select('*');
-    const { data: profilesData } = await supabase.from('profiles').select('*');
+    const { data: profilesData } = await supabase.from('profiles_public').select('id,nome,foto_url');
     const { data: likesData } = await supabase.from('feed_likes').select('*');
     const { data: commentsData } = await supabase.from('feed_comments').select('*');
 
