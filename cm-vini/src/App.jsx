@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 const logoCorpoMovimento = '/logo_cm_semfundo.png';
+const imagemStoryInstagram = '/+1.png';
 
 
 const InstagramStoryIcon = ({ size = 16, className = '' }) => (
@@ -2682,93 +2683,22 @@ const Corrida = () => {
     return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png', 0.92));
   };
 
-  const criarStoryBlob = async (atividade) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1080;
-    canvas.height = 1920;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return null;
-
-    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
-    gradient.addColorStop(0, '#143B21');
-    gradient.addColorStop(0.52, '#0A1A10');
-    gradient.addColorStop(1, '#051109');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1080, 1920);
-
-    // brilho de fundo
-    const glow = ctx.createRadialGradient(540, 650, 80, 540, 650, 650);
-    glow.addColorStop(0, 'rgba(212,175,55,0.12)');
-    glow.addColorStop(1, 'rgba(212,175,55,0)');
-    ctx.fillStyle = glow;
-    ctx.fillRect(0, 0, 1080, 1300);
-
-    ctx.textAlign = 'center';
-    await desenharLogoNoCanvas(ctx, 1080, 95, 330, 210);
-
-    ctx.fillStyle = '#A0B3A6';
-    ctx.font = 'bold 28px Arial';
-    ctx.fillText('MINHA CORRIDA', 540, 365);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 122px Arial';
-    ctx.fillText(`${(Number(atividade.distance_m||0)/1000).toFixed(2)} km`, 540, 520);
-
-    const pts = Array.isArray(atividade.route_points) ? atividade.route_points : [];
-    if (pts.length > 1) {
-      const poly = routePolyline(pts, 820, 600, 45).split(' ').map(p => p.split(',').map(Number));
-      ctx.save();
-      ctx.translate(130, 605);
-      ctx.shadowColor = 'rgba(252,76,2,0.42)';
-      ctx.shadowBlur = 28;
-      ctx.strokeStyle = '#FC4C02';
-      ctx.lineWidth = 18;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      poly.forEach(([x,y], i) => i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
-      ctx.stroke();
-      ctx.restore();
-    } else {
-      ctx.fillStyle = '#1A3020';
-      ctx.beginPath();
-      ctx.arc(540, 900, 190, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#FC4C02';
-      ctx.font = '140px Arial';
-      ctx.fillText('🏃', 540, 950);
+  const criarStoryBlob = async () => {
+    // O arquivo fica em /public/+1.png e, em produção, é servido pela raiz do site.
+    const response = await fetch(imagemStoryInstagram, { cache: 'no-store' });
+    if (!response.ok) {
+      throw new Error(`Imagem do Story não encontrada (${response.status}).`);
     }
 
-    ctx.fillStyle = 'rgba(5,17,9,0.88)';
-    ctx.roundRect(90, 1320, 900, 360, 42);
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(212,175,55,0.28)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    const blob = await response.blob();
+    if (!blob || blob.size === 0) {
+      throw new Error('A imagem do Story está vazia.');
+    }
 
-    const metrics = [
-      [formatPace(atividade.avg_pace_sec_km), 'PACE / KM'],
-      [formatDuration(atividade.duration_seconds), 'TEMPO'],
-      [atividade.elevation_gain_m != null ? `${Math.round(Number(atividade.elevation_gain_m))} m` : '—', 'GANHO']
-    ];
-    metrics.forEach((m, i) => {
-      const x = 240 + i * 300;
-      ctx.fillStyle = '#FFFFFF';
-      ctx.font = 'bold 46px Arial';
-      ctx.fillText(m[0], x, 1485);
-      ctx.fillStyle = '#A0B3A6';
-      ctx.font = '21px Arial';
-      ctx.fillText(m[1], x, 1535);
-    });
-
-    ctx.fillStyle = '#D4AF37';
-    ctx.font = 'italic 34px Arial';
-    ctx.fillText('Cada passo conta.', 540, 1760);
-    ctx.fillStyle = '#6F8174';
-    ctx.font = '22px Arial';
-    ctx.fillText('Corpo em Movimento', 540, 1810);
-
-    return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png', 0.95));
+    // Mantém o tipo correto para o compartilhamento nativo no celular.
+    if (blob.type === 'image/png') return blob;
+    const buffer = await blob.arrayBuffer();
+    return new Blob([buffer], { type: 'image/png' });
   };
 
   const compartilharCorrida = async (atividade) => {
@@ -2791,9 +2721,9 @@ const Corrida = () => {
     if (!atividade) return;
     setStatusMsg('Preparando Story da corrida...');
     try {
-      const blob = await criarStoryBlob(atividade);
+      const blob = await criarStoryBlob();
       if (!blob) throw new Error('Não foi possível gerar a imagem do Story.');
-      const file = new File([blob], 'story-corrida-corpo-em-movimento.png', { type: 'image/png' });
+      const file = new File([blob], 'mais-um-treino-corpo-em-movimento.png', { type: 'image/png' });
 
       if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
         await navigator.share({
