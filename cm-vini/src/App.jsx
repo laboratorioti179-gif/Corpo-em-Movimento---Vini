@@ -2153,6 +2153,19 @@ const Corrida = () => {
   const [atividadeSelecionada, setAtividadeSelecionada] = useState(null);
   const [sharingFeedId, setSharingFeedId] = useState(null);
 
+  // Compartilhamento estilo sticker: abre a câmera dentro do app,
+  // mantém /+1.png transparente na frente e gera uma foto 9:16 pronta para Story.
+  const [cameraStoryOpen, setCameraStoryOpen] = useState(false);
+  const [cameraStoryFacing, setCameraStoryFacing] = useState('environment');
+  const [cameraStoryError, setCameraStoryError] = useState('');
+  const [cameraStoryCaptured, setCameraStoryCaptured] = useState(null);
+  const [stickerScale, setStickerScale] = useState(0.72);
+  const [stickerPos, setStickerPos] = useState({ x: 0.5, y: 0.68 });
+  const [stickerDragging, setStickerDragging] = useState(false);
+  const videoStoryRef = useRef(null);
+  const storyPreviewRef = useRef(null);
+  const cameraStoryStreamRef = useRef(null);
+
   const watchIdRef = useRef(null);
   const timerRef = useRef(null);
   const pausedRef = useRef(false);
@@ -2683,76 +2696,184 @@ const Corrida = () => {
     return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png', 0.92));
   };
 
-  const criarStoryBlob = async () => {
-    // O arquivo fica em /public/+1.png e, em produção, é servido pela raiz do site.
-    const response = await fetch(imagemStoryInstagram, { cache: 'no-store' });
-    if (!response.ok) {
-      throw new Error(`Imagem do Story não encontrada (${response.status}).`);
-    }
+  const carregarImagem = (src) => new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`Não foi possível carregar ${src}`));
+    img.src = src;
+  });
 
-    const blob = await response.blob();
-    if (!blob || blob.size === 0) {
-      throw new Error('A imagem do Story está vazia.');
+  const pararCameraStory = () => {
+    if (cameraStoryStreamRef.current) {
+      cameraStoryStreamRef.current.getTracks().forEach(track => track.stop());
+      cameraStoryStreamRef.current = null;
     }
-
-    // Mantém o tipo correto para o compartilhamento nativo no celular.
-    if (blob.type === 'image/png') return blob;
-    const buffer = await blob.arrayBuffer();
-    return new Blob([buffer], { type: 'image/png' });
+    if (videoStoryRef.current) videoStoryRef.current.srcObject = null;
   };
 
-  const compartilharCorrida = async (atividade) => {
-    const blob = await criarCardBlob(atividade);
-    if (!blob) return;
-    const file = new File([blob], 'corrida-corpo-em-movimento.png', { type: 'image/png' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files:[file] })) {
-      try { await navigator.share({ title:'Minha corrida', text:'Minha corrida no Corpo em Movimento', files:[file] }); } catch(e) { if (e?.name !== 'AbortError') console.error(e); }
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = file.name;
-      a.click();
-      URL.revokeObjectURL(url);
-    }
+  const fecharCameraStory = () => {
+    pararCameraStory();
+    if (cameraStoryCaptured?.url) URL.revokeObjectURL(cameraStoryCaptured.url);
+    setCameraStoryCaptured(null);
+    setCameraStoryError('');
+    setStickerDragging(false);
+    setCameraStoryOpen(false);
   };
 
-  const compartilharStoriesInstagram = async (atividade) => {
-    if (!atividade) return;
-    setStatusMsg('Preparando Story da corrida...');
-    try {
-      const blob = await criarStoryBlob();
-      if (!blob) throw new Error('Não foi possível gerar a imagem do Story.');
-      const file = new File([blob], 'mais-um-treino-corpo-em-movimento.png', { type: 'image/png' });
+  useEffect(() => {
+    if (!cameraStoryOpen || cameraStoryCaptured) return undefined;
+    let cancelado = false;
 
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          title: 'Minha corrida — Corpo em Movimento',
-          files: [file]
+    const iniciar = async () => {
+      pararCameraStory();
+      setCameraStoryError('');
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error('A câmera não está disponível neste navegador.');
+        }
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: cameraStoryFacing },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: false
         });
-        setStatusMsg('Story preparado. Escolha Instagram na tela de compartilhamento.');
+        if (cancelado) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        cameraStoryStreamRef.current = stream;
+        if (videoStoryRef.current) {
+          videoStoryRef.current.srcObject = stream;
+          await videoStoryRef.current.play().catch(() => {});
+        }
+      } catch (e) {
+        console.error(e);
+        setCameraStoryError('Não foi possível abrir a câmera. Verifique a permissão de câmera do navegador.');
+      }
+    };
+
+    iniciar();
+    return () => {
+      cancelado = true;
+      pararCameraStory();
+    };
+  }, [cameraStoryOpen, cameraStoryFacing, cameraStoryCaptured]);
+
+  const abrirCameraStory = () => {
+    if (cameraStoryCaptured?.url) URL.revokeObjectURL(cameraStoryCaptured.url);
+    setCameraStoryCaptured(null);
+    setCameraStoryError('');
+    setStickerScale(0.72);
+    setStickerPos({ x: 0.5, y: 0.68 });
+    setCameraStoryOpen(true);
+  };
+
+  const alternarCameraStory = () => {
+    if (cameraStoryCaptured?.url) URL.revokeObjectURL(cameraStoryCaptured.url);
+    setCameraStoryCaptured(null);
+    setCameraStoryFacing(v => v === 'environment' ? 'user' : 'environment');
+  };
+
+  const atualizarPosSticker = (clientX, clientY) => {
+    const el = storyPreviewRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const x = Math.max(0.12, Math.min(0.88, (clientX - r.left) / r.width));
+    const y = Math.max(0.15, Math.min(0.88, (clientY - r.top) / r.height));
+    setStickerPos({ x, y });
+  };
+
+  const capturarFotoComSticker = async () => {
+    const video = videoStoryRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setCameraStoryError('A câmera ainda está iniciando. Aguarde um instante e tente novamente.');
+      return;
+    }
+
+    setStatusMsg('Preparando foto...');
+    try {
+      const W = 1080;
+      const H = 1920;
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      const vw = video.videoWidth;
+      const vh = video.videoHeight;
+      const scale = Math.max(W / vw, H / vh);
+      const dw = vw * scale;
+      const dh = vh * scale;
+      const dx = (W - dw) / 2;
+      const dy = (H - dh) / 2;
+
+      ctx.save();
+      if (cameraStoryFacing === 'user') {
+        ctx.translate(W, 0);
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -dx - dw, dy, dw, dh);
       } else {
-        const url = URL.createObjectURL(blob);
+        ctx.drawImage(video, dx, dy, dw, dh);
+      }
+      ctx.restore();
+
+      // A imagem transparente enviada pela usuária funciona como o sticker em primeiro plano.
+      const sticker = await carregarImagem(imagemStoryInstagram);
+      const targetW = W * stickerScale;
+      const targetH = targetW * (sticker.naturalHeight / sticker.naturalWidth);
+      const sx = stickerPos.x * W - targetW / 2;
+      const sy = stickerPos.y * H - targetH / 2;
+      ctx.drawImage(sticker, sx, sy, targetW, targetH);
+
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png', 1));
+      if (!blob) throw new Error('Não foi possível criar a imagem.');
+      pararCameraStory();
+      const url = URL.createObjectURL(blob);
+      setCameraStoryCaptured({ blob, url });
+      setStatusMsg('Foto pronta para compartilhar.');
+    } catch (e) {
+      console.error(e);
+      setCameraStoryError('Não foi possível montar a foto com a imagem +1.');
+    } finally {
+      setTimeout(() => setStatusMsg(''), 3500);
+    }
+  };
+
+  const refazerFotoStory = () => {
+    if (cameraStoryCaptured?.url) URL.revokeObjectURL(cameraStoryCaptured.url);
+    setCameraStoryCaptured(null);
+    setCameraStoryError('');
+  };
+
+  const compartilharFotoStory = async () => {
+    const blob = cameraStoryCaptured?.blob;
+    if (!blob) return;
+    const file = new File([blob], 'corpo-em-movimento-mais-um.png', { type: 'image/png' });
+    try {
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'Corpo em Movimento', files: [file] });
+        setStatusMsg('Escolha Instagram para publicar no Story.');
+      } else {
         const a = document.createElement('a');
-        a.href = url;
+        a.href = cameraStoryCaptured.url;
         a.download = file.name;
         document.body.appendChild(a);
         a.click();
         a.remove();
-        URL.revokeObjectURL(url);
-        setStatusMsg('Imagem pronta para compartilhar. Abra o Instagram e publique em Seu story.');
+        setStatusMsg('Imagem salva. Abra o Instagram e publique no Story.');
       }
     } catch (e) {
-      if (e?.name === 'AbortError') {
-        setStatusMsg('Compartilhamento cancelado.');
-      } else {
+      if (e?.name !== 'AbortError') {
         console.error(e);
-        setStatusMsg('Não foi possível preparar o Story do Instagram.');
+        setStatusMsg('Não foi possível abrir o compartilhamento.');
       }
-    } finally {
-      setTimeout(() => setStatusMsg(''), 4500);
     }
   };
+
+  // Mantém o nome usado pelos botões existentes.
+  const compartilharStoriesInstagram = () => abrirCameraStory();
 
   const compartilharNoFeed = async (atividade) => {
     if (!atividade || sharingFeedId) return;
@@ -2881,6 +3002,70 @@ const Corrida = () => {
       <div><div className="flex items-center justify-between mb-3"><div><h4 className="font-semibold text-lg">Atividades recentes</h4><p className="text-[10px] text-[#A0B3A6]">Toque em uma corrida para ver os detalhes.</p></div></div>{loadingAtividades?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center text-[#A0B3A6] text-sm">Carregando atividades...</div>:atividades.length===0?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center"><Navigation size={30} className="text-[#D4AF37] mx-auto mb-3"/><p className="font-medium">Sua primeira corrida aparecerá aqui.</p></div>:<div className="space-y-3">{atividades.slice(0,8).map(a=><div key={a.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden"><button onClick={()=>setAtividadeSelecionada(a)} className="w-full text-left"><div className="p-4 flex items-start justify-between"><div><div className="flex items-center gap-2"><Navigation size={16} className="text-[#FC4C02]"/><p className="font-bold">Corrida</p></div><p className="text-[10px] text-[#A0B3A6] mt-1">{new Date(a.started_at).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})} • {new Date(a.started_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p></div><ChevronRight size={18} className="text-[#A0B3A6]"/></div><div className="grid grid-cols-4 gap-2 px-4 pb-4 text-center"><div><p className="text-[8px] text-[#A0B3A6] uppercase">Distância</p><p className="font-bold text-xs">{(Number(a.distance_m||0)/1000).toFixed(2)} km</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Pace</p><p className="font-bold text-xs">{formatPace(a.avg_pace_sec_km)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Tempo</p><p className="font-bold text-xs">{formatDuration(a.duration_seconds)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Elevação</p><p className="font-bold text-xs">{a.elevation_gain_m!=null?`${Math.round(Number(a.elevation_gain_m))} m`:'—'}</p></div></div></button><div className="border-t border-[#1A4026] p-3 grid grid-cols-3 gap-2"><button onClick={()=>compartilharStoriesInstagram(a)} className="rounded-xl py-2 text-[10px] text-white font-semibold flex items-center justify-center gap-1 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] active:scale-95"><InstagramStoryIcon size={14}/>Compartilhar</button><button onClick={()=>compartilharCorrida(a)} className="border border-[#1A4026] rounded-xl py-2 text-[10px] text-[#D4AF37] flex items-center justify-center gap-1"><Share2 size={14}/>Resultado</button><button onClick={()=>compartilharNoFeed(a)} disabled={!!sharingFeedId || !!a.shared_to_feed_at} className="bg-[#1A3020] border border-[#D4AF37]/30 rounded-xl py-2 text-[10px] text-[#D4AF37] disabled:opacity-50">{a.shared_to_feed_at?'No Feed':sharingFeedId===a.id?'Publicando...':'Feed'}</button></div></div>)}</div>}</div>
 
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex gap-3 items-start"><Clock size={20} className="text-[#D4AF37] shrink-0 mt-0.5"/><div><p className="text-xs font-medium">Sobre o rastreamento</p><p className="text-[10px] text-[#A0B3A6] mt-1 leading-relaxed">O GPS funciona melhor ao ar livre, com localização precisa permitida. O mapa usa OpenStreetMap. A elevação é calculada localmente com a altitude fornecida pelo GPS, quando o aparelho disponibiliza esse dado. Em navegadores móveis, bloquear a tela pode interromper o rastreamento.</p></div></div>
+
+      {cameraStoryOpen && (
+        <div className="fixed inset-0 z-[110] bg-black flex flex-col items-center justify-center">
+          <div className="w-full max-w-md h-full sm:h-[92vh] sm:rounded-3xl overflow-hidden bg-black relative flex flex-col">
+            <div className="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-3 bg-gradient-to-b from-black/75 to-transparent">
+              <button onClick={fecharCameraStory} className="w-10 h-10 rounded-full bg-black/45 backdrop-blur flex items-center justify-center text-white" aria-label="Fechar"><X size={21}/></button>
+              <div className="text-center"><p className="text-white font-bold text-sm">Compartilhar</p><p className="text-white/70 text-[9px]">Arraste e redimensione o +1</p></div>
+              <button onClick={alternarCameraStory} disabled={!!cameraStoryCaptured} className="w-10 h-10 rounded-full bg-black/45 backdrop-blur flex items-center justify-center text-white disabled:opacity-40" aria-label="Trocar câmera"><RotateCcw size={19}/></button>
+            </div>
+
+            <div ref={storyPreviewRef} className="relative flex-1 min-h-0 bg-black overflow-hidden touch-none">
+              {cameraStoryCaptured ? (
+                <img src={cameraStoryCaptured.url} alt="Foto pronta para Story" className="absolute inset-0 w-full h-full object-cover" />
+              ) : (
+                <>
+                  <video ref={videoStoryRef} playsInline muted autoPlay className={`absolute inset-0 w-full h-full object-cover ${cameraStoryFacing === 'user' ? '-scale-x-100' : ''}`} />
+                  <img
+                    src={imagemStoryInstagram}
+                    alt="Corpo em Movimento +1"
+                    draggable="false"
+                    onPointerDown={(e)=>{ e.preventDefault(); e.currentTarget.setPointerCapture?.(e.pointerId); setStickerDragging(true); atualizarPosSticker(e.clientX,e.clientY); }}
+                    onPointerMove={(e)=>{ if(stickerDragging){ e.preventDefault(); atualizarPosSticker(e.clientX,e.clientY); } }}
+                    onPointerUp={()=>setStickerDragging(false)}
+                    onPointerCancel={()=>setStickerDragging(false)}
+                    className="absolute z-20 select-none cursor-move drop-shadow-2xl"
+                    style={{
+                      width: `${stickerScale * 100}%`,
+                      left: `${stickerPos.x * 100}%`,
+                      top: `${stickerPos.y * 100}%`,
+                      transform: 'translate(-50%, -50%)',
+                      touchAction: 'none'
+                    }}
+                  />
+                </>
+              )}
+
+              {cameraStoryError && <div className="absolute z-40 left-4 right-4 top-24 bg-red-950/85 border border-red-500/40 rounded-2xl p-4 text-center text-xs text-red-100">{cameraStoryError}</div>}
+            </div>
+
+            <div className="relative z-30 bg-black px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+              {!cameraStoryCaptured ? (
+                <>
+                  <div className="flex items-center justify-center gap-4 mb-4">
+                    <button onClick={()=>setStickerScale(v=>Math.max(0.34, Number((v-0.08).toFixed(2))))} className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center" aria-label="Diminuir imagem"><Minus size={18}/></button>
+                    <span className="text-white/70 text-[10px] min-w-24 text-center">Tamanho do +1</span>
+                    <button onClick={()=>setStickerScale(v=>Math.min(0.95, Number((v+0.08).toFixed(2))))} className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center" aria-label="Aumentar imagem"><Plus size={18}/></button>
+                  </div>
+                  <div className="flex justify-center">
+                    <button onClick={capturarFotoComSticker} disabled={!!cameraStoryError} className="w-20 h-20 rounded-full border-[5px] border-white flex items-center justify-center disabled:opacity-40 active:scale-95 transition-transform">
+                      <span className="w-14 h-14 rounded-full bg-white block" />
+                    </button>
+                  </div>
+                  <p className="text-white/60 text-[10px] text-center mt-3">Tire a foto já com a imagem +1 na frente.</p>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={refazerFotoStory} className="border border-white/25 text-white rounded-xl py-3 font-semibold text-sm flex items-center justify-center gap-2"><RotateCcw size={17}/>Refazer</button>
+                  <button onClick={compartilharFotoStory} className="bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] text-white rounded-xl py-3 font-bold text-sm flex items-center justify-center gap-2"><InstagramStoryIcon size={17}/>Compartilhar</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {atividadeSelecionada && <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"><div className="w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar bg-[#07140C] border border-[#1A4026] rounded-t-3xl sm:rounded-3xl p-5 space-y-5"><div className="flex items-start justify-between"><div><p className="text-[#FC4C02] text-[10px] uppercase font-bold tracking-wider">Detalhes da corrida</p><h3 className="text-2xl font-bold">{(Number(atividadeSelecionada.distance_m||0)/1000).toFixed(2)} km</h3><p className="text-xs text-[#A0B3A6]">{new Date(atividadeSelecionada.started_at).toLocaleString('pt-BR')}</p></div><button onClick={()=>setAtividadeSelecionada(null)} className="w-9 h-9 rounded-full bg-[#0A1A10] border border-[#1A4026] flex items-center justify-center"><X size={18}/></button></div>{Array.isArray(atividadeSelecionada.route_points)&&atividadeSelecionada.route_points.length?<StreetRouteMap points={atividadeSelecionada.route_points} heightClass="h-64"/>:null}<div className="grid grid-cols-4 gap-2 text-center"><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">PACE</p><p className="font-bold text-sm">{formatPace(atividadeSelecionada.avg_pace_sec_km)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">TEMPO</p><p className="font-bold text-sm">{formatDuration(atividadeSelecionada.duration_seconds)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">GANHO</p><p className="font-bold text-sm">{atividadeSelecionada.elevation_gain_m!=null?`${Math.round(Number(atividadeSelecionada.elevation_gain_m))} m`:'—'}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">MÁX.</p><p className="font-bold text-sm">{atividadeSelecionada.max_elevation_m!=null?`${Math.round(Number(atividadeSelecionada.max_elevation_m))} m`:'—'}</p></div></div><div><h4 className="font-semibold mb-3">Splits detalhados</h4><div className="space-y-2">{Array.isArray(atividadeSelecionada.splits)&&atividadeSelecionada.splits.length?atividadeSelecionada.splits.map((s,i)=><div key={i} className="grid grid-cols-[60px_1fr_80px_70px] items-center bg-[#0A1A10] rounded-xl px-3 py-2 text-xs"><span className="font-bold">{s.parcial?'Final':`KM ${s.km}`}</span><span className="text-[#A0B3A6]">{Number(s.distance_km||1).toFixed(2)} km</span><span className="font-bold">{formatPace(s.pace_sec_km)}/km</span><span className="text-right text-[#D4AF37]">{s.elev_gain_m!=null?`+${Math.round(Number(s.elev_gain_m))} m`:'—'}</span></div>):<p className="text-xs text-[#A0B3A6]">Sem splits disponíveis.</p>}</div></div><div><h4 className="font-semibold mb-3">Zonas de ritmo</h4>{renderZones(atividadeSelecionada)}<p className="text-[9px] text-[#6F8174] mt-2">As zonas são relativas ao ritmo de referência configurado no app e não representam zonas fisiológicas ou cardíacas.</p></div><div className="grid grid-cols-3 gap-2"><button onClick={()=>compartilharStoriesInstagram(atividadeSelecionada)} className="rounded-xl py-3 text-[11px] text-white font-bold flex items-center justify-center gap-1 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] active:scale-95"><InstagramStoryIcon size={15}/>Compartilhar</button><button onClick={()=>compartilharCorrida(atividadeSelecionada)} className="border border-[#1A4026] rounded-xl py-3 text-[11px] text-[#D4AF37] flex items-center justify-center gap-1"><Share2 size={15}/>Resultado</button><button onClick={()=>compartilharNoFeed(atividadeSelecionada)} disabled={!!sharingFeedId || !!atividadeSelecionada.shared_to_feed_at} className="bg-[#D4AF37] text-[#051109] rounded-xl py-3 text-[11px] font-bold disabled:opacity-50">{atividadeSelecionada.shared_to_feed_at?'No Feed':'Feed'}</button></div></div></div>}
     </div>
