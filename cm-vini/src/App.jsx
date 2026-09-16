@@ -4,7 +4,7 @@ import {
   Target, Award, Settings, LogOut, ChevronLeft, Droplets, Plus, Minus, ShieldCheck,
   Edit2, Save, TrendingUp, DollarSign, Calendar, FileText, ImageIcon, Camera, RotateCcw,
   MessageCircle, Send, Heart, MoreVertical, X, CheckCircle,
-  Footprints, Play, Pause, Square, MapPin, Clock, Share2, Navigation
+  Footprints, Play, Pause, Square, MapPin, Clock, Share2, Navigation, Instagram
 } from 'lucide-react';
 
 const logoCorpoMovimento = '/logo_cm_semfundo.png';
@@ -2589,33 +2589,55 @@ const Corrida = () => {
     setStatusMsg('Corrida salva com sucesso!');
   };
 
-  const criarCardBlob = (atividade) => new Promise((resolve) => {
+  const carregarImagemCanvas = (src) => new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+
+  const desenharLogoNoCanvas = async (ctx, canvasWidth, y, maxWidth = 260, maxHeight = 220) => {
+    const logo = await carregarImagemCanvas(logoCorpoMovimento);
+    if (!logo) {
+      ctx.fillStyle = '#D4AF37';
+      ctx.font = 'italic bold 48px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Corpo em Movimento', canvasWidth / 2, y + 55);
+      return;
+    }
+    const scale = Math.min(maxWidth / logo.width, maxHeight / logo.height);
+    const w = logo.width * scale;
+    const h = logo.height * scale;
+    ctx.drawImage(logo, (canvasWidth - w) / 2, y, w, h);
+  };
+
+  const criarCardBlob = async (atividade) => {
     const canvas = document.createElement('canvas');
     canvas.width = 1080;
     canvas.height = 1350;
     const ctx = canvas.getContext('2d');
-    if (!ctx) return resolve(null);
+    if (!ctx) return null;
     const gradient = ctx.createLinearGradient(0, 0, 0, 1350);
     gradient.addColorStop(0, '#102417');
     gradient.addColorStop(1, '#051109');
     ctx.fillStyle = gradient;
     ctx.fillRect(0,0,1080,1350);
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#D4AF37';
-    ctx.font = 'italic bold 55px Arial';
-    ctx.fillText('Corpo em Movimento', 540, 105);
+
+    await desenharLogoNoCanvas(ctx, 1080, 42, 250, 150);
+
     ctx.fillStyle = '#FFFFFF';
     ctx.font = 'bold 92px Arial';
-    ctx.fillText(`${(Number(atividade.distance_m||0)/1000).toFixed(2)} km`, 540, 250);
+    ctx.fillText(`${(Number(atividade.distance_m||0)/1000).toFixed(2)} km`, 540, 270);
     ctx.fillStyle = '#A0B3A6';
     ctx.font = '28px Arial';
-    ctx.fillText('CORRIDA', 540, 300);
+    ctx.fillText('CORRIDA', 540, 320);
 
     const pts = Array.isArray(atividade.route_points) ? atividade.route_points : [];
     if (pts.length > 1) {
       const poly = routePolyline(pts, 860, 430, 35).split(' ').map(p => p.split(',').map(Number));
       ctx.save();
-      ctx.translate(110, 360);
+      ctx.translate(110, 375);
       ctx.strokeStyle = '#FC4C02';
       ctx.lineWidth = 14;
       ctx.lineCap = 'round';
@@ -2646,8 +2668,97 @@ const Corrida = () => {
     ctx.fillStyle = '#D4AF37';
     ctx.font = '28px Arial';
     ctx.fillText('Cada passo conta.', 540, 1260);
-    canvas.toBlob(blob => resolve(blob), 'image/png', 0.92);
-  });
+    return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png', 0.92));
+  };
+
+  const criarStoryBlob = async (atividade) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, 1920);
+    gradient.addColorStop(0, '#143B21');
+    gradient.addColorStop(0.52, '#0A1A10');
+    gradient.addColorStop(1, '#051109');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1080, 1920);
+
+    // brilho de fundo
+    const glow = ctx.createRadialGradient(540, 650, 80, 540, 650, 650);
+    glow.addColorStop(0, 'rgba(212,175,55,0.12)');
+    glow.addColorStop(1, 'rgba(212,175,55,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, 1080, 1300);
+
+    ctx.textAlign = 'center';
+    await desenharLogoNoCanvas(ctx, 1080, 95, 330, 210);
+
+    ctx.fillStyle = '#A0B3A6';
+    ctx.font = 'bold 28px Arial';
+    ctx.fillText('MINHA CORRIDA', 540, 365);
+
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 122px Arial';
+    ctx.fillText(`${(Number(atividade.distance_m||0)/1000).toFixed(2)} km`, 540, 520);
+
+    const pts = Array.isArray(atividade.route_points) ? atividade.route_points : [];
+    if (pts.length > 1) {
+      const poly = routePolyline(pts, 820, 600, 45).split(' ').map(p => p.split(',').map(Number));
+      ctx.save();
+      ctx.translate(130, 605);
+      ctx.shadowColor = 'rgba(252,76,2,0.42)';
+      ctx.shadowBlur = 28;
+      ctx.strokeStyle = '#FC4C02';
+      ctx.lineWidth = 18;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      poly.forEach(([x,y], i) => i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#1A3020';
+      ctx.beginPath();
+      ctx.arc(540, 900, 190, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#FC4C02';
+      ctx.font = '140px Arial';
+      ctx.fillText('🏃', 540, 950);
+    }
+
+    ctx.fillStyle = 'rgba(5,17,9,0.88)';
+    ctx.roundRect(90, 1320, 900, 360, 42);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(212,175,55,0.28)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const metrics = [
+      [formatPace(atividade.avg_pace_sec_km), 'PACE / KM'],
+      [formatDuration(atividade.duration_seconds), 'TEMPO'],
+      [atividade.elevation_gain_m != null ? `${Math.round(Number(atividade.elevation_gain_m))} m` : '—', 'GANHO']
+    ];
+    metrics.forEach((m, i) => {
+      const x = 240 + i * 300;
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = 'bold 46px Arial';
+      ctx.fillText(m[0], x, 1485);
+      ctx.fillStyle = '#A0B3A6';
+      ctx.font = '21px Arial';
+      ctx.fillText(m[1], x, 1535);
+    });
+
+    ctx.fillStyle = '#D4AF37';
+    ctx.font = 'italic 34px Arial';
+    ctx.fillText('Cada passo conta.', 540, 1760);
+    ctx.fillStyle = '#6F8174';
+    ctx.font = '22px Arial';
+    ctx.fillText('Corpo em Movimento', 540, 1810);
+
+    return await new Promise(resolve => canvas.toBlob(blob => resolve(blob), 'image/png', 0.95));
+  };
 
   const compartilharCorrida = async (atividade) => {
     const blob = await criarCardBlob(atividade);
@@ -2662,6 +2773,43 @@ const Corrida = () => {
       a.download = file.name;
       a.click();
       URL.revokeObjectURL(url);
+    }
+  };
+
+  const compartilharStoriesInstagram = async (atividade) => {
+    if (!atividade) return;
+    setStatusMsg('Preparando Story da corrida...');
+    try {
+      const blob = await criarStoryBlob(atividade);
+      if (!blob) throw new Error('Não foi possível gerar a imagem do Story.');
+      const file = new File([blob], 'story-corrida-corpo-em-movimento.png', { type: 'image/png' });
+
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: 'Minha corrida — Corpo em Movimento',
+          files: [file]
+        });
+        setStatusMsg('Story preparado. Escolha Instagram na tela de compartilhamento.');
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        setStatusMsg('Imagem do Story salva. Abra o Instagram e publique em Seu story.');
+      }
+    } catch (e) {
+      if (e?.name === 'AbortError') {
+        setStatusMsg('Compartilhamento cancelado.');
+      } else {
+        console.error(e);
+        setStatusMsg('Não foi possível preparar o Story do Instagram.');
+      }
+    } finally {
+      setTimeout(() => setStatusMsg(''), 4500);
     }
   };
 
@@ -2789,11 +2937,11 @@ const Corrida = () => {
 
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4"><div className="flex items-center justify-between mb-3"><div><h4 className="font-semibold">Conquistas</h4><p className="text-[10px] text-[#A0B3A6]">Marcos desbloqueados</p></div><Award size={20} className="text-[#D4AF37]"/></div>{conquistas.length?<div className="flex gap-2 overflow-x-auto custom-scrollbar pb-1">{conquistas.slice(0,10).map(c=><div key={c.id} className="min-w-[150px] bg-[#051109] border border-[#D4AF37]/25 rounded-xl p-3"><div className="w-8 h-8 rounded-full bg-[#D4AF37]/15 flex items-center justify-center mb-2"><Award size={16} className="text-[#D4AF37]"/></div><p className="text-xs font-bold">{c.title}</p><p className="text-[9px] text-[#A0B3A6] mt-1 leading-snug">{c.description}</p></div>)}</div>:<p className="text-xs text-[#A0B3A6]">Conclua sua primeira corrida para desbloquear a primeira conquista.</p>}</div>
 
-      <div><div className="flex items-center justify-between mb-3"><div><h4 className="font-semibold text-lg">Atividades recentes</h4><p className="text-[10px] text-[#A0B3A6]">Toque em uma corrida para ver os detalhes.</p></div></div>{loadingAtividades?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center text-[#A0B3A6] text-sm">Carregando atividades...</div>:atividades.length===0?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center"><Navigation size={30} className="text-[#D4AF37] mx-auto mb-3"/><p className="font-medium">Sua primeira corrida aparecerá aqui.</p></div>:<div className="space-y-3">{atividades.slice(0,8).map(a=><div key={a.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden"><button onClick={()=>setAtividadeSelecionada(a)} className="w-full text-left"><div className="p-4 flex items-start justify-between"><div><div className="flex items-center gap-2"><Navigation size={16} className="text-[#FC4C02]"/><p className="font-bold">Corrida</p></div><p className="text-[10px] text-[#A0B3A6] mt-1">{new Date(a.started_at).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})} • {new Date(a.started_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p></div><ChevronRight size={18} className="text-[#A0B3A6]"/></div><div className="grid grid-cols-4 gap-2 px-4 pb-4 text-center"><div><p className="text-[8px] text-[#A0B3A6] uppercase">Distância</p><p className="font-bold text-xs">{(Number(a.distance_m||0)/1000).toFixed(2)} km</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Pace</p><p className="font-bold text-xs">{formatPace(a.avg_pace_sec_km)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Tempo</p><p className="font-bold text-xs">{formatDuration(a.duration_seconds)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Elevação</p><p className="font-bold text-xs">{a.elevation_gain_m!=null?`${Math.round(Number(a.elevation_gain_m))} m`:'—'}</p></div></div></button><div className="border-t border-[#1A4026] p-3 flex gap-2"><button onClick={()=>compartilharCorrida(a)} className="flex-1 border border-[#1A4026] rounded-xl py-2 text-[10px] text-[#D4AF37] flex items-center justify-center gap-1"><Share2 size={14}/>Compartilhar</button><button onClick={()=>compartilharNoFeed(a)} disabled={!!sharingFeedId || !!a.shared_to_feed_at} className="flex-1 bg-[#1A3020] border border-[#D4AF37]/30 rounded-xl py-2 text-[10px] text-[#D4AF37] disabled:opacity-50">{a.shared_to_feed_at?'Publicado no Feed':sharingFeedId===a.id?'Publicando...':'Publicar no Feed'}</button></div></div>)}</div>}</div>
+      <div><div className="flex items-center justify-between mb-3"><div><h4 className="font-semibold text-lg">Atividades recentes</h4><p className="text-[10px] text-[#A0B3A6]">Toque em uma corrida para ver os detalhes.</p></div></div>{loadingAtividades?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center text-[#A0B3A6] text-sm">Carregando atividades...</div>:atividades.length===0?<div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-6 text-center"><Navigation size={30} className="text-[#D4AF37] mx-auto mb-3"/><p className="font-medium">Sua primeira corrida aparecerá aqui.</p></div>:<div className="space-y-3">{atividades.slice(0,8).map(a=><div key={a.id} className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl overflow-hidden"><button onClick={()=>setAtividadeSelecionada(a)} className="w-full text-left"><div className="p-4 flex items-start justify-between"><div><div className="flex items-center gap-2"><Navigation size={16} className="text-[#FC4C02]"/><p className="font-bold">Corrida</p></div><p className="text-[10px] text-[#A0B3A6] mt-1">{new Date(a.started_at).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short'})} • {new Date(a.started_at).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</p></div><ChevronRight size={18} className="text-[#A0B3A6]"/></div><div className="grid grid-cols-4 gap-2 px-4 pb-4 text-center"><div><p className="text-[8px] text-[#A0B3A6] uppercase">Distância</p><p className="font-bold text-xs">{(Number(a.distance_m||0)/1000).toFixed(2)} km</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Pace</p><p className="font-bold text-xs">{formatPace(a.avg_pace_sec_km)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Tempo</p><p className="font-bold text-xs">{formatDuration(a.duration_seconds)}</p></div><div><p className="text-[8px] text-[#A0B3A6] uppercase">Elevação</p><p className="font-bold text-xs">{a.elevation_gain_m!=null?`${Math.round(Number(a.elevation_gain_m))} m`:'—'}</p></div></div></button><div className="border-t border-[#1A4026] p-3 grid grid-cols-3 gap-2"><button onClick={()=>compartilharStoriesInstagram(a)} className="rounded-xl py-2 text-[10px] text-white font-semibold flex items-center justify-center gap-1 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] active:scale-95"><Instagram size={14}/>Stories</button><button onClick={()=>compartilharCorrida(a)} className="border border-[#1A4026] rounded-xl py-2 text-[10px] text-[#D4AF37] flex items-center justify-center gap-1"><Share2 size={14}/>Compartilhar</button><button onClick={()=>compartilharNoFeed(a)} disabled={!!sharingFeedId || !!a.shared_to_feed_at} className="bg-[#1A3020] border border-[#D4AF37]/30 rounded-xl py-2 text-[10px] text-[#D4AF37] disabled:opacity-50">{a.shared_to_feed_at?'No Feed':sharingFeedId===a.id?'Publicando...':'Feed'}</button></div></div>)}</div>}</div>
 
       <div className="bg-[#0A1A10] border border-[#1A4026] rounded-2xl p-4 flex gap-3 items-start"><Clock size={20} className="text-[#D4AF37] shrink-0 mt-0.5"/><div><p className="text-xs font-medium">Sobre o rastreamento</p><p className="text-[10px] text-[#A0B3A6] mt-1 leading-relaxed">O GPS funciona melhor ao ar livre, com localização precisa permitida. O mapa usa OpenStreetMap. A elevação é calculada localmente com a altitude fornecida pelo GPS, quando o aparelho disponibiliza esse dado. Em navegadores móveis, bloquear a tela pode interromper o rastreamento.</p></div></div>
 
-      {atividadeSelecionada && <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"><div className="w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar bg-[#07140C] border border-[#1A4026] rounded-t-3xl sm:rounded-3xl p-5 space-y-5"><div className="flex items-start justify-between"><div><p className="text-[#FC4C02] text-[10px] uppercase font-bold tracking-wider">Detalhes da corrida</p><h3 className="text-2xl font-bold">{(Number(atividadeSelecionada.distance_m||0)/1000).toFixed(2)} km</h3><p className="text-xs text-[#A0B3A6]">{new Date(atividadeSelecionada.started_at).toLocaleString('pt-BR')}</p></div><button onClick={()=>setAtividadeSelecionada(null)} className="w-9 h-9 rounded-full bg-[#0A1A10] border border-[#1A4026] flex items-center justify-center"><X size={18}/></button></div>{Array.isArray(atividadeSelecionada.route_points)&&atividadeSelecionada.route_points.length?<StreetRouteMap points={atividadeSelecionada.route_points} heightClass="h-64"/>:null}<div className="grid grid-cols-4 gap-2 text-center"><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">PACE</p><p className="font-bold text-sm">{formatPace(atividadeSelecionada.avg_pace_sec_km)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">TEMPO</p><p className="font-bold text-sm">{formatDuration(atividadeSelecionada.duration_seconds)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">GANHO</p><p className="font-bold text-sm">{atividadeSelecionada.elevation_gain_m!=null?`${Math.round(Number(atividadeSelecionada.elevation_gain_m))} m`:'—'}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">MÁX.</p><p className="font-bold text-sm">{atividadeSelecionada.max_elevation_m!=null?`${Math.round(Number(atividadeSelecionada.max_elevation_m))} m`:'—'}</p></div></div><div><h4 className="font-semibold mb-3">Splits detalhados</h4><div className="space-y-2">{Array.isArray(atividadeSelecionada.splits)&&atividadeSelecionada.splits.length?atividadeSelecionada.splits.map((s,i)=><div key={i} className="grid grid-cols-[60px_1fr_80px_70px] items-center bg-[#0A1A10] rounded-xl px-3 py-2 text-xs"><span className="font-bold">{s.parcial?'Final':`KM ${s.km}`}</span><span className="text-[#A0B3A6]">{Number(s.distance_km||1).toFixed(2)} km</span><span className="font-bold">{formatPace(s.pace_sec_km)}/km</span><span className="text-right text-[#D4AF37]">{s.elev_gain_m!=null?`+${Math.round(Number(s.elev_gain_m))} m`:'—'}</span></div>):<p className="text-xs text-[#A0B3A6]">Sem splits disponíveis.</p>}</div></div><div><h4 className="font-semibold mb-3">Zonas de ritmo</h4>{renderZones(atividadeSelecionada)}<p className="text-[9px] text-[#6F8174] mt-2">As zonas são relativas ao ritmo de referência configurado no app e não representam zonas fisiológicas ou cardíacas.</p></div><div className="grid grid-cols-2 gap-2"><button onClick={()=>compartilharCorrida(atividadeSelecionada)} className="border border-[#1A4026] rounded-xl py-3 text-xs text-[#D4AF37] flex items-center justify-center gap-2"><Share2 size={15}/>Compartilhar</button><button onClick={()=>compartilharNoFeed(atividadeSelecionada)} disabled={!!sharingFeedId || !!atividadeSelecionada.shared_to_feed_at} className="bg-[#D4AF37] text-[#051109] rounded-xl py-3 text-xs font-bold disabled:opacity-50">{atividadeSelecionada.shared_to_feed_at?'Já publicado':'Publicar no Feed'}</button></div></div></div>}
+      {atividadeSelecionada && <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"><div className="w-full max-w-lg max-h-[92vh] overflow-y-auto custom-scrollbar bg-[#07140C] border border-[#1A4026] rounded-t-3xl sm:rounded-3xl p-5 space-y-5"><div className="flex items-start justify-between"><div><p className="text-[#FC4C02] text-[10px] uppercase font-bold tracking-wider">Detalhes da corrida</p><h3 className="text-2xl font-bold">{(Number(atividadeSelecionada.distance_m||0)/1000).toFixed(2)} km</h3><p className="text-xs text-[#A0B3A6]">{new Date(atividadeSelecionada.started_at).toLocaleString('pt-BR')}</p></div><button onClick={()=>setAtividadeSelecionada(null)} className="w-9 h-9 rounded-full bg-[#0A1A10] border border-[#1A4026] flex items-center justify-center"><X size={18}/></button></div>{Array.isArray(atividadeSelecionada.route_points)&&atividadeSelecionada.route_points.length?<StreetRouteMap points={atividadeSelecionada.route_points} heightClass="h-64"/>:null}<div className="grid grid-cols-4 gap-2 text-center"><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">PACE</p><p className="font-bold text-sm">{formatPace(atividadeSelecionada.avg_pace_sec_km)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">TEMPO</p><p className="font-bold text-sm">{formatDuration(atividadeSelecionada.duration_seconds)}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">GANHO</p><p className="font-bold text-sm">{atividadeSelecionada.elevation_gain_m!=null?`${Math.round(Number(atividadeSelecionada.elevation_gain_m))} m`:'—'}</p></div><div className="bg-[#0A1A10] rounded-xl p-2"><p className="text-[8px] text-[#A0B3A6]">MÁX.</p><p className="font-bold text-sm">{atividadeSelecionada.max_elevation_m!=null?`${Math.round(Number(atividadeSelecionada.max_elevation_m))} m`:'—'}</p></div></div><div><h4 className="font-semibold mb-3">Splits detalhados</h4><div className="space-y-2">{Array.isArray(atividadeSelecionada.splits)&&atividadeSelecionada.splits.length?atividadeSelecionada.splits.map((s,i)=><div key={i} className="grid grid-cols-[60px_1fr_80px_70px] items-center bg-[#0A1A10] rounded-xl px-3 py-2 text-xs"><span className="font-bold">{s.parcial?'Final':`KM ${s.km}`}</span><span className="text-[#A0B3A6]">{Number(s.distance_km||1).toFixed(2)} km</span><span className="font-bold">{formatPace(s.pace_sec_km)}/km</span><span className="text-right text-[#D4AF37]">{s.elev_gain_m!=null?`+${Math.round(Number(s.elev_gain_m))} m`:'—'}</span></div>):<p className="text-xs text-[#A0B3A6]">Sem splits disponíveis.</p>}</div></div><div><h4 className="font-semibold mb-3">Zonas de ritmo</h4>{renderZones(atividadeSelecionada)}<p className="text-[9px] text-[#6F8174] mt-2">As zonas são relativas ao ritmo de referência configurado no app e não representam zonas fisiológicas ou cardíacas.</p></div><div className="grid grid-cols-3 gap-2"><button onClick={()=>compartilharStoriesInstagram(atividadeSelecionada)} className="rounded-xl py-3 text-[11px] text-white font-bold flex items-center justify-center gap-1 bg-gradient-to-r from-[#833AB4] via-[#E1306C] to-[#F77737] active:scale-95"><Instagram size={15}/>Stories</button><button onClick={()=>compartilharCorrida(atividadeSelecionada)} className="border border-[#1A4026] rounded-xl py-3 text-[11px] text-[#D4AF37] flex items-center justify-center gap-1"><Share2 size={15}/>Compartilhar</button><button onClick={()=>compartilharNoFeed(atividadeSelecionada)} disabled={!!sharingFeedId || !!atividadeSelecionada.shared_to_feed_at} className="bg-[#D4AF37] text-[#051109] rounded-xl py-3 text-[11px] font-bold disabled:opacity-50">{atividadeSelecionada.shared_to_feed_at?'No Feed':'Feed'}</button></div></div></div>}
     </div>
   );
 };
