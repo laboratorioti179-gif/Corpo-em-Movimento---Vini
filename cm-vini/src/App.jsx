@@ -124,7 +124,12 @@ export const supabase = {
     getSession: async () => {
       const stored = localStorage.getItem('sb-session');
       if (stored) {
-        currentSession = JSON.parse(stored);
+        try { currentSession = JSON.parse(stored); } catch (_) { localStorage.removeItem('sb-session'); return { data: { session: null }, error: null }; }
+        if (currentSession?.refresh_token && currentSession?.expires_at && currentSession.expires_at - Date.now()/1000 < 120) {
+          const response = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=refresh_token`, { method:'POST', headers: { apikey: supabaseAnonKey, 'Content-Type':'application/json' }, body: JSON.stringify({refresh_token: currentSession.refresh_token}) });
+          if (response.ok) { const refreshed = await response.json(); currentSession = { user: refreshed.user || currentSession.user, access_token: refreshed.access_token, refresh_token: refreshed.refresh_token || currentSession.refresh_token, expires_at: Math.floor(Date.now()/1000)+(refreshed.expires_in||3600) }; localStorage.setItem('sb-session',JSON.stringify(currentSession)); }
+          else { currentSession=null; localStorage.removeItem('sb-session'); }
+        }
         return { data: { session: currentSession }, error: null };
       }
       return { data: { session: null }, error: null };
@@ -159,7 +164,7 @@ export const supabase = {
       });
       const data = await res.json();
       if (!res.ok) return { error: new Error(data.error_description || data.msg || 'Credenciais inválidas') };
-      currentSession = { user: data.user, access_token: data.access_token };
+      currentSession = { user: data.user, access_token: data.access_token, refresh_token: data.refresh_token, expires_at: Math.floor(Date.now() / 1000) + (data.expires_in || 3600) };
       localStorage.setItem('sb-session', JSON.stringify(currentSession));
       authListeners.forEach(cb => cb('SIGNED_IN', currentSession));
       return { data: { session: currentSession }, error: null };
@@ -4289,42 +4294,172 @@ const AdminPanel = ({ onExitAdmin }) => {
   );
 };
 
-const NavItem = ({ icon: Icon, label, isActive, onClick }) => (
-  <button onClick={onClick} className={`flex flex-col items-center justify-center w-10 sm:w-12 h-full relative transition-colors ${isActive ? 'text-[#D4AF37]' : 'text-[#8A9C90] hover:text-[#A0B3A6]'}`}>
-    {isActive && <div className="absolute top-[-8px] left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#D4AF37] rounded-b-md shadow-[0_2px_8px_rgba(212,175,55,0.5)]" />}
-    <Icon size={20} strokeWidth={isActive ? 2 : 1.5} className="mb-1" /><span className="text-[8px] sm:text-[9px] font-medium tracking-wide">{label}</span>
-  </button>
-);
+// --- NOVA EXPERIÊNCIA DO ALUNO: CHAT + EVOLUÇÃO ---
+const CM_GOLD = '#E9C678';
+const CM_GREEN = '#08281D';
+const CM_CARD = '#0C3527';
+
+const ChatCorpoMovimento = () => {
+  const { profile, session } = useApp();
+  const [messages, setMessages] = useState([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+  const [error, setError] = useState('');
+  const endRef = useRef(null);
+  const inputRef = useRef(null);
+  const firstName = (profile?.nome || 'você').trim().split(/\s+/)[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoadingHistory(true);
+      const { data, error: loadError } = await supabase.from('cm_chat_messages').select('*').eq('user_id', profile.id);
+      if (cancelled) return;
+      if (loadError) setError('Não foi possível carregar o histórico. Verifique a configuração do banco.');
+      else setMessages((data || []).sort((a, b) => new Date(a.created_at) - new Date(b.created_at)));
+      setLoadingHistory(false);
+    }
+    if (profile?.id) load();
+    return () => { cancelled = true; };
+  }, [profile?.id]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [messages, sending]);
+
+  async function sendMessage(text = draft) {
+    const content = text.trim();
+    if (!content || sending || loadingHistory || !session?.access_token) return;
+    setDraft(''); setError(''); setSending(true);
+    const tempId = 'pending-' + Date.now();
+    setMessages(old => [...old, { id: tempId, role: 'user', content, created_at: new Date().toISOString() }]);
+    try {
+      const authState = await supabase.auth.getSession();
+      const token = authState.data?.session?.access_token;
+      if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+      const res = await fetch(`${supabaseUrl}/functions/v1/chat-corpo-movimento`, {
+        method: 'POST', headers: { apikey: supabaseAnonKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: content })
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(payload.error || 'Não foi possível obter uma resposta.');
+      if (!payload.reply) throw new Error('A IA não retornou uma resposta.');
+      const { data: rows } = await supabase.from('cm_chat_messages').select('*').eq('user_id', profile.id);
+      if (rows) setMessages(rows.sort((a,b) => new Date(a.created_at)-new Date(b.created_at)));
+      else setMessages(old => [...old.filter(m=>m.id!==tempId), { id: tempId, role:'user', content }, {id:'reply-'+Date.now(),role:'assistant', content:payload.reply}]);
+    } catch (err) {
+      setMessages(old=>old.filter(m=>m.id!==tempId));
+      setDraft(content);
+      setError(err.message || 'Erro de conexão. Tente novamente.');
+    } finally { setSending(false); inputRef.current?.focus(); }
+  }
+
+  const suggestions = ['Como criar uma rotina?', 'Estou sem motivação', 'Como melhorar meu sono?'];
+  return <div className="flex flex-col h-full min-h-0">
+    <div className="flex-1 overflow-y-auto custom-scrollbar px-5 py-5 space-y-4" aria-live="polite">
+      {loadingHistory ? <div className="text-center text-[#A9BCB1] text-sm mt-10">Carregando conversa...</div> : <>
+        {messages.length === 0 && <>
+          <div className="text-center pt-7 pb-5">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full border border-[#E9C678]/50 bg-[#103A2B] p-3"><img src={logoCorpoMovimento} alt="Corpo em Movimento" className="w-full h-full object-contain" /></div>
+            <h2 className="text-2xl font-semibold">Olá, {firstName}!</h2>
+            <p className="text-sm text-[#B6C7BC] mt-2 max-w-xs mx-auto leading-relaxed">Sua transformação começa com uma conversa. Como você está se sentindo hoje?</p>
+            <p className="text-xs text-[#9FB6A8] mt-2">Assistente de IA baseado na metodologia Corpo em Movimento.</p>
+          </div>
+          <div className="flex gap-2 flex-wrap justify-center">{suggestions.map(s=><button key={s} onClick={()=>sendMessage(s)} className="border border-[#CFAE67]/35 bg-[#0D3427] px-3 py-2 rounded-full text-xs text-[#F4DFAD] hover:border-[#E9C678]">{s}</button>)}</div>
+        </>}
+        {messages.map(m=><div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div className={`max-w-[86%] whitespace-pre-wrap break-words rounded-2xl px-4 py-3 text-sm leading-relaxed ${m.role === 'user' ? 'bg-gradient-to-br from-[#F0CE87] to-[#D6AD5D] text-[#10271D] rounded-br-sm' : 'bg-[#103A2B] border border-[#1F4B38] text-[#F4F7F3] rounded-bl-sm'}`}>{m.content}</div>
+        </div>)}
+        {sending && <div className="flex justify-start"><div className="bg-[#103A2B] border border-[#1F4B38] rounded-2xl px-4 py-3 text-sm text-[#D7C18C] animate-pulse">Pensando na melhor resposta...</div></div>}
+      </>}
+      <div ref={endRef}/>
+    </div>
+    {error && <div role="alert" className="mx-4 mb-2 text-xs text-rose-200 bg-rose-900/30 border border-rose-600/30 rounded-xl p-2">{error}</div>}
+    <form onSubmit={e=>{e.preventDefault();sendMessage();}} className="px-4 pb-4 pt-3 border-t border-[#234A38]/60 bg-[#052619]/90">
+      <div className="flex items-end gap-2 rounded-[22px] bg-[#0D3528] border border-[#2F5943] p-2 pl-4 focus-within:border-[#E9C678]">
+        <textarea ref={inputRef} aria-label="Escreva sua mensagem" rows={1} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}}} placeholder="Converse sobre seus hábitos..." className="resize-none bg-transparent text-sm text-white placeholder:text-[#9BAD9F] outline-none flex-1 max-h-28 min-h-[38px] py-2" />
+        <button disabled={!draft.trim() || sending || loadingHistory} type="submit" aria-label="Enviar mensagem" className="h-10 w-10 shrink-0 rounded-full bg-gradient-to-r from-[#EEC982] to-[#D2A958] text-[#09281A] disabled:opacity-40 flex items-center justify-center"><Send size={18}/></button>
+      </div>
+      <p className="text-center text-[10px] text-[#849E90] mt-2">Orientações gerais. Não substitui avaliação de profissionais de saúde.</p>
+    </form>
+  </div>;
+};
+
+const EvolucaoCorpoMovimento = () => {
+  const { profile } = useApp();
+  const [period, setPeriod] = useState('semana');
+  const [workouts, setWorkouts] = useState([]);
+  const [progress, setProgress] = useState([]);
+  const [onboarding, setOnboarding] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  useEffect(()=>{
+    let cancelled=false;
+    async function load(){
+      const [w,p,o]=await Promise.all([
+        supabase.from('execucoes_treino').select('*').eq('user_id',profile.id).eq('status','concluido'),
+        supabase.from('progresso_mensal').select('*').eq('user_id',profile.id),
+        supabase.from('onboarding_respostas').select('*').eq('user_id',profile.id).single()
+      ]);
+      if(cancelled)return;
+      if(w.error || p.error) setError('Alguns dados não puderam ser carregados.');
+      setWorkouts(w.data || []); setProgress((p.data || []).sort((a,b)=>String(a.mes).localeCompare(String(b.mes))));
+      setOnboarding(o.data || null); setLoading(false);
+    }
+    if(profile?.id)load();
+    return()=>{cancelled=true;};
+  },[profile?.id]);
+  const now=new Date();
+  const start=new Date(now); start.setHours(0,0,0,0);
+  if(period==='semana')start.setDate(start.getDate()-((start.getDay()+6)%7));
+  else if(period==='mes')start.setDate(1);
+  else start.setTime(0);
+  const relevant=workouts.filter(w=>new Date(w.concluido_em||w.created_at||0)>=start);
+  const weeklyGoal=Array.isArray(onboarding?.disponibilidade)?onboarding.disponibilidade.length:0;
+  const latest=progress.length ? progress[progress.length-1] : null;
+  const first=progress.length ? progress[0] : null;
+  const weightDelta=latest && first && Number.isFinite(Number(latest.peso)-Number(first.peso)) ? Number(latest.peso)-Number(first.peso) : null;
+  const weekStart=new Date(now); weekStart.setHours(0,0,0,0);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
+  const days=['Seg','Ter','Qua','Qui','Sex','Sáb','Dom'];
+  return <div className="h-full overflow-y-auto custom-scrollbar px-5 pt-7 pb-28 space-y-5">
+    <div><h2 className="text-2xl font-semibold">Sua evolução</h2><p className="text-[#A6B9AA] text-sm mt-1">Cada passo conta na sua jornada.</p></div>
+    <div className="flex rounded-2xl p-1 bg-[#0D3427] border border-[#234B37]">{[['semana','Semana'],['mes','Mês'],['total','Total']].map(([v,label])=><button key={v} onClick={()=>setPeriod(v)} className={`flex-1 rounded-xl py-2.5 text-sm font-medium ${period===v?'bg-gradient-to-r from-[#EAC57A] to-[#D7AE61] text-[#092419]':'text-[#B6C6BB]'}`}>{label}</button>)}</div>
+    {loading ? <p className="text-sm text-[#B5C8B9]">Carregando evolução...</p> : <>
+      {error && <p className="text-amber-200 text-xs">{error}</p>}
+      <section className="bg-[#0B3426] border border-[#25503B] rounded-3xl p-5">
+        <div className="flex items-center justify-between"><h3 className="font-semibold">Treinos concluídos</h3><span className="text-3xl font-bold text-[#E9C678]">{relevant.length}{period==='semana'&&weeklyGoal?`/${weeklyGoal}`:''}</span></div>
+        {period==='semana' ? <div className="flex justify-between gap-1 mt-5">{days.map((day,i)=>{
+          const date=new Date(weekStart);date.setDate(date.getDate()+i);
+          const done=workouts.some(w=>new Date(w.concluido_em||w.created_at||0).toDateString()===date.toDateString());
+          return <div key={day} className="text-center flex-1"><div className={`mx-auto w-8 h-8 rounded-full flex items-center justify-center border ${done?'bg-[#E9C678] text-[#0B3426] border-[#E9C678]':'border-[#486453] text-[#92A999]'}`}>{done?<CheckCircle size={16}/>:''}</div><span className="text-[11px] text-[#B4C7B8] mt-2 block">{day}</span></div>;
+        })}</div> : <p className="text-xs text-[#9EB3A4] mt-3">Registros de treinos concluídos neste período.</p>}
+      </section>
+      <section className="bg-[#0B3426] border border-[#25503B] rounded-3xl p-5">
+        <h3 className="font-semibold mb-4">Consistência</h3>
+        <div className="flex items-center justify-between gap-4"><p className="text-sm text-[#B3C6B7]">{period==='semana'&&weeklyGoal?'Progresso da meta semanal':'Treinos registrados no período'}</p><div className="text-2xl font-bold text-[#E9C678]">{period==='semana'&&weeklyGoal?`${Math.min(100,Math.round(relevant.length/weeklyGoal*100))}%`:relevant.length}</div></div>
+        {period==='semana'&&weeklyGoal>0&&<div className="h-2 bg-[#244637] rounded-full mt-4 overflow-hidden"><div className="h-full bg-[#E9C678] rounded-full" style={{width:`${Math.min(100,relevant.length/weeklyGoal*100)}%`}} /></div>}
+      </section>
+      <section className="bg-[#0B3426] border border-[#25503B] rounded-3xl p-5">
+        <h3 className="font-semibold mb-4">Sua trajetória</h3>
+        <div className="grid grid-cols-2 gap-3"><div className="rounded-2xl bg-[#08291E] p-4"><span className="block text-xs text-[#A9BDAF]">Último peso registrado</span><span className="block text-xl font-semibold mt-2">{latest?.peso != null?`${latest.peso} kg`:'—'}</span></div><div className="rounded-2xl bg-[#08291E] p-4"><span className="block text-xs text-[#A9BDAF]">Variação registrada</span><span className="block text-xl font-semibold mt-2">{weightDelta!==null?`${weightDelta>0?'+':''}${weightDelta.toFixed(1)} kg`:'—'}</span></div></div>
+        <p className="text-xs text-[#96AD9E] mt-4">Dados do histórico de evolução existente. Os hábitos ainda não registrados aparecem sem valores.</p>
+      </section>
+    </>}
+  </div>;
+};
 
 const NavBar = () => {
   const { activeTab, setActiveTab } = useApp();
-  const navItems = [
-    { id: 'inicio', icon: Home, label: 'Início' },
-    { id: 'diario', icon: Calendar, label: 'Diário' },
-    { id: 'feed', icon: MessageCircle, label: 'Feed' },
-    { id: 'treino', icon: Dumbbell, label: 'Meu Treino' },
-    { id: 'progresso', icon: Activity, label: 'Evolução' },
-    { id: 'corrida', icon: RunnerIcon, label: 'Corrida' },
-    { id: 'perfil', icon: User, label: 'Perfil' }
-  ];
-  return (
-    <>
-      <GlobalStyles />
-      <nav className="absolute bottom-0 left-0 right-0 bg-[#0A2514]/95 backdrop-blur-md border-t border-[#1A4026] px-1 sm:px-4 py-2 z-50 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-        <div className="flex justify-between items-center max-w-md mx-auto h-14 min-w-[320px]">
-          {navItems.map(item => <NavItem key={item.id} icon={item.icon} label={item.label} isActive={activeTab === item.id} onClick={() => setActiveTab(item.id)} />)}
-        </div>
-      </nav>
-    </>
-  );
+  return <nav aria-label="Navegação principal" className="relative z-20 bg-[#052619]/95 border-t border-[#234B37] px-6 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+    <div className="flex justify-around items-center h-14 max-w-md mx-auto">
+      {[{id:'chat',icon:MessageCircle,label:'Chat'},{id:'evolucao',icon:TrendingUp,label:'Evolução'}].map(item=><button key={item.id} onClick={()=>setActiveTab(item.id)} aria-current={activeTab===item.id?'page':undefined} className={`flex-1 h-full flex flex-col items-center justify-center gap-1 transition-colors ${activeTab===item.id?'text-[#E9C678]':'text-[#879F90]'}`}><item.icon size={21} strokeWidth={activeTab===item.id?2.3:1.7}/><span className="text-[11px] font-medium">{item.label}</span></button>)}
+    </div>
+  </nav>;
 };
-
 
 // --- O SEU COMPONENTE APP ORIGINAL ---
 export default function App() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [activeTab, setActiveTab] = useState('inicio');
+  const [activeTab, setActiveTab] = useState('chat');
   const [loading, setLoading] = useState(true);
   const [adminView, setAdminView] = useState(false);
   const [notifCount, setNotifCount] = useState(0);
@@ -4543,7 +4678,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    setProfile(null); setAdminView(false); setActiveTab('inicio');
+    setProfile(null); setAdminView(false); setActiveTab('chat');
   };
 
   const registrarConquista = async (mensagem) => {
@@ -4594,7 +4729,7 @@ export default function App() {
     <AppContext.Provider value={ctx}>
       <div className="min-h-screen bg-[#051109] flex items-center justify-center sm:p-4">
         <div className="w-full h-screen sm:h-[852px] sm:max-w-[393px] flex flex-col relative overflow-hidden sm:rounded-[3rem] sm:border-[8px] sm:border-black shadow-[0_0_50px_rgba(0,0,0,0.5)] bg-[#051109] text-white">
-          <div className="absolute inset-0 z-0 opacity-10 pointer-events-none bg-cover bg-center" style={{ backgroundImage: 'url("https://images.unsplash.com/photo-1534438327276-14e5300c3a48?q=80&w=2070&auto=format&fit=crop")' }} />
+
           <div className="absolute top-0 left-0 right-0 h-96 bg-gradient-to-b from-[#143B21] to-transparent opacity-50 pointer-events-none z-0" />
 
           {!session ? (
@@ -4607,31 +4742,19 @@ export default function App() {
             <AdminPanel onExitAdmin={() => setAdminView(false)} />
           ) : (
             <>
-              <header className="flex justify-between items-center px-6 py-4 pt-[calc(1rem+env(safe-area-inset-top))] relative z-10 flex-shrink-0">
-                <button className="w-10 h-10 rounded-full overflow-hidden border-2 border-[#D4AF37] transition-transform active:scale-95" onClick={() => setActiveTab('perfil')}>
-                  {profile?.foto_url ? <img src={profile.foto_url} alt="Perfil" className="w-full h-full object-cover" /> : <div className="w-full h-full bg-[#1A3020] flex items-center justify-center text-[#D4AF37]"><User size={20} strokeWidth={1.5} /></div>}
-                </button>
-                <h1 className="text-sm sm:text-base leading-tight bg-gradient-to-r from-[#CFB375] to-[#AC915B] bg-clip-text text-transparent playfair italic font-bold whitespace-nowrap px-2">
-                  Corpo em Movimento
-                </h1>
-                <div className="flex items-center gap-2">
-                  {hasStaffAccess(profile) && <button onClick={() => setAdminView(true)} title="Área Administrativa" className="w-10 h-10 rounded-full bg-[#1A3020] border border-[#D4AF37]/40 flex items-center justify-center text-[#D4AF37] active:scale-95 transition-transform"><ShieldCheck size={18} /></button>}
-                  <button onClick={() => setActiveTab('notificacoes')} className="w-10 h-10 rounded-full bg-[#051109] flex items-center justify-center text-[#D4AF37] relative transition-transform active:scale-95">
-                    <Bell size={22} strokeWidth={2} />
-                    {notifCount > 0 && <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-[#051109]" />}
-                  </button>
+              <header className="flex items-center justify-between px-5 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] shrink-0 border-b border-[#264B3C]/40 relative z-10 bg-[#052619]/75 backdrop-blur-xl">
+                <div className="flex items-center gap-3 min-w-0">
+                  <img src={logoCorpoMovimento} alt="Símbolo Corpo em Movimento" className="w-11 h-11 object-contain rounded-full" />
+                  <div className="leading-tight min-w-0"><div className="text-[#E7C57D] font-semibold tracking-wide text-sm">Corpo Em</div><div className="text-white font-semibold text-lg">Movimento</div></div>
                 </div>
+                <button title="Meu perfil" onClick={() => setActiveTab('perfil')} className="h-10 w-10 rounded-full border border-[#CFAE67]/40 bg-[#103A2B] flex items-center justify-center overflow-hidden">
+                  {profile?.foto_url ? <img src={profile.foto_url} className="w-full h-full object-cover" alt="Perfil" /> : <User size={19} className="text-[#E7C57D]" />}
+                </button>
               </header>
-
-              <main className="flex-1 px-6 relative z-10 flex flex-col overflow-hidden">
-                {activeTab === 'inicio' && <Inicio />}
-                {activeTab === 'diario' && <Diario />}
-                {activeTab === 'feed' && <Feed />}
-                {activeTab === 'treino' && <MeuTreino />}
-                {activeTab === 'progresso' && <Progresso />}
-                {activeTab === 'corrida' && <Corrida />}
-                {activeTab === 'perfil' && <Perfil />}
-                {activeTab === 'notificacoes' && <Notificacoes />}
+              <main className="flex-1 min-h-0 relative z-10 flex flex-col overflow-hidden">
+                {activeTab === 'chat' && <ChatCorpoMovimento />}
+                {activeTab === 'evolucao' && <EvolucaoCorpoMovimento />}
+                {activeTab === 'perfil' && <div className="px-5 overflow-y-auto flex-1 pb-20"><Perfil /></div>}
               </main>
 
               <NavBar />
