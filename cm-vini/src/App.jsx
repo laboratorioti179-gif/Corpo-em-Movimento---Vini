@@ -568,6 +568,56 @@ function ProfileScreen({profile,photoUrl,onboarding,session,userId,onSaved,onEdi
 
 
 
+// Indicadores baseados exclusivamente nos check-ins disponíveis.
+// Planos DEMO são separados para não indicar exercício efetivamente realizado.
+function cmEvolutionStats(checkins, workouts, weeks=8){
+  const plans=new Map(workouts.map(p=>[p.id,p]));
+  const start=weekMonday();
+  const monday=new Date(`${start}T12:00:00`);
+  const periods=Array.from({length:weeks},(_,i)=>{
+    const d=new Date(monday);
+    d.setDate(d.getDate()-(weeks-1-i)*7);
+    return {key:localDate(d),label:d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}),real:0,demo:0};
+  });
+  const map=new Map(periods.map(w=>[w.key,w]));
+  const valid=checkins.filter(c=>c.concluido===true);
+  let realTotal=0,demoTotal=0,unknownTotal=0;
+  for(const c of valid){
+    const plan=plans.get(c.plano_id);
+    // Sem plano correspondente: não classificar como treino real.
+    if(!plan){unknownTotal++;continue;}
+    const demo=plan.treino_json?.demonstrativo===true||plan.status!=='publicado';
+    if(demo)demoTotal++;else realTotal++;
+    const week=map.get(c.semana_inicio);
+    if(week)week[demo?'demo':'real']++;
+  }
+  const realWeeks=periods.filter(w=>w.real>0).length;
+  return {periods,realTotal,demoTotal,unknownTotal,realWeeks,
+    weekReal:periods.at(-1)?.real||0,
+    weekDemo:periods.at(-1)?.demo||0,
+    max:Math.max(1,...periods.map(w=>w.real+w.demo))};
+}
+
+function CmEvolutionChart({stats}){
+  return <div className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
+    <h4 className="font-medium text-sm">Frequência nas últimas 8 semanas</h4>
+    <div className="flex items-center gap-4 text-[11px] text-[#BDD0BE] mt-2">
+      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#D8B46B]"/>Treinos registrados</span>
+      <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#668874]"/>Simulações DEMO</span>
+    </div>
+    <div className="grid grid-cols-8 gap-1.5 items-end mt-5 h-28" aria-label="Gráfico de marcações semanais">
+      {stats.periods.map(w=><div key={w.key} className="h-full flex flex-col justify-end items-center gap-1 min-w-0" title={`Semana ${w.label}: ${w.real} reais, ${w.demo} DEMO`}>
+        <span className="text-[10px] text-[#BDD0BE]">{w.real+w.demo}</span>
+        <div className="h-20 w-full flex flex-col justify-end rounded-t-sm overflow-hidden bg-[#153729]">
+          {w.demo>0&&<div className="w-full bg-[#668874]" style={{height:`${w.demo/stats.max*100}%`}}/>}
+          {w.real>0&&<div className="w-full bg-[#D8B46B]" style={{height:`${w.real/stats.max*100}%`}}/>}
+        </div>
+        <span className="text-[9px] text-[#BDD0BE] whitespace-nowrap">{w.label}</span>
+      </div>)}
+    </div>
+  </div>;
+}
+
 // Ficha do aluno: leitura administrativa sem alterações em dados pessoais.
 function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exerciseLookup,onClose}){
   const [tab,setTab]=useState('questionario');
@@ -578,6 +628,7 @@ function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exercis
   const week=weekMonday();
   const weekly=checkins.filter(x=>x.semana_inicio===week);
   const completed=checkins.filter(x=>x.concluido);
+  const evolution=cmEvolutionStats(checkins,workouts);
   const sortedWorkouts=[...workouts].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
   const sortedDiets=[...diets].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
   return <section className="rounded-2xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
@@ -625,9 +676,25 @@ function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exercis
       </article>)}
     </div>}
     {tab==='evolucao'&&<div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2"><div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Esta semana</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{weekly.filter(x=>x.concluido).length}</p><p className="text-xs">marcações</p></div><div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Histórico disponível</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{completed.length}</p><p className="text-xs">marcações</p></div></div>
-      {completed.length?<div className="rounded-xl bg-[#09291E] p-3"><p className="font-medium text-sm mb-2">Registros por semana</p>{Object.entries(completed.reduce((acc,r)=>{const k=r.semana_inicio||'Data não informada';acc[k]=(acc[k]||0)+1;return acc;},{})).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,12).map(([w,count])=><div key={w} className="flex justify-between border-b border-[#31543F] py-2 text-xs"><span>Semana de {w.split('-').reverse().join('/')}</span><span className="text-[#E8C579]">{count} marcação(ões)</span></div>)}</div>:<p className="text-sm text-[#B8CEBD]">Ainda não há marcações de treino.</p>}
-      <p className="text-xs text-[#B8CEBD]">As marcações de planos DEMO não comprovam a realização de exercícios. O histórico exibido está limitado aos registros consultados.</p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Treinos registrados na semana</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{evolution.weekReal}</p></div>
+        <div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Simulações nesta semana</p><p className="text-2xl text-[#A5C0AB] font-semibold mt-1">{evolution.weekDemo}</p></div>
+        <div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Histórico de treinos registrados</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{evolution.realTotal}</p></div>
+        <div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Semanas com registros (8 últimas)</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{evolution.realWeeks}/8</p></div>
+      </div>
+      <CmEvolutionChart stats={evolution}/>
+      <div className="rounded-xl bg-[#09291E] p-3 space-y-2">
+        <p className="text-sm font-medium">Histórico de marcações</p>
+        <p className="text-xs text-[#B8CEBD]">{evolution.demoTotal} marcação(ões) DEMO em todo o período consultado</p>
+        {evolution.unknownTotal>0&&<p className="text-xs text-[#E8C579]">{evolution.unknownTotal} marcação(ões) sem plano identificado, excluídas dos indicadores.</p>}
+        {!completed.length&&<p className="text-xs text-[#B8CEBD]">Nenhuma marcação cadastrada até o momento.</p>}
+        {[...completed].sort((x,y)=>String(y.semana_inicio).localeCompare(String(x.semana_inicio))).slice(0,12).map(c=>{
+          const plan=workouts.find(p=>p.id===c.plano_id);
+          const isDemo=!plan||plan.treino_json?.demonstrativo===true||plan.status!=='publicado';
+          return <div key={c.id} className="flex justify-between gap-2 border-t border-[#31543F] pt-2 text-xs"><span>Semana de {c.semana_inicio?.split('-').reverse().join('/')||'—'}</span><span className={isDemo?'text-[#A5C0AB]':'text-[#E8C579]'}>{!plan?'Plano não encontrado':isDemo?'DEMO':'Registrado'}</span></div>;
+        })}
+      </div>
+      <p className="text-xs text-[#B8CEBD]">Indicadores de autorregistro: não comprovam a execução física. Propostas DEMO são apenas simulações. Histórico limitado aos dados consultados.</p>
     </div>}
   </section>;
 }
@@ -732,7 +799,20 @@ function AdminScreen({userId,onSignOut}){
         </>}
         {section==='treinos'&&<><p className="text-sm text-[#B9CDBD]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
         {section==='dietas'&&<><p className="text-sm text-[#B9CDBD]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
-        {section==='evolucao'&&<><p className="text-sm text-[#B9CDBD]">Registros de conclusão dos treinos. Marcações DEMO não comprovam atividades realizadas.</p><div className={card}><h3 className="font-semibold">Esta semana</h3><p className="text-3xl text-[#E8C579] mt-2">{checkins.filter(c=>c.concluido&&c.semana_inicio===weekMonday()).length}</p><p className="text-xs text-[#B9CDBD] mt-1">Marcações registradas</p></div>{students.map(p=>{const n=checkins.filter(c=>c.user_id===p.id&&c.concluido).length;return <div className={card} key={p.id}><p className="font-medium text-sm">{p.nome||p.email}</p><p className="text-xs text-[#B9CDBD] mt-1">{n} marcação(ões) no histórico consultado</p></div>})}</>}
+        {section==='evolucao'&&<>
+          <p className="text-sm text-[#B9CDBD]">Frequência e histórico com separação entre planos publicados e simulações DEMO.</p>
+          {(()=>{const all=cmEvolutionStats(checkins,treinos);return <>
+            <div className="grid grid-cols-2 gap-3">
+              <div className={card}><p className="text-xs text-[#B9CDBD]">Treinos registrados nesta semana</p><p className="text-3xl text-[#E8C579] mt-2">{all.weekReal}</p></div>
+              <div className={card}><p className="text-xs text-[#B9CDBD]">Simulações nesta semana</p><p className="text-3xl text-[#A5C0AB] mt-2">{all.weekDemo}</p></div>
+            </div>
+            <CmEvolutionChart stats={all}/>
+            {all.unknownTotal>0&&<p className="text-xs text-[#E8C579]">{all.unknownTotal} marcação(ões) sem plano identificado, não contabilizadas.</p>}
+          </>;})()}
+          <h3 className="font-semibold">Por aluno</h3>
+          {students.map(p=>{const x=cmEvolutionStats(checkins.filter(c=>c.user_id===p.id),treinos.filter(t=>t.user_id===p.id));return <div className={card} key={p.id}><p className="font-medium text-sm">{p.nome||p.email}</p><p className="text-xs text-[#B9CDBD] mt-2">Esta semana: {x.weekReal} treino(s) registrado(s) · {x.weekDemo} simulação(ões)</p><p className="text-xs text-[#B9CDBD] mt-1">Histórico: {x.realTotal} registros · {x.demoTotal} DEMO</p></div>})}
+          <p className="text-xs text-[#B9CDBD]">Autorregistros não comprovam a realização física dos exercícios.</p>
+        </>}
         <p className="text-xs text-[#94AE9C] leading-relaxed">Indicadores calculados com até 1.000 registros por tabela; não representam necessariamente a base completa. O acesso é condicionado às políticas do Supabase.</p>
       </>}
     </div>
