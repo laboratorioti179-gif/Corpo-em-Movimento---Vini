@@ -1,1 +1,29 @@
+
 @import "tailwindcss";
+
+/* Barra de rolagem - Corpo em Movimento */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #B99B60 #06271C;
+}
+
+/* Chrome, Edge e Safari */
+*::-webkit-scrollbar {
+  width: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #06271C;
+  border-radius: 10px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #B99B60;
+  border-radius: 10px;
+  border: 2px solid #06271C;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #D8B46B;
+}
