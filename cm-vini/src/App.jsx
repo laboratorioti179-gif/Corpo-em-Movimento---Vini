@@ -30,6 +30,9 @@ export default function App() {
   const [trainingExercises,setTrainingExercises] = useState({});
   const [trainingLoading,setTrainingLoading] = useState(false);
   const [trainingError,setTrainingError] = useState('');
+  const [trainingGenerating,setTrainingGenerating] = useState(false);
+  const [trainingGenerationError,setTrainingGenerationError] = useState('');
+  const [onboardingThanks,setOnboardingThanks] = useState(false);
   const bottom = useRef(null);
   const today = new Date().toLocaleDateString('en-CA');
 
@@ -40,7 +43,7 @@ export default function App() {
       setSession(next);
       if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);
       if(event==='SIGNED_OUT'){
-        setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('chat');setOnboarding(null);setEditingOnboarding(false);
+        setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('chat');setOnboarding(null);setEditingOnboarding(false);setOnboardingThanks(false);setTrainingGenerationError('');
       }
     });
     (async()=>{
@@ -112,6 +115,34 @@ export default function App() {
     finally{setTrainingLoading(false);}
   }
 
+  async function generateTraining(){
+    if(!userId || !onboarding?.onboarding_concluido || trainingGenerating)return;
+    setTrainingGenerationError('');
+    setTrainingGenerating(true);
+    try{
+      const {data:{session:latest},error:sessionError}=await supabase.auth.getSession();
+      if(sessionError || !latest || latest.user?.id!==userId){
+        throw new Error('Sua sessão expirou. Entre novamente na sua conta.');
+      }
+      const response=await fetch(`${URL}/functions/v1/cm-gerar-treino-demo`,{
+        method:'POST',
+        headers:{'Content-Type':'application/json',apikey:KEY,Authorization:`Bearer ${latest.access_token}`},
+        body:JSON.stringify({})
+      });
+      const result=await response.json().catch(()=>null);
+      if(!response.ok || !result?.success){
+        throw new Error(result?.error || 'Não foi possível gerar a proposta agora.');
+      }
+      await loadTraining();
+      setOnboardingThanks(false);
+      setTab('treino');
+    }catch(error){
+      setTrainingGenerationError(error?.message || 'Não foi possível gerar a proposta.');
+    }finally{
+      setTrainingGenerating(false);
+    }
+  }
+
   useEffect(()=>{
     if(userId&&onboarding?.onboarding_concluido)loadTraining();
     // Atualiza quando a identidade ou conclusão do questionário mudar.
@@ -159,7 +190,7 @@ export default function App() {
         <div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':'Seu espaço'}</p></div>
         <button className={`w-10 h-10 grid place-items-center rounded-full border ${tab==='perfil'?'text-[#E8C579] border-[#D6B36B]':'border-[#28503B] text-[#B5C9B8]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={21}/></button>
       </header>
-      {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{setOnboarding(data);setEditingOnboarding(false);setTab('chat');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : <>
+      {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'treino':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#153D2C] border border-[#BCA064] flex items-center justify-center mx-auto mb-6"><Check className="text-[#E8C579]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#BACFBE] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#B5C6B8] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('treino');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#E8C579] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
         {tab==='chat'&&<main className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
             {messages.length===0&&<div className="pt-10 text-center"><div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#133C2C] border border-[#A98C51]/50 flex items-center justify-center"><img src={LOGO} alt="" className="w-20 h-20 object-contain"/></div><h2 className="text-2xl font-semibold">Sua jornada começa aqui.</h2><p className="text-[#B8CBBE] text-sm leading-relaxed mt-3 max-w-xs mx-auto">Converse sobre hábitos, movimento e constância. Como você está hoje?</p><p className="text-xs text-[#91AA9A] mt-3">Você está conversando com uma IA, não com o treinador humano.</p><div className="mt-8 flex flex-wrap gap-2 justify-center">{suggestions.map(s=><button key={s} onClick={()=>send(s)} className="text-sm px-3 py-2 border border-[#957E4A] text-[#F0D79F] rounded-full bg-[#103629]">{s}</button>)}</div></div>}
@@ -174,6 +205,8 @@ export default function App() {
           <div className="flex justify-between items-start gap-3"><div><h2 className="text-2xl font-semibold">Meu Treino</h2><p className="text-[#ACC5B1] text-sm mt-1">Seu plano registrado no Corpo Em Movimento.</p></div><button onClick={loadTraining} disabled={trainingLoading} aria-label="Atualizar treino" className="border border-[#55745F] rounded-xl p-2 text-[#E8C579] disabled:opacity-40"><RefreshCw size={19}/></button></div>
           {trainingLoading&&<p className="text-sm text-[#ACC5B1]">Carregando treino...</p>}
           {trainingError&&<p role="alert" className="text-red-200 text-sm rounded-xl border border-red-800 p-3">{trainingError}</p>}
+           {trainingGenerationError&&<p role="alert" className="text-red-200 text-sm rounded-xl border border-red-800 p-3">{trainingGenerationError}</p>}
+           {!trainingLoading&&!training&&<button disabled={trainingGenerating} onClick={generateTraining} className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold p-3 disabled:opacity-50">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={18}/> Gerar meu treino</>}</button>}
           {!trainingLoading&&!trainingError&&!training&&<section className="rounded-2xl border border-[#31543F] bg-[#103629] p-5"><p className="font-semibold">Nenhum treino disponível</p><p className="text-sm text-[#B1C5B6] mt-2">Ainda não há plano publicado ou demonstrativo disponível na sua conta.</p></section>}
           {training&&!trainingLoading&&<>
             <div className="rounded-2xl border border-[#A98C51] bg-[#183D2C] p-4"><p className="text-xs font-semibold tracking-wider text-[#E8C579]">{training.treino_json?.demonstrativo?'SIMULAÇÃO DEMO · NÃO EXECUTAR COMO PRESCRIÇÃO':'PLANO REGISTRADO'}</p><h3 className="text-lg font-semibold mt-2">{training.treino_json?.titulo||'Treino de musculação'}</h3><p className="text-xs text-[#BCD0C1] mt-1">Status: {training.status}</p><p className="text-sm text-[#B9CDBD] mt-3">{training.treino_json?.justificativa||''}</p>{training.treino_json?.demonstrativo&&<p className="mt-3 text-sm text-[#F1D8A2]">Proposta fictícia para testar o aplicativo. Não é um treino liberado para execução; necessita validação profissional.</p>}</div>
