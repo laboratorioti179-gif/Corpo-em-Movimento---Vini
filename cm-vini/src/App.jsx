@@ -14,6 +14,7 @@ export default function App() {
   const [session,setSession] = useState(null);
   const [boot,setBoot] = useState(true);
   const [bootError,setBootError] = useState('');
+  const [passwordRecovery,setPasswordRecovery] = useState(false);
   const [tab,setTab] = useState('chat');
   const [messages,setMessages] = useState([]);
   const [draft,setDraft] = useState('');
@@ -26,20 +27,20 @@ export default function App() {
 
   useEffect(()=>{
     let alive=true;
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_event, next)=>{if(alive) setSession(next);});
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((event,next)=>{
+      if(!alive)return;
+      setSession(next);
+      if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);
+      if(event==='SIGNED_OUT'){
+        setMessages([]);setLogs([]);setTab('chat');
+      }
+    });
     (async()=>{
-      try {
+      try{
         const {data,error}=await supabase.auth.getSession();
-        if(error) throw error;
-        if(data.session){if(alive)setSession(data.session);}
-        else {
-          // Sem tela de login, mas COM identidade distinta por instalação.
-          // Habilitar Sign in anonymously no painel Supabase > Authentication > Providers.
-          const {data:anon,error:anonError}=await supabase.auth.signInAnonymously();
-          if(anonError)throw anonError;
-          if(alive)setSession(anon.session);
-        }
-      }catch(err){if(alive)setBootError('Não foi possível iniciar seu acesso seguro: '+(err.message||'erro desconhecido'));}
+        if(error)throw error;
+        if(alive)setSession(data.session);
+      }catch(err){if(alive)setBootError('Erro ao verificar sua sessão: '+(err.message||'erro desconhecido'));}
       finally{if(alive)setBoot(false);}
     })();
     return()=>{alive=false;subscription.unsubscribe();};
@@ -48,6 +49,7 @@ export default function App() {
   const userId=session?.user?.id;
   useEffect(()=>{
     if(!userId)return;
+    setMessages([]);setLogs([]);setChatError('');setLogError('');
     let active=true;
     (async()=>{
       const [{data:hist,error:herr},{data:records,error:lerr}]=await Promise.all([
@@ -104,7 +106,7 @@ export default function App() {
         <div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':'Seu espaço'}</p></div>
         <button className={`w-10 h-10 grid place-items-center rounded-full border ${tab==='perfil'?'text-[#E8C579] border-[#D6B36B]':'border-[#28503B] text-[#B5C9B8]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={21}/></button>
       </header>
-      {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><p className="text-sm text-[#ADC4B2] mt-4">Ative autenticação anônima no Supabase e recarregue.</p></div> : <>
+      {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : <>
         {tab==='chat'&&<main className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
             {messages.length===0&&<div className="pt-10 text-center"><div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#133C2C] border border-[#A98C51]/50 flex items-center justify-center"><img src={LOGO} alt="" className="w-20 h-20 object-contain"/></div><h2 className="text-2xl font-semibold">Sua jornada começa aqui.</h2><p className="text-[#B8CBBE] text-sm leading-relaxed mt-3 max-w-xs mx-auto">Converse sobre hábitos, movimento e constância. Como você está hoje?</p><p className="text-xs text-[#91AA9A] mt-3">Você está conversando com uma IA, não com o treinador humano.</p><div className="mt-8 flex flex-wrap gap-2 justify-center">{suggestions.map(s=><button key={s} onClick={()=>send(s)} className="text-sm px-3 py-2 border border-[#957E4A] text-[#F0D79F] rounded-full bg-[#103629]">{s}</button>)}</div></div>}
@@ -116,9 +118,70 @@ export default function App() {
           <form onSubmit={e=>{e.preventDefault();send();}} className="shrink-0 px-4 py-3 border-t border-[#244634] bg-[#052219]"><div className="flex items-end bg-[#123A2B] border border-[#335943] rounded-2xl p-2 gap-2"><textarea aria-label="Sua mensagem" rows={1} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Escreva sua mensagem..." maxLength={3000} className="flex-1 min-w-0 bg-transparent py-2 px-2 outline-none resize-none text-sm max-h-28 placeholder:text-[#A7BAAB]"/><button disabled={!draft.trim()||sending} className="bg-[#D8B46B] text-[#0A271A] rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-40" aria-label="Enviar"><Send size={18}/></button></div><p className="text-[10px] text-[#8FA99A] text-center mt-2">A IA não substitui orientações médicas ou acompanhamento profissional.</p></form>
         </main>}
         {tab==='evolucao'&&<main className="flex-1 overflow-y-auto px-5 py-7 space-y-5"><div><h2 className="text-2xl font-semibold">Minha evolução</h2><p className="text-[#AFC5B5] mt-1 text-sm">Pequenas conquistas constroem mudanças reais.</p></div><section className="rounded-3xl bg-[#103629] border border-[#31543F] p-5"><div className="flex justify-between items-start"><div><h3 className="font-medium">Hábitos de hoje</h3><p className="text-[#A9C0AE] text-xs mt-1">Marque o que você conseguiu fazer.</p></div><span className="text-[#E8C579] text-2xl font-semibold">{doneToday}/{DAILY.length}</span></div><div className="mt-5 space-y-3">{DAILY.map(h=>{const done=logs.some(l=>l.day===today&&l.habit===h.key);return <button key={h.key} onClick={()=>toggleHabit(h.key)} className={`w-full text-left flex gap-3 items-center rounded-xl border p-3.5 ${done?'border-[#B99B60] bg-[#214732]':'border-[#31533F] bg-[#0A2C20]'}`}><span className={`w-6 h-6 rounded-full border grid place-items-center ${done?'bg-[#E7C477] text-[#123221] border-[#E7C477]':'border-[#849D88]'}`}>{done?<Check size={16}/>:<Plus size={14}/>}</span><span className="text-sm">{h.label}</span></button>})}</div></section><section className="rounded-3xl bg-[#103629] border border-[#31543F] p-5"><div className="flex items-center justify-between"><h3 className="font-medium">Últimos 7 dias</h3><span className="text-[#E8C579] font-semibold">{attended}/7</span></div><p className="text-xs text-[#ACC2AF] mt-1">Dias com ao menos um hábito registrado</p><div className="flex justify-between mt-6 gap-2">{last7.map(d=>{const done=logs.some(l=>l.day===d.day);return <div className="flex-1 text-center" key={d.day}><div className={`w-8 h-8 rounded-full mx-auto flex items-center justify-center ${done?'bg-[#E8C579] text-[#0C291D]':'border border-[#52715C] text-[#ADC3B1]'}`}>{done?<Check size={17}/>:''}</div><p className="capitalize text-[11px] text-[#B3C5B7] mt-2">{d.label}</p></div>})}</div></section><p className="text-[#9DB4A2] text-xs leading-relaxed">Sua evolução registra os hábitos marcados por você. Isso não representa um diagnóstico nem uma avaliação física.</p>{logError&&<p className="text-red-200 text-sm" role="alert">{logError}</p>}</main>}
-        {tab==='perfil'&&<main className="flex-1 px-6 py-8"><button onClick={()=>setTab('chat')} className="flex items-center gap-2 text-[#E8C579] text-sm"><ArrowLeft size={16}/> Voltar ao chat</button><div className="mt-10 flex flex-col items-center"><img src={LOGO} alt="Corpo Em Movimento" className="w-28 h-28 object-contain"/><h2 className="text-xl font-semibold mt-4">Corpo Em Movimento</h2><p className="text-center text-sm text-[#B3C7B8] mt-2">Acompanhamento inteligente de hábitos.</p></div><div className="mt-10 bg-[#113729] rounded-2xl p-5 border border-[#2C513C]"><p className="font-medium">Seu histórico privado</p><p className="text-[#B1C5B6] text-sm mt-2">Sem cadastro obrigatório. Nesta versão, seus registros ficam associados à identidade anônima deste navegador. Se você limpar os dados do site ou trocar de aparelho, poderá perder o acesso ao histórico.</p></div></main>}
+        {tab==='perfil'&&<main className="flex-1 px-6 py-8"><button onClick={()=>setTab('chat')} className="flex items-center gap-2 text-[#E8C579] text-sm"><ArrowLeft size={16}/> Voltar ao chat</button><div className="mt-10 flex flex-col items-center"><img src={LOGO} alt="Corpo Em Movimento" className="w-28 h-28 object-contain"/><h2 className="text-xl font-semibold mt-4">Corpo Em Movimento</h2><p className="text-center text-sm text-[#B3C7B8] mt-2">Acompanhamento inteligente de hábitos.</p></div><div className="mt-10 bg-[#113729] rounded-2xl p-5 border border-[#2C513C]"><p className="font-medium">Seu histórico privado</p><p className="text-[#B1C5B6] text-sm mt-2">Seus registros são vinculados à sua conta e podem ser acessados após entrar novamente.</p></div><div className="mt-5 text-sm text-[#B1C5B6]">{session?.user?.email}</div><button className="mt-6 rounded-xl bg-[#D8B46B] px-5 py-3 font-semibold text-[#0A271A]" onClick={async()=>{const {error}=await supabase.auth.signOut();if(error)setBootError(error.message);}}>Sair da conta</button></main>}
         <nav className="shrink-0 border-t border-[#2C503D] flex bg-[#052219] pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'chat',label:'Chat',Icon:MessageCircle},{id:'evolucao',label:'Evolução',Icon:TrendingUp}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} className={`flex-1 flex flex-col justify-center items-center h-16 gap-1 text-xs ${tab===id?'text-[#E8C579]':'text-[#99B2A0]'}`}><Icon size={22}/>{label}</button>)}</nav>
       </>}
     </div>
   </div>;
+}
+
+function AuthScreen({recoveryMode=false,onFinishRecovery=()=>{}}){
+  const [mode,setMode]=useState(recoveryMode?'update':'login');
+  const [name,setName]=useState('');
+  const [email,setEmail]=useState('');
+  const [password,setPassword]=useState('');
+  const [confirm,setConfirm]=useState('');
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [info,setInfo]=useState('');
+  useEffect(()=>{if(recoveryMode)setMode('update');},[recoveryMode]);
+
+  async function submit(e){
+    e.preventDefault();setError('');setInfo('');
+    if(mode==='register' && !name.trim()){setError('Informe seu nome.');return;}
+    if(['register','update'].includes(mode) && password.length<8){setError('A senha precisa ter pelo menos 8 caracteres.');return;}
+    if(['register','update'].includes(mode) && password!==confirm){setError('As senhas não coincidem.');return;}
+    setBusy(true);
+    try{
+      if(mode==='login'){
+        const {error:e}=await supabase.auth.signInWithPassword({email:email.trim(),password});
+        if(e)throw e;
+      }else if(mode==='register'){
+        const {data,error:e}=await supabase.auth.signUp({email:email.trim(),password,options:{data:{full_name:name.trim()}}});
+        if(e)throw e;
+        if(!data.session)setInfo('Conta criada. Verifique sua caixa de entrada para concluir o cadastro.');
+      }else if(mode==='forgot'){
+        const {error:e}=await supabase.auth.resetPasswordForEmail(email.trim(),{redirectTo:window.location.origin});
+        if(e)throw e;
+        setInfo('Se o e-mail estiver cadastrado, você receberá um link de recuperação.');
+      }else{
+        const {error:e}=await supabase.auth.updateUser({password});
+        if(e)throw e;
+        setInfo('Senha alterada com sucesso.');
+        setPassword('');setConfirm('');onFinishRecovery();
+      }
+    }catch(err){setError(err.message||'Não foi possível concluir a operação.');}
+    finally{setBusy(false);}
+  }
+  const field='w-full rounded-xl border border-[#426650] bg-[#113A2B] px-4 py-3 text-[#F8F4E9] outline-none focus:border-[#E8C579]';
+  function switchMode(next){setMode(next);setError('');setInfo('');setPassword('');setConfirm('');}
+  return <main className="flex-1 overflow-y-auto px-6 py-6 flex flex-col justify-center">
+    <div className="mx-auto w-full max-w-sm">
+      <img src={LOGO} alt="Corpo Em Movimento" className="h-20 w-20 object-contain mx-auto mb-5"/>
+      <h2 className="text-center text-2xl font-semibold">{mode==='login'?'Bem-vindo de volta':mode==='register'?'Crie sua conta':mode==='forgot'?'Recuperar senha':'Definir nova senha'}</h2>
+      <p className="text-center text-sm text-[#B3C7B8] mt-2 mb-7">{mode==='register'?'Comece sua jornada com um acesso só seu.':mode==='login'?'Entre para continuar sua jornada.':'Siga as instruções para recuperar o acesso.'}</p>
+      <form onSubmit={submit} className="space-y-4">
+        {mode==='register'&&<label className="block text-sm">Nome completo<input className={field+' mt-2'} required value={name} onChange={e=>setName(e.target.value)} autoComplete="name"/></label>}
+        {mode!=='update'&&<label className="block text-sm">E-mail<input className={field+' mt-2'} type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></label>}
+        {!['forgot'].includes(mode)&&<label className="block text-sm">{mode==='update'?'Nova senha':'Senha'}<input className={field+' mt-2'} type="password" required minLength={mode==='login'?1:8} value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==='login'?'current-password':'new-password'}/></label>}
+        {['register','update'].includes(mode)&&<label className="block text-sm">Confirmar senha<input className={field+' mt-2'} type="password" required value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password"/></label>}
+        {error&&<p role="alert" className="text-sm text-red-200">{error}</p>}
+        {info&&<p role="status" className="text-sm text-[#E8C579]">{info}</p>}
+        <button disabled={busy} type="submit" className="w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold p-3 disabled:opacity-50">{busy?'Aguarde...':mode==='login'?'Entrar':mode==='register'?'Criar conta':mode==='forgot'?'Enviar link':'Salvar nova senha'}</button>
+      </form>
+      {mode==='login'&&<><button className="block text-sm text-[#E8C579] mx-auto mt-5" onClick={()=>switchMode('forgot')}>Esqueci minha senha</button><p className="text-center text-sm mt-6">Ainda não tem conta? <button className="text-[#E8C579] font-semibold" onClick={()=>switchMode('register')}>Cadastre-se</button></p></>}
+      {mode==='register'&&<p className="text-center text-sm mt-6">Já tem uma conta? <button className="text-[#E8C579] font-semibold" onClick={()=>switchMode('login')}>Entrar</button></p>}
+      {mode==='forgot'&&<button className="block text-sm text-[#E8C579] mx-auto mt-6" onClick={()=>switchMode('login')}>Voltar para login</button>}
+    </div>
+  </main>;
 }
