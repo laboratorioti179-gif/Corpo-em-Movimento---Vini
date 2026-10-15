@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle } from 'lucide-react';
+import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw } from 'lucide-react';
 
 // A chave anon/publishable é pública. Nunca coloque service_role ou OPENAI_API_KEY aqui.
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://jaujldyuelyhsqyxyerc.supabase.co';
@@ -26,6 +26,10 @@ export default function App() {
   const [chatError,setChatError] = useState('');
   const [logs,setLogs] = useState([]);
   const [logError,setLogError] = useState('');
+  const [training,setTraining] = useState(null);
+  const [trainingExercises,setTrainingExercises] = useState({});
+  const [trainingLoading,setTrainingLoading] = useState(false);
+  const [trainingError,setTrainingError] = useState('');
   const bottom = useRef(null);
   const today = new Date().toLocaleDateString('en-CA');
 
@@ -36,7 +40,7 @@ export default function App() {
       setSession(next);
       if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);
       if(event==='SIGNED_OUT'){
-        setMessages([]);setLogs([]);setTab('chat');setOnboarding(null);setEditingOnboarding(false);
+        setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('chat');setOnboarding(null);setEditingOnboarding(false);
       }
     });
     (async()=>{
@@ -83,6 +87,36 @@ export default function App() {
   },[userId]);
   useEffect(()=>{bottom.current?.scrollIntoView({behavior:'smooth'});},[messages,sending,tab]);
 
+  async function loadTraining(){
+    if(!userId)return;
+    setTrainingLoading(true);setTrainingError('');
+    try{
+      const {data:plans,error:planError}=await supabase.from('planos_treino')
+        .select('id,status,treino_json,created_at').eq('user_id',userId)
+        .order('created_at',{ascending:false}).limit(20);
+      if(planError)throw planError;
+      const plan=(plans||[]).find(x=>x.status==='publicado') ||
+        (plans||[]).find(x=>x.status==='rascunho'&&x.treino_json?.demonstrativo===true) || null;
+      const days=Array.isArray(plan?.treino_json?.dias)?plan.treino_json.dias:[];
+      const ids=[...new Set(days.flatMap(d=>Array.isArray(d.exercicios)?d.exercicios.map(e=>e.exercicio_id):[]).filter(Boolean))];
+      let lookup={};
+      if(ids.length){
+        const {data:items,error:exerciseError}=await supabase.from('biblioteca_exercicios')
+          .select('id,nome,grupo_muscular,equipamento,instrucoes,observacoes_seguranca')
+          .in('id',ids).eq('ativo',true);
+        if(exerciseError)throw exerciseError;
+        lookup=Object.fromEntries((items||[]).map(e=>[e.id,e]));
+      }
+      setTraining(plan);setTrainingExercises(lookup);
+    }catch(err){setTrainingError(err.message||'Erro ao carregar treino.');}
+    finally{setTrainingLoading(false);}
+  }
+
+  useEffect(()=>{
+    if(userId&&onboarding?.onboarding_concluido)loadTraining();
+    // Atualiza quando a identidade ou conclusão do questionário mudar.
+  },[userId,onboarding?.onboarding_concluido]);
+
   async function send(value=draft){
     const message=value.trim();
     if(!message||sending||!session)return;
@@ -122,7 +156,7 @@ export default function App() {
     <div className="w-full max-w-[520px] h-[100dvh] flex flex-col bg-[#06271C] border-x border-[#214632]">
       <header className="flex items-center px-5 py-3 gap-3 border-b border-[#244634] bg-[#06271C] min-h-[76px] shrink-0">
         <img src={LOGO} alt="Corpo Em Movimento" className="w-12 h-12 object-contain"/>
-        <div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':'Seu espaço'}</p></div>
+        <div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':'Seu espaço'}</p></div>
         <button className={`w-10 h-10 grid place-items-center rounded-full border ${tab==='perfil'?'text-[#E8C579] border-[#D6B36B]':'border-[#28503B] text-[#B5C9B8]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={21}/></button>
       </header>
       {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{setOnboarding(data);setEditingOnboarding(false);setTab('chat');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : <>
@@ -136,9 +170,21 @@ export default function App() {
           {chatError&&<p role="alert" className="mx-4 mb-2 p-3 rounded-xl bg-red-950/40 text-red-200 text-xs">{chatError}</p>}
           <form onSubmit={e=>{e.preventDefault();send();}} className="shrink-0 px-4 py-3 border-t border-[#244634] bg-[#052219]"><div className="flex items-end bg-[#123A2B] border border-[#335943] rounded-2xl p-2 gap-2"><textarea aria-label="Sua mensagem" rows={1} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Escreva sua mensagem..." maxLength={3000} className="flex-1 min-w-0 bg-transparent py-2 px-2 outline-none resize-none text-sm max-h-28 placeholder:text-[#A7BAAB]"/><button disabled={!draft.trim()||sending} className="bg-[#D8B46B] text-[#0A271A] rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-40" aria-label="Enviar"><Send size={18}/></button></div><p className="text-[10px] text-[#8FA99A] text-center mt-2">A IA não substitui orientações médicas ou acompanhamento profissional.</p></form>
         </main>}
+        {tab==='treino'&&<main className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
+          <div className="flex justify-between items-start gap-3"><div><h2 className="text-2xl font-semibold">Meu Treino</h2><p className="text-[#ACC5B1] text-sm mt-1">Seu plano registrado no Corpo Em Movimento.</p></div><button onClick={loadTraining} disabled={trainingLoading} aria-label="Atualizar treino" className="border border-[#55745F] rounded-xl p-2 text-[#E8C579] disabled:opacity-40"><RefreshCw size={19}/></button></div>
+          {trainingLoading&&<p className="text-sm text-[#ACC5B1]">Carregando treino...</p>}
+          {trainingError&&<p role="alert" className="text-red-200 text-sm rounded-xl border border-red-800 p-3">{trainingError}</p>}
+          {!trainingLoading&&!trainingError&&!training&&<section className="rounded-2xl border border-[#31543F] bg-[#103629] p-5"><p className="font-semibold">Nenhum treino disponível</p><p className="text-sm text-[#B1C5B6] mt-2">Ainda não há plano publicado ou demonstrativo disponível na sua conta.</p></section>}
+          {training&&!trainingLoading&&<>
+            <div className="rounded-2xl border border-[#A98C51] bg-[#183D2C] p-4"><p className="text-xs font-semibold tracking-wider text-[#E8C579]">{training.treino_json?.demonstrativo?'SIMULAÇÃO DEMO · NÃO EXECUTAR COMO PRESCRIÇÃO':'PLANO REGISTRADO'}</p><h3 className="text-lg font-semibold mt-2">{training.treino_json?.titulo||'Treino de musculação'}</h3><p className="text-xs text-[#BCD0C1] mt-1">Status: {training.status}</p><p className="text-sm text-[#B9CDBD] mt-3">{training.treino_json?.justificativa||''}</p>{training.treino_json?.demonstrativo&&<p className="mt-3 text-sm text-[#F1D8A2]">Proposta fictícia para testar o aplicativo. Não é um treino liberado para execução; necessita validação profissional.</p>}</div>
+            {training.treino_json?.requer_avaliacao&&<p className="rounded-xl bg-[#43301B] p-3 text-sm text-[#FFE0A7]">A proposta requer avaliação profissional antes de qualquer orientação individualizada.</p>}
+            {(training.treino_json?.dias||[]).map((dia,di)=><section key={di} className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-3"><div><h3 className="text-[#E8C579] font-semibold">{dia.dia}</h3><p className="text-sm text-[#B4CAB8]">{dia.foco}</p></div>{(dia.exercicios||[]).map((ex,i)=>{const info=trainingExercises[ex.exercicio_id];return <div key={ex.exercicio_id+'-'+i} className="rounded-xl bg-[#09291E] border border-[#2E503C] p-3"><p className="font-medium text-sm">{info?.nome||'Exercício da biblioteca indisponível'}</p>{info&&<p className="text-xs text-[#A8C4AF] mt-1">{[info.grupo_muscular,info.equipamento].filter(Boolean).join(' · ')}</p>}<p className="text-sm text-[#E8C579] mt-2">{ex.series} séries · {ex.repeticoes} repetições</p>{info?.instrucoes&&<p className="text-xs text-[#B9CDBD] mt-2">{info.instrucoes}</p>}{info?.observacoes_seguranca&&<p className="text-xs text-[#EBD6A7] mt-2">Atenção: {info.observacoes_seguranca}</p>}{ex.observacao&&<p className="text-xs text-[#A9BCAE] mt-2">{ex.observacao}</p>}</div>})}</section>)}
+            {!training.treino_json?.dias?.length&&<p className="text-sm text-[#BACDBE]">Nenhum exercício foi gerado para esta proposta.</p>}
+          </>}
+        </main>}
         {tab==='evolucao'&&<main className="flex-1 overflow-y-auto px-5 py-7 space-y-5"><div><h2 className="text-2xl font-semibold">Minha evolução</h2><p className="text-[#AFC5B5] mt-1 text-sm">Pequenas conquistas constroem mudanças reais.</p></div><section className="rounded-3xl bg-[#103629] border border-[#31543F] p-5"><div className="flex justify-between items-start"><div><h3 className="font-medium">Hábitos de hoje</h3><p className="text-[#A9C0AE] text-xs mt-1">Marque o que você conseguiu fazer.</p></div><span className="text-[#E8C579] text-2xl font-semibold">{doneToday}/{DAILY.length}</span></div><div className="mt-5 space-y-3">{DAILY.map(h=>{const done=logs.some(l=>l.day===today&&l.habit===h.key);return <button key={h.key} onClick={()=>toggleHabit(h.key)} className={`w-full text-left flex gap-3 items-center rounded-xl border p-3.5 ${done?'border-[#B99B60] bg-[#214732]':'border-[#31533F] bg-[#0A2C20]'}`}><span className={`w-6 h-6 rounded-full border grid place-items-center ${done?'bg-[#E7C477] text-[#123221] border-[#E7C477]':'border-[#849D88]'}`}>{done?<Check size={16}/>:<Plus size={14}/>}</span><span className="text-sm">{h.label}</span></button>})}</div></section><section className="rounded-3xl bg-[#103629] border border-[#31543F] p-5"><div className="flex items-center justify-between"><h3 className="font-medium">Últimos 7 dias</h3><span className="text-[#E8C579] font-semibold">{attended}/7</span></div><p className="text-xs text-[#ACC2AF] mt-1">Dias com ao menos um hábito registrado</p><div className="flex justify-between mt-6 gap-2">{last7.map(d=>{const done=logs.some(l=>l.day===d.day);return <div className="flex-1 text-center" key={d.day}><div className={`w-8 h-8 rounded-full mx-auto flex items-center justify-center ${done?'bg-[#E8C579] text-[#0C291D]':'border border-[#52715C] text-[#ADC3B1]'}`}>{done?<Check size={17}/>:''}</div><p className="capitalize text-[11px] text-[#B3C5B7] mt-2">{d.label}</p></div>})}</div></section><p className="text-[#9DB4A2] text-xs leading-relaxed">Sua evolução registra os hábitos marcados por você. Isso não representa um diagnóstico nem uma avaliação física.</p>{logError&&<p className="text-red-200 text-sm" role="alert">{logError}</p>}</main>}
         {tab==='perfil'&&<main className="flex-1 px-6 py-8"><button onClick={()=>setTab('chat')} className="flex items-center gap-2 text-[#E8C579] text-sm"><ArrowLeft size={16}/> Voltar ao chat</button><div className="mt-10 flex flex-col items-center"><img src={LOGO} alt="Corpo Em Movimento" className="w-28 h-28 object-contain"/><h2 className="text-xl font-semibold mt-4">Corpo Em Movimento</h2><p className="text-center text-sm text-[#B3C7B8] mt-2">Acompanhamento inteligente de hábitos.</p></div><div className="mt-10 bg-[#113729] rounded-2xl p-5 border border-[#2C513C]"><p className="font-medium">Seu histórico privado</p><p className="text-[#B1C5B6] text-sm mt-2">Seus registros são vinculados à sua conta e podem ser acessados após entrar novamente.</p></div><div className="mt-5 text-sm text-[#B1C5B6]">{session?.user?.email}</div><button className="mt-5 block rounded-xl border border-[#D8B46B] px-5 py-3 text-[#E8C579] text-sm" onClick={()=>setEditingOnboarding(true)}>Atualizar meu questionário</button><button className="mt-6 rounded-xl bg-[#D8B46B] px-5 py-3 font-semibold text-[#0A271A]" onClick={async()=>{const {error}=await supabase.auth.signOut();if(error)setBootError(error.message);}}>Sair da conta</button></main>}
-        <nav className="shrink-0 border-t border-[#2C503D] flex bg-[#052219] pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'chat',label:'Chat',Icon:MessageCircle},{id:'evolucao',label:'Evolução',Icon:TrendingUp}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} className={`flex-1 flex flex-col justify-center items-center h-16 gap-1 text-xs ${tab===id?'text-[#E8C579]':'text-[#99B2A0]'}`}><Icon size={22}/>{label}</button>)}</nav>
+        <nav className="shrink-0 border-t border-[#2C503D] flex bg-[#052219] pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'chat',label:'Chat',Icon:MessageCircle},{id:'treino',label:'Meu Treino',Icon:Dumbbell},{id:'evolucao',label:'Evolução',Icon:TrendingUp}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} className={`flex-1 flex flex-col justify-center items-center h-16 gap-1 text-xs ${tab===id?'text-[#E8C579]':'text-[#99B2A0]'}`}><Icon size={22}/>{label}</button>)}</nav>
       </>}
     </div>
   </div>;
