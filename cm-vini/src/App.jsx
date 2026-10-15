@@ -71,7 +71,7 @@ export default function App() {
     try {
       const {data:{session:latest},error:sErr}=await supabase.auth.getSession();
       if(sErr||!latest)throw new Error('Sessão indisponível. Atualize a página.');
-      const res=await fetch(`${URL}/functions/v1/chat-corpo-movimento`,{method:'POST',headers:{apikey:KEY,Authorization:`Bearer ${latest.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({message})});
+      const res=await fetch(`${URL}/functions/v1/cm-chat`,{method:'POST',headers:{apikey:KEY,Authorization:`Bearer ${latest.access_token}`,'Content-Type':'application/json'},body:JSON.stringify({message})});
       const body=await res.json().catch(()=>({}));
       if(!res.ok||!body.reply)throw new Error(body.error||'O chat não conseguiu responder.');
       const {data,error}=await supabase.from('cm_chat_messages').select('id,role,content,created_at').eq('user_id',userId).order('created_at',{ascending:true}).limit(200);
