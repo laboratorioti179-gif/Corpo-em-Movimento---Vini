@@ -567,6 +567,71 @@ function ProfileScreen({profile,photoUrl,onboarding,session,userId,onSaved,onEdi
 }
 
 
+
+// Ficha do aluno: leitura administrativa sem alterações em dados pessoais.
+function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,onClose}){
+  const [tab,setTab]=useState('questionario');
+  const fmt=d=>d?new Date(d).toLocaleDateString('pt-BR'):'Não informado';
+  const value=v=>Array.isArray(v)?(v.join(', ')||'Não informado'):(v===null||v===undefined||v===''?'Não informado':String(v));
+  const field=(label,v)=><div className="py-2 border-b border-[#31543F]/60 last:border-0" key={label}><p className="text-xs text-[#A9C5B1]">{label}</p><p className="text-sm mt-1 whitespace-pre-wrap break-words">{value(v)}</p></div>;
+  const opts=[['questionario','Questionário'],['treinos','Treinos'],['dieta','Dieta'],['evolucao','Evolução']];
+  const week=weekMonday();
+  const weekly=checkins.filter(x=>x.semana_inicio===week);
+  const completed=checkins.filter(x=>x.concluido);
+  const sortedWorkouts=[...workouts].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  const sortedDiets=[...diets].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  return <section className="rounded-2xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
+    <div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="font-semibold text-lg">Ficha do aluno</h3><p className="font-medium mt-2">{profile.nome||'Nome não informado'}</p><p className="text-xs text-[#B8CEBD] mt-1 break-all">{profile.email||'E-mail não informado'}</p></div><button onClick={onClose} aria-label="Fechar ficha" className="p-2 rounded-lg border border-[#426650]"><X size={18}/></button></div>
+    <div className="grid grid-cols-2 gap-2">{opts.map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={`text-xs rounded-xl border px-2 py-3 ${tab===id?'bg-[#D8B46B] border-[#D8B46B] text-[#09291E] font-semibold':'border-[#426650] text-[#C4D4C6] bg-[#082B1E]'}`}>{label}</button>)}</div>
+    {tab==='questionario'&&<div className="rounded-xl bg-[#09291E] p-3">
+      {!onboarding?<p className="text-sm text-[#B8CEBD]">Questionário não encontrado.</p>:<>
+        {field('Objetivo',onboarding.objetivo)}
+        {field('Experiência em musculação',onboarding.experiencia_musculacao)}
+        {field('Idade',onboarding.idade)}
+        {field('Gênero',onboarding.genero)}
+        {field('Altura (cm)',onboarding.altura_cm)}
+        {field('Peso informado (kg)',onboarding.peso_atual)}
+        {field('Meta de peso (kg)',onboarding.meta_peso)}
+        {field('Nível de atividade',onboarding.nivel_atividade)}
+        {field('Local de treino',onboarding.estrutura)}
+        {field('Dias disponíveis',onboarding.disponibilidade)}
+        {field('Minutos por treino',onboarding.tempo_treino_min)}
+        {field('Equipamentos',onboarding.equipamentos)}
+        {field('Limitações informadas',onboarding.limitacoes_fisicas)}
+        {field('Restrições alimentares',onboarding.restricoes_alimentares)}
+        {field('Preferências alimentares',onboarding.preferencias_alimentares)}
+        {field('Hábitos alimentares',onboarding.habitos_alimentares)}
+        {field('Atualização do cadastro',onboarding.updated_at||onboarding.created_at)}
+      </>}
+    </div>}
+    {tab==='treinos'&&<div className="space-y-3">
+      <p className="text-xs text-[#B8CEBD]">{sortedWorkouts.length} plano(s) encontrado(s)</p>
+      {!sortedWorkouts.length&&<p className="text-sm">Não há treinos cadastrados.</p>}
+      {sortedWorkouts.map(plan=><article key={plan.id} className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
+        <h4 className="font-medium">{plan.treino_json?.titulo||'Plano de treino'}</h4><p className="text-xs text-[#E8C579] mt-1">{plan.treino_json?.demonstrativo?'DEMO — não liberado para execução':plan.status} · {fmt(plan.created_at)}</p>
+        {plan.treino_json?.justificativa&&<p className="text-xs text-[#BDD0BE] mt-2">{plan.treino_json.justificativa}</p>}
+        {(Array.isArray(plan.treino_json?.dias)?plan.treino_json.dias:[]).map((day,i)=><details key={i} className="mt-3 rounded-lg border border-[#31543F] p-2"><summary className="text-sm cursor-pointer text-[#E8C579]">{day.dia||`Dia ${i+1}`} — {day.foco||'Treino'}</summary><div className="mt-2 space-y-2">{(day.exercicios||[]).map((ex,j)=><p key={j} className="text-xs text-[#B8CEBD] break-words">Exercício {j+1}: {ex.nome||ex.exercicio_nome||ex.exercicio_id||'Não identificado'} · {ex.series??'—'} séries · {ex.repeticoes??'—'} repetições</p>)}</div></details>)}
+      </article>)}
+      <p className="text-xs text-[#A6BDAA]">Os IDs de exercícios são exibidos quando não há nomes disponíveis na consulta administrativa.</p>
+    </div>}
+    {tab==='dieta'&&<div className="space-y-3">
+      <p className="text-xs text-[#B8CEBD]">{sortedDiets.length} plano(s) alimentar(es) encontrado(s)</p>
+      {!sortedDiets.length&&<p className="text-sm">Não há planos alimentares cadastrados.</p>}
+      {sortedDiets.map(plan=><article key={plan.id} className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
+        <h4 className="font-medium">{plan.plano_json?.titulo||'Plano alimentar'}</h4><p className="text-xs text-[#E8C579] mt-1">{plan.status||'Sem status'} · {fmt(plan.created_at)}</p>
+        <p className="text-xs text-[#B8CEBD] mt-2">{plan.plano_json?.introducao||'Plano demonstrativo, sujeito a avaliação nutricional.'}</p>
+        {(Array.isArray(plan.plano_json?.refeicoes)?plan.plano_json.refeicoes:[]).map((r,i)=><div className="mt-3 border-t border-[#31543F] pt-2" key={i}><p className="text-sm font-medium text-[#E8C579]">{r.nome||`Refeição ${i+1}`}</p><p className="text-xs text-[#B8CEBD] mt-1">{r.sugestao||'Sem detalhes'}</p></div>)}
+        {Array.isArray(plan.plano_json?.dicas)&&<p className="text-xs text-[#B8CEBD] mt-3">Dicas: {plan.plano_json.dicas.join(' · ')}</p>}
+      </article>)}
+    </div>}
+    {tab==='evolucao'&&<div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2"><div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Esta semana</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{weekly.filter(x=>x.concluido).length}</p><p className="text-xs">marcações</p></div><div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Histórico disponível</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{completed.length}</p><p className="text-xs">marcações</p></div></div>
+      {completed.length?<div className="rounded-xl bg-[#09291E] p-3"><p className="font-medium text-sm mb-2">Registros por semana</p>{Object.entries(completed.reduce((acc,r)=>{const k=r.semana_inicio||'Data não informada';acc[k]=(acc[k]||0)+1;return acc;},{})).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,12).map(([w,count])=><div key={w} className="flex justify-between border-b border-[#31543F] py-2 text-xs"><span>Semana de {w.split('-').reverse().join('/')}</span><span className="text-[#E8C579]">{count} marcação(ões)</span></div>)}</div>:<p className="text-sm text-[#B8CEBD]">Ainda não há marcações de treino.</p>}
+      <p className="text-xs text-[#B8CEBD]">As marcações de planos DEMO não comprovam a realização de exercícios. O histórico exibido está limitado aos registros consultados.</p>
+    </div>}
+  </section>;
+}
+
 function AdminScreen({userId,onSignOut}){
   const [section,setSection]=useState('resumo');
   const [loading,setLoading]=useState(true);
@@ -581,8 +646,8 @@ function AdminScreen({userId,onSignOut}){
     try{
       // Cada SELECT é limitado pelas políticas RLS do Supabase.
       const tables=[
-        ['profiles','id,nome,email,phone,role,is_admin'],
-        ['onboarding_respostas','id,user_id,objetivo,experiencia_musculacao,disponibilidade,onboarding_concluido,created_at'],
+        ['profiles','id,nome,email,phone,role,is_admin,foto_url'],
+        ['onboarding_respostas','*'],
         ['planos_treino','id,user_id,status,treino_json,created_at'],
         ['cm_planos_alimentares','id,user_id,status,plano_json,created_at'],
         ['cm_treino_checkins','id,user_id,plano_id,semana_inicio,dia_semana,concluido,created_at']
@@ -630,7 +695,14 @@ function AdminScreen({userId,onSignOut}){
           <label className="flex gap-2 items-center px-3 rounded-xl border border-[#426650] bg-[#09291E]"><Search size={18} className="text-[#B8CEBD]"/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar aluno por nome ou e-mail" className="bg-transparent w-full outline-none py-3 text-sm"/></label>
           <p className="text-xs text-[#B8CEBD]">{results.length} aluno(s) encontrado(s)</p>
           {results.map(p=><button key={p.id} onClick={()=>{setSelected(p.id);setExpanded(false);}} className="w-full text-left rounded-xl border border-[#31543F] bg-[#103629] p-4 flex justify-between items-center"><span className="min-w-0"><strong className="block text-sm truncate">{p.nome||'Nome não informado'}</strong><span className="block text-xs text-[#B8CEBD] truncate mt-1">{p.email}</span></span><Eye className="shrink-0 text-[#E8C579]" size={18}/></button>)}
-          {selectedProfile&&<section className={card}><div className="flex justify-between items-center"><h3 className="font-semibold">Detalhes do aluno</h3><button onClick={()=>setSelected(null)} aria-label="Fechar detalhes"><X size={18}/></button></div><p className="font-medium mt-3">{selectedProfile.nome||'Nome não informado'}</p><p className="text-xs text-[#B8CEBD] mt-1">{selectedProfile.email}</p><div className="mt-3 space-y-2 text-sm"><p>Objetivo: {selectedOnboarding?.objetivo||'Não informado'}</p><p>Experiência: {selectedOnboarding?.experiencia_musculacao||'Não informada'}</p><p>Dias disponíveis: {(selectedOnboarding?.disponibilidade||[]).join(', ')||'Não informado'}</p><p>Planos de treino: {selectedWorkouts.length}</p><p>Planos alimentares: {selectedDiets.length}</p><p>Marcações: {selectedCheckins.length}</p></div></section>}
+          {selectedProfile&&<AdminStudentDetails
+            profile={selectedProfile}
+            onboarding={selectedOnboarding}
+            workouts={selectedWorkouts}
+            diets={selectedDiets}
+            checkins={selectedCheckins}
+            onClose={()=>setSelected(null)}
+          />}
         </>}
         {section==='treinos'&&<><p className="text-sm text-[#B9CDBD]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
         {section==='dietas'&&<><p className="text-sm text-[#B9CDBD]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
