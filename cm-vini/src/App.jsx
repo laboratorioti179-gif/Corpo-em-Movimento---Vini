@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw, Utensils, Camera, RotateCcw, CalendarDays, LogOut } from 'lucide-react';
+import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw, Utensils, Camera, RotateCcw, CalendarDays, LogOut, ShieldCheck, Users, Search, Activity, BarChart3, Eye, X } from 'lucide-react';
 
 // A chave anon/publishable é pública. Nunca coloque service_role ou OPENAI_API_KEY aqui.
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://jaujldyuelyhsqyxyerc.supabase.co';
@@ -17,6 +17,7 @@ const weekdayIndex=(s)=>{const n=String(s||'').normalize('NFD').replace(/[\u0300
 
 export default function App() {
   const [session,setSession] = useState(null);
+  const [adminStatus,setAdminStatus] = useState('loading');
   const [boot,setBoot] = useState(true);
   const [bootError,setBootError] = useState('');
   const [passwordRecovery,setPasswordRecovery] = useState(false);
@@ -58,7 +59,7 @@ export default function App() {
       setSession(next);
       if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);
       if(event==='SIGNED_OUT'){
-        setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('chat');setOnboarding(null);setEditingOnboarding(false);setOnboardingThanks(false);setTrainingGenerationError('');setProfile(null);setPhotoUrl('');setDiet(null);setCheckins([]);
+        setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('chat');setOnboarding(null);setEditingOnboarding(false);setOnboardingThanks(false);setTrainingGenerationError('');setProfile(null);setPhotoUrl('');setDiet(null);setCheckins([]);setAdminStatus('loading');
       }
     });
     (async()=>{
@@ -73,6 +74,16 @@ export default function App() {
   },[]);
 
   const userId=session?.user?.id;
+  useEffect(()=>{
+    if(!userId){setAdminStatus('loading');return;}
+    let active=true;
+    setAdminStatus('loading');
+    (async()=>{
+      const {data,error}=await supabase.rpc('cm_is_admin');
+      if(active)setAdminStatus(error?'error':data===true?'admin':'student');
+    })();
+    return ()=>{active=false;};
+  },[userId]);
   useEffect(()=>{
     if(!userId){setOnboarding(null);setOnboardingLoading(false);return;}
     let active=true;
@@ -296,7 +307,7 @@ export default function App() {
         <div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':tab==='dieta'?'Hábitos e alimentação':'Seu espaço'}</p></div>
         <button className={`w-10 h-10 grid place-items-center rounded-full border ${tab==='perfil'?'text-[#E8C579] border-[#D6B36B]':'border-[#28503B] text-[#B5C9B8]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={21}/></button>
       </header>
-      {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'treino':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#153D2C] border border-[#BCA064] flex items-center justify-center mx-auto mb-6"><Check className="text-[#E8C579]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#BACFBE] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#B5C6B8] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('treino');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#E8C579] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
+      {boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : adminStatus==='loading' ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : adminStatus==='error' ? <div className="flex-1 p-6 text-red-200">Não foi possível verificar as permissões de acesso. Atualize a página ou contate o suporte.</div> : adminStatus==='admin' ? <AdminScreen userId={userId} onSignOut={()=>supabase.auth.signOut()}/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'treino':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#153D2C] border border-[#BCA064] flex items-center justify-center mx-auto mb-6"><Check className="text-[#E8C579]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#BACFBE] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#B5C6B8] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('treino');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#E8C579] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
         {tab==='chat'&&<main className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
             {messages.length===0&&<div className="pt-10 text-center"><div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#133C2C] border border-[#A98C51]/50 flex items-center justify-center"><img src={LOGO} alt="" className="w-20 h-20 object-contain"/></div><h2 className="text-2xl font-semibold">Sua jornada começa aqui.</h2><p className="text-[#B8CBBE] text-sm leading-relaxed mt-3 max-w-xs mx-auto">Converse sobre hábitos, movimento e constância. Como você está hoje?</p><p className="text-xs text-[#91AA9A] mt-3">Você está conversando com uma IA, não com o treinador humano.</p><div className="mt-8 flex flex-wrap gap-2 justify-center">{suggestions.map(s=><button key={s} onClick={()=>send(s)} className="text-sm px-3 py-2 border border-[#957E4A] text-[#F0D79F] rounded-full bg-[#103629]">{s}</button>)}</div></div>}
@@ -552,5 +563,80 @@ function ProfileScreen({profile,photoUrl,onboarding,session,userId,onSaved,onEdi
     <section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-2"><h3 className="font-semibold">Meu questionário</h3><p className="text-sm text-[#B1C5B6]">Objetivo: {onboarding?.objetivo||'Não definido'}</p><p className="text-sm text-[#B1C5B6]">Experiência: {onboarding?.experiencia_musculacao||'Não definido'}</p><p className="text-sm text-[#B1C5B6]">Disponibilidade: {(onboarding?.disponibilidade||[]).join(', ')||'Não definida'}</p><button className="text-[#E8C579] underline text-sm mt-3" onClick={onEditOnboarding}>Atualizar questionário</button></section>
     {error&&<p role="alert" className="text-red-200 text-sm">{error}</p>}{info&&<p role="status" className="text-[#E8C579] text-sm">{info}</p>}
     <button onClick={onSignOut} className="flex items-center gap-2 border border-[#8D6653] text-[#F2CEC0] rounded-xl px-4 py-3"><LogOut size={17}/> Sair da conta</button>
+  </main>;
+}
+
+
+function AdminScreen({userId,onSignOut}){
+  const [section,setSection]=useState('resumo');
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState('');
+  const [records,setRecords]=useState({profiles:[],onboarding:[],treinos:[],dietas:[],checkins:[]});
+  const [filter,setFilter]=useState('');
+  const [selected,setSelected]=useState(null);
+  const [expanded,setExpanded]=useState(false);
+
+  async function refresh(){
+    setLoading(true);setError('');
+    try{
+      // Cada SELECT é limitado pelas políticas RLS do Supabase.
+      const tables=[
+        ['profiles','id,nome,email,phone,role,is_admin'],
+        ['onboarding_respostas','id,user_id,objetivo,experiencia_musculacao,disponibilidade,onboarding_concluido,created_at'],
+        ['planos_treino','id,user_id,status,treino_json,created_at'],
+        ['cm_planos_alimentares','id,user_id,status,plano_json,created_at'],
+        ['cm_treino_checkins','id,user_id,plano_id,semana_inicio,dia_semana,concluido,created_at']
+      ];
+      const results=await Promise.all(tables.map(async ([name,fields])=>{
+        const {data,error}=await supabase.from(name).select(fields).limit(1000);
+        if(error)throw new Error(name+': '+error.message);
+        return data||[];
+      }));
+      const next=Object.fromEntries(tables.map(([name],i)=>[name==='onboarding_respostas'?'onboarding':name==='planos_treino'?'treinos':name==='cm_planos_alimentares'?'dietas':name==='cm_treino_checkins'?'checkins':name,results[i]]));
+      setRecords(next);
+    }catch(err){setError(err.message||'Falha ao carregar os indicadores.');}
+    finally{setLoading(false);}
+  }
+  useEffect(()=>{refresh();},[userId]);
+  const {profiles,onboarding,treinos,dietas,checkins}=records;
+  const students=profiles.filter(p=>!(p.is_admin||p.role==='admin'||p.role==='professor'));
+  const search=filter.trim().toLocaleLowerCase('pt-BR');
+  const results=students.filter(p=>`${p.nome||''} ${p.email||''}`.toLocaleLowerCase('pt-BR').includes(search));
+  const person=id=>profiles.find(p=>p.id===id);
+  const name=id=>person(id)?.nome||person(id)?.email||'Conta sem nome cadastrado';
+  const fmt=date=>date?new Date(date).toLocaleDateString('pt-BR'):'—';
+  const selectedProfile=person(selected);
+  const selectedOnboarding=onboarding.filter(x=>x.user_id===selected).sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)))[0];
+  const selectedWorkouts=treinos.filter(x=>x.user_id===selected);
+  const selectedDiets=dietas.filter(x=>x.user_id===selected);
+  const selectedCheckins=checkins.filter(x=>x.user_id===selected&&x.concluido);
+  const card='rounded-2xl border border-[#31543F] bg-[#103629] p-4';
+  const tabs=[['resumo','Resumo',BarChart3],['alunos','Alunos',Users],['treinos','Treinos',Dumbbell],['dietas','Dietas',Utensils],['evolucao','Evolução',TrendingUp]];
+  return <main className="flex-1 min-h-0 flex flex-col">
+    <div className="px-5 pt-5 pb-3 border-b border-[#31543F] shrink-0">
+      <div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-[#E8C579] text-xs uppercase tracking-wider"><ShieldCheck size={15}/> Área restrita</div><h2 className="text-xl font-semibold mt-1">Painel Administrativo</h2></div><div className="flex gap-2"><button aria-label="Atualizar indicadores" onClick={refresh} disabled={loading} className="border border-[#426650] rounded-xl p-2"><RefreshCw size={19} className={loading?'animate-spin':''}/></button><button aria-label="Sair da conta" onClick={onSignOut} className="border border-[#426650] rounded-xl p-2"><LogOut size={19}/></button></div></div>
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">{tabs.map(([id,label,Icon])=><button key={id} onClick={()=>{setSection(id);setSelected(null);setExpanded(false);}} className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border ${section===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'bg-[#103629] border-[#426650] text-[#BBD0C0]'}`}><Icon size={15}/>{label}</button>)}</div>
+    </div>
+    <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-4">
+      {error&&<div role="alert" className="p-3 bg-red-950/50 text-red-100 text-sm rounded-xl">{error}</div>}
+      {loading&&<p className="text-sm text-[#BCD0C1]">Carregando dados do painel...</p>}
+      {!loading&&<>
+        {section==='resumo'&&<>
+          <p className="text-sm text-[#B9CDBD]">Visão geral dos registros disponíveis no Supabase.</p>
+          <div className="grid grid-cols-2 gap-3">{[[students.length,'Alunos',Users],[treinos.length,'Planos de treino',Dumbbell],[dietas.length,'Planos alimentares',Utensils],[checkins.filter(c=>c.concluido).length,'Marcações de treino',Activity]].map(([value,label,Icon])=><div className={card} key={label}><Icon size={19} className="text-[#E8C579]"/><p className="text-3xl font-semibold mt-3">{value}</p><p className="text-xs mt-1 text-[#B8CEBD]">{label}</p></div>)}</div>
+          <div className={card}><h3 className="font-semibold">Acompanhamento</h3><p className="text-sm text-[#B9CDBD] mt-2">Consulte os alunos, os planos registrados e as marcações de treinos. As propostas DEMO continuam identificadas como demonstrativas.</p></div>
+        </>}
+        {section==='alunos'&&<>
+          <label className="flex gap-2 items-center px-3 rounded-xl border border-[#426650] bg-[#09291E]"><Search size={18} className="text-[#B8CEBD]"/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar aluno por nome ou e-mail" className="bg-transparent w-full outline-none py-3 text-sm"/></label>
+          <p className="text-xs text-[#B8CEBD]">{results.length} aluno(s) encontrado(s)</p>
+          {results.map(p=><button key={p.id} onClick={()=>{setSelected(p.id);setExpanded(false);}} className="w-full text-left rounded-xl border border-[#31543F] bg-[#103629] p-4 flex justify-between items-center"><span className="min-w-0"><strong className="block text-sm truncate">{p.nome||'Nome não informado'}</strong><span className="block text-xs text-[#B8CEBD] truncate mt-1">{p.email}</span></span><Eye className="shrink-0 text-[#E8C579]" size={18}/></button>)}
+          {selectedProfile&&<section className={card}><div className="flex justify-between items-center"><h3 className="font-semibold">Detalhes do aluno</h3><button onClick={()=>setSelected(null)} aria-label="Fechar detalhes"><X size={18}/></button></div><p className="font-medium mt-3">{selectedProfile.nome||'Nome não informado'}</p><p className="text-xs text-[#B8CEBD] mt-1">{selectedProfile.email}</p><div className="mt-3 space-y-2 text-sm"><p>Objetivo: {selectedOnboarding?.objetivo||'Não informado'}</p><p>Experiência: {selectedOnboarding?.experiencia_musculacao||'Não informada'}</p><p>Dias disponíveis: {(selectedOnboarding?.disponibilidade||[]).join(', ')||'Não informado'}</p><p>Planos de treino: {selectedWorkouts.length}</p><p>Planos alimentares: {selectedDiets.length}</p><p>Marcações: {selectedCheckins.length}</p></div></section>}
+        </>}
+        {section==='treinos'&&<><p className="text-sm text-[#B9CDBD]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
+        {section==='dietas'&&<><p className="text-sm text-[#B9CDBD]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
+        {section==='evolucao'&&<><p className="text-sm text-[#B9CDBD]">Registros de conclusão dos treinos. Marcações DEMO não comprovam atividades realizadas.</p><div className={card}><h3 className="font-semibold">Esta semana</h3><p className="text-3xl text-[#E8C579] mt-2">{checkins.filter(c=>c.concluido&&c.semana_inicio===weekMonday()).length}</p><p className="text-xs text-[#B9CDBD] mt-1">Marcações registradas</p></div>{students.map(p=>{const n=checkins.filter(c=>c.user_id===p.id&&c.concluido).length;return <div className={card} key={p.id}><p className="font-medium text-sm">{p.nome||p.email}</p><p className="text-xs text-[#B9CDBD] mt-1">{n} marcação(ões) no histórico consultado</p></div>})}</>}
+        <p className="text-xs text-[#94AE9C] leading-relaxed">Indicadores calculados com até 1.000 registros por tabela; não representam necessariamente a base completa. O acesso é condicionado às políticas do Supabase.</p>
+      </>}
+    </div>
   </main>;
 }
