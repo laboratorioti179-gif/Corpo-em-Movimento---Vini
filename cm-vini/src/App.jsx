@@ -569,7 +569,7 @@ function ProfileScreen({profile,photoUrl,onboarding,session,userId,onSaved,onEdi
 
 
 // Ficha do aluno: leitura administrativa sem alterações em dados pessoais.
-function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,onClose}){
+function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exerciseLookup,onClose}){
   const [tab,setTab]=useState('questionario');
   const fmt=d=>d?new Date(d).toLocaleDateString('pt-BR'):'Não informado';
   const value=v=>Array.isArray(v)?(v.join(', ')||'Não informado'):(v===null||v===undefined||v===''?'Não informado':String(v));
@@ -610,9 +610,9 @@ function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,onClose
       {sortedWorkouts.map(plan=><article key={plan.id} className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
         <h4 className="font-medium">{plan.treino_json?.titulo||'Plano de treino'}</h4><p className="text-xs text-[#E8C579] mt-1">{plan.treino_json?.demonstrativo?'DEMO — não liberado para execução':plan.status} · {fmt(plan.created_at)}</p>
         {plan.treino_json?.justificativa&&<p className="text-xs text-[#BDD0BE] mt-2">{plan.treino_json.justificativa}</p>}
-        {(Array.isArray(plan.treino_json?.dias)?plan.treino_json.dias:[]).map((day,i)=><details key={i} className="mt-3 rounded-lg border border-[#31543F] p-2"><summary className="text-sm cursor-pointer text-[#E8C579]">{day.dia||`Dia ${i+1}`} — {day.foco||'Treino'}</summary><div className="mt-2 space-y-2">{(day.exercicios||[]).map((ex,j)=><p key={j} className="text-xs text-[#B8CEBD] break-words">Exercício {j+1}: {ex.nome||ex.exercicio_nome||ex.exercicio_id||'Não identificado'} · {ex.series??'—'} séries · {ex.repeticoes??'—'} repetições</p>)}</div></details>)}
+        {(Array.isArray(plan.treino_json?.dias)?plan.treino_json.dias:[]).map((day,i)=><details key={i} className="mt-3 rounded-lg border border-[#31543F] p-2"><summary className="text-sm cursor-pointer text-[#E8C579]">{day.dia||`Dia ${i+1}`} — {day.foco||'Treino'}</summary><div className="mt-2 space-y-2">{(day.exercicios||[]).map((ex,j)=><p key={j} className="text-xs text-[#B8CEBD] break-words">Exercício {j+1}: {exerciseLookup[ex.exercicio_id]?.nome||ex.nome||ex.exercicio_nome||'Exercício não encontrado na biblioteca'} · {ex.series??'—'} séries · {ex.repeticoes??'—'} repetições</p>)}</div></details>)}
       </article>)}
-      <p className="text-xs text-[#A6BDAA]">Os IDs de exercícios são exibidos quando não há nomes disponíveis na consulta administrativa.</p>
+      <p className="text-xs text-[#A6BDAA]">Os nomes são consultados na biblioteca de exercícios do Supabase.</p>
     </div>}
     {tab==='dieta'&&<div className="space-y-3">
       <p className="text-xs text-[#B8CEBD]">{sortedDiets.length} plano(s) alimentar(es) encontrado(s)</p>
@@ -637,6 +637,8 @@ function AdminScreen({userId,onSignOut}){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState('');
   const [records,setRecords]=useState({profiles:[],onboarding:[],treinos:[],dietas:[],checkins:[]});
+  const [exerciseLookup,setExerciseLookup]=useState({});
+  const [exerciseError,setExerciseError]=useState('');
   const [filter,setFilter]=useState('');
   const [selected,setSelected]=useState(null);
   const [expanded,setExpanded]=useState(false);
@@ -659,6 +661,28 @@ function AdminScreen({userId,onSignOut}){
       }));
       const next=Object.fromEntries(tables.map(([name],i)=>[name==='onboarding_respostas'?'onboarding':name==='planos_treino'?'treinos':name==='cm_planos_alimentares'?'dietas':name==='cm_treino_checkins'?'checkins':name,results[i]]));
       setRecords(next);
+      // Busca apenas os nomes dos exercícios presentes nos planos carregados.
+      const exerciseIds=[...new Set(results[2].flatMap(plan =>
+        (Array.isArray(plan.treino_json?.dias)?plan.treino_json.dias:[])
+          .flatMap(day => (Array.isArray(day.exercicios)?day.exercicios:[])
+            .map(ex => ex.exercicio_id))
+      ).filter(Boolean))];
+      if(exerciseIds.length){
+        const {data:library,error:libraryError}=await supabase
+          .from('biblioteca_exercicios')
+          .select('id,nome,grupo_muscular')
+          .in('id',exerciseIds);
+        if(libraryError){
+          setExerciseLookup({});
+          setExerciseError('Não foi possível carregar os nomes dos exercícios: '+libraryError.message);
+        }else{
+          setExerciseLookup(Object.fromEntries((library||[]).map(ex=>[ex.id,ex])));
+          setExerciseError('');
+        }
+      }else{
+        setExerciseLookup({});
+        setExerciseError('');
+      }
     }catch(err){setError(err.message||'Falha ao carregar os indicadores.');}
     finally{setLoading(false);}
   }
@@ -683,6 +707,7 @@ function AdminScreen({userId,onSignOut}){
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">{tabs.map(([id,label,Icon])=><button key={id} onClick={()=>{setSection(id);setSelected(null);setExpanded(false);}} className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border ${section===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'bg-[#103629] border-[#426650] text-[#BBD0C0]'}`}><Icon size={15}/>{label}</button>)}</div>
     </div>
     <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-4">
+      {exerciseError&&<div role="alert" className="p-3 bg-amber-950/40 text-amber-100 text-sm rounded-xl">{exerciseError}</div>}
       {error&&<div role="alert" className="p-3 bg-red-950/50 text-red-100 text-sm rounded-xl">{error}</div>}
       {loading&&<p className="text-sm text-[#BCD0C1]">Carregando dados do painel...</p>}
       {!loading&&<>
@@ -701,6 +726,7 @@ function AdminScreen({userId,onSignOut}){
             workouts={selectedWorkouts}
             diets={selectedDiets}
             checkins={selectedCheckins}
+            exerciseLookup={exerciseLookup}
             onClose={()=>setSelected(null)}
           />}
         </>}
