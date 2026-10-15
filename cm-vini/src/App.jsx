@@ -779,9 +779,39 @@ function AdminScreen({userId,onSignOut}){
       {loading&&<p className="text-sm text-[#BCD0C1]">Carregando dados do painel...</p>}
       {!loading&&<>
         {section==='resumo'&&<>
-          <p className="text-sm text-[#B9CDBD]">Visão geral dos registros disponíveis no Supabase.</p>
-          <div className="grid grid-cols-2 gap-3">{[[students.length,'Alunos',Users],[treinos.length,'Planos de treino',Dumbbell],[dietas.length,'Planos alimentares',Utensils],[checkins.filter(c=>c.concluido).length,'Marcações de treino',Activity]].map(([value,label,Icon])=><div className={card} key={label}><Icon size={19} className="text-[#E8C579]"/><p className="text-3xl font-semibold mt-3">{value}</p><p className="text-xs mt-1 text-[#B8CEBD]">{label}</p></div>)}</div>
-          <div className={card}><h3 className="font-semibold">Acompanhamento</h3><p className="text-sm text-[#B9CDBD] mt-2">Consulte os alunos, os planos registrados e as marcações de treinos. As propostas DEMO continuam identificadas como demonstrativas.</p></div>
+          <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-lg">Visão geral</h3><p className="text-xs text-[#B9CDBD] mt-1">Informações dos registros acessíveis ao administrador.</p></div><span className="text-[10px] text-[#D8B46B] border border-[#6D7753] rounded-full px-2 py-1 shrink-0">Atualização manual</span></div>
+          {(()=>{
+            const studentIds=new Set(students.map(p=>p.id));
+            const studentOnboarding=onboarding.filter(x=>studentIds.has(x.user_id)&&x.onboarding_concluido===true);
+            const answeredStudents=new Set(studentOnboarding.map(x=>x.user_id)).size;
+            const published=treinos.filter(t=>t.status==='publicado'&&t.treino_json?.demonstrativo!==true);
+            const demo=treinos.filter(t=>t.treino_json?.demonstrativo===true||t.status==='rascunho');
+            const realDiet=dietas.filter(d=>d.status==='aprovado');
+            const pendingDiet=dietas.filter(d=>d.status!=='aprovado');
+            const evo=cmEvolutionStats(checkins,treinos);
+            const completedUsers=new Set(checkins.filter(c=>c.concluido).map(c=>c.user_id)).size;
+            const activity=[
+              ...treinos.map(t=>({id:'t'+t.id,when:t.created_at,label:'Plano de treino registrado',detail:name(t.user_id),type:t.treino_json?.demonstrativo===true?'DEMO':t.status})),
+              ...dietas.map(d=>({id:'d'+d.id,when:d.created_at,label:'Plano alimentar registrado',detail:name(d.user_id),type:d.status})),
+              ...checkins.filter(c=>c.concluido).map(c=>({id:'c'+c.id,when:c.created_at,label:'Marcação de treino',detail:name(c.user_id),type:treinos.find(t=>t.id===c.plano_id)?.treino_json?.demonstrativo===true?'DEMO':'Autorregistro'}))
+            ].filter(x=>x.when).sort((a,b)=>String(b.when).localeCompare(String(a.when))).slice(0,6);
+            const metrics=[
+              [students.length,'Alunos cadastrados',Users],
+              [answeredStudents,'Questionários concluídos',Check],
+              [published.length,'Treinos publicados',Dumbbell],
+              [demo.length,'Treinos DEMO/rascunho',Activity],
+              [realDiet.length,'Dietas com status aprovado',Utensils],
+              [pendingDiet.length,'Dietas em rascunho/outros',BarChart3],
+              [evo.weekReal,'Treinos marcados nesta semana',TrendingUp],
+              [evo.weekDemo,'Simulações marcadas nesta semana',CalendarDays]
+            ];
+            return <>
+              <div className="grid grid-cols-2 gap-3">{metrics.map(([value,label,Icon])=><div className={card} key={label}><Icon size={18} className="text-[#E8C579]"/><p className="text-3xl font-semibold text-[#F8F4E9] mt-2">{value}</p><p className="text-xs text-[#B8CEBD] mt-1 leading-snug">{label}</p></div>)}</div>
+              <section className={card}><h3 className="font-semibold">Cadastros e acompanhamento</h3><p className="text-xs text-[#B9CDBD] mt-2">{answeredStudents} de {students.length} aluno(s) com questionário concluído.</p><div className="w-full h-3 mt-3 rounded-full overflow-hidden bg-[#09291E]"><div className="h-full rounded-full bg-[#D8B46B]" style={{width:`${students.length?Math.min(100,answeredStudents/students.length*100):0}%`}}/></div><p className="text-xs text-[#B9CDBD] mt-2">{completedUsers} conta(s) possuem ao menos uma marcação registrada no histórico consultado (incluindo simulações).</p></section>
+              <section className={card}><h3 className="font-semibold mb-3">Frequência nas últimas semanas</h3><CmEvolutionChart stats={evo}/><p className="text-xs text-[#B9CDBD] mt-3">Marcações são registros declarados; simulações DEMO aparecem separadas dos planos publicados.</p></section>
+              <section className={card}><h3 className="font-semibold">Atividade recente</h3>{activity.length?<div className="mt-3 space-y-3">{activity.map(item=><div className="border-b border-[#31543F] pb-3 last:border-0 last:pb-0" key={item.id}><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{item.label}</p><span className="text-[10px] text-[#E8C579] shrink-0">{fmt(item.when)}</span></div><p className="text-xs text-[#B9CDBD] mt-1">{item.detail} · {item.type||'Registrado'}</p></div>)}</div>:<p className="text-sm text-[#B9CDBD] mt-2">Nenhuma atividade recente disponível.</p>}</section>
+            </>;
+          })()}
         </>}
         {section==='alunos'&&<>
           <label className="flex gap-2 items-center px-3 rounded-xl border border-[#426650] bg-[#09291E]"><Search size={18} className="text-[#B8CEBD]"/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar aluno por nome ou e-mail" className="bg-transparent w-full outline-none py-3 text-sm"/></label>
