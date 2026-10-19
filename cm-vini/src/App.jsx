@@ -716,15 +716,22 @@ function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
   const [error,setError]=useState('');
   const [success,setSuccess]=useState('');
   const [reason,setReason]=useState('');
-  const [filter,setFilter]=useState('todos');
+  const [filter,setFilter]=useState('pendente');
   const selected=treinos.find(x=>x.id===selectedId);
   const isDemo=p=>p?.treino_json?.demonstrativo===true;
   const isOfficialDraft=p=>p?.status==='rascunho'&&!isDemo(p);
   const isApproved=p=>p?.revisao_status==='aprovado';
-  const items=[...treinos].filter(p=>filter==='todos'||
-    (filter==='pendentes'&&p.revisao_status==='pendente')||
-    (filter==='demo'&&isDemo(p))||
-    (filter==='oficiais'&&!isDemo(p)))
+  // A fila profissional não exibe simulações nem testes internos.
+  const officialPlans=treinos.filter(p=>
+    p?.treino_json?.demonstrativo!==true &&
+    p?.treino_json?.teste_interno!==true
+  );
+  const revisionFilters=[['pendente','Pendentes'],['aprovado','Aprovados'],['rejeitado','Rejeitados']];
+  const counts=Object.fromEntries(revisionFilters.map(([id])=>[
+    id, officialPlans.filter(p=>(p.revisao_status||'pendente')===id).length
+  ]));
+  const items=officialPlans
+    .filter(p=>(p.revisao_status||'pendente')===filter)
     .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
   const student=id=>{const p=profiles.find(x=>x.id===id);return p?.nome||p?.email||'Aluno sem nome';};
   const eligible=library.filter(x=>x.ativo&&x.metadata?.origem!=='metodologia_vinicius'&&x.metadata?.requer_avaliacao_profissional!==true);
@@ -783,14 +790,14 @@ function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
   return <div className="space-y-4">
     <div className="rounded-xl bg-[#153B2A] border border-[#426650] p-3 text-sm">
       <h3 className="font-semibold text-[#E8C579]">Revisão profissional de treinos</h3>
-      <p className="text-[#B9CDBD] mt-2 text-xs">Planos DEMO podem ser consultados e editados, mas não aprovados nem publicados. A metodologia do Vinícius continua pendente de validação.</p>
+      <p className="text-[#B9CDBD] mt-2 text-xs">Fila exclusiva de propostas oficiais. Simulações e testes internos ficam fora desta área. A publicação depende da aprovação profissional e da metodologia.</p>
     </div>
-    <div className="flex flex-wrap gap-2">{[['todos','Todos'],['pendentes','Pendentes'],['demo','DEMO'],['oficiais','Oficiais']].map(([id,label])=><button key={id} onClick={()=>{setFilter(id);setSelectedId(null);setEditing(false);}} className={`rounded-lg px-3 py-2 text-xs border ${filter===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650]'}`}>{label}</button>)}</div>
+    <div className="flex flex-wrap gap-2">{revisionFilters.map(([id,label])=><button key={id} onClick={()=>{setFilter(id);setSelectedId(null);setEditing(false);setError('');setSuccess('');}} className={`rounded-lg px-3 py-2 text-xs border ${filter===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650]'}`}>{label} ({counts[id]})</button>)}</div>
     <p className="text-xs text-[#B9CDBD]">{items.length} treino(s) encontrado(s)</p>
-    {!items.length&&<p className="text-sm text-[#B9CDBD]">Não há treinos nesta categoria.</p>}
+    {!items.length&&<p className="text-sm text-[#B9CDBD]">Nenhum treino oficial nesta situação. Os testes anteriores continuam preservados no banco.</p>}
     {items.map(p=><button key={p.id} onClick={()=>openPlan(p)} className={`w-full text-left rounded-xl border p-3 ${selectedId===p.id?'border-[#D8B46B] bg-[#194632]':'border-[#31543F] bg-[#103629]'}`}>
       <div className="flex justify-between gap-2 items-start"><div className="min-w-0"><p className="font-semibold text-sm">{p.treino_json?.titulo||'Treino sem título'}</p><p className="text-xs text-[#B9CDBD] mt-1">{student(p.user_id)}</p></div><Eye size={18} className="text-[#E8C579] shrink-0"/></div>
-      <p className="text-xs text-[#E8C579] mt-2">{isDemo(p)?'DEMO · não executar':'OFICIAL'} · {p.status} · revisão: {p.revisao_status||'pendente'}</p>
+      <p className="text-xs text-[#E8C579] mt-2">{p.status} · revisão: {p.revisao_status||'pendente'}</p>
     </button>)}
     {selected&&draft&&<section className="rounded-xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
       <div className="flex justify-between items-start gap-3"><div><h3 className="font-semibold text-lg">{draft.titulo||'Treino'}</h3><p className="text-xs text-[#B9CDBD] mt-1">Aluno: {student(selected.user_id)}</p></div><button className="text-[#E8C579]" onClick={()=>{setSelectedId(null);setEditing(false);}} aria-label="Fechar treino"><X size={18}/></button></div>
