@@ -707,7 +707,7 @@ function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exercis
 
 // Revisão no painel existente. Toda alteração passa por RPCs autenticadas no Supabase.
 // DEMO: apenas visualização e edição; aprovação/publicação continuam bloqueadas no banco.
-function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
+function AdminTrainingReview({treinos,profiles,onboarding,exerciseLookup,onUpdated}){
   const [selectedId,setSelectedId]=useState(null);
   const [editing,setEditing]=useState(false);
   const [draft,setDraft]=useState(null);
@@ -716,6 +716,7 @@ function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
   const [error,setError]=useState('');
   const [success,setSuccess]=useState('');
   const [reason,setReason]=useState('');
+  const [showQuestionnaire,setShowQuestionnaire]=useState(false);
   const [filter,setFilter]=useState('pendente');
   const selected=treinos.find(x=>x.id===selectedId);
   const isDemo=p=>p?.treino_json?.demonstrativo===true;
@@ -734,11 +735,19 @@ function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
     .filter(p=>(p.revisao_status||'pendente')===filter)
     .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
   const student=id=>{const p=profiles.find(x=>x.id===id);return p?.nome||p?.email||'Aluno sem nome';};
+  const studentOnboarding=selected ? [...onboarding].filter(x=>x.user_id===selected.user_id)
+    .sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')))[0] : null;
+  const detailValue=v=>Array.isArray(v)?(v.length?v.join(', '):'Não informado'):
+    (v===null||v===undefined||String(v).trim()===''?'Não informado':String(v));
+  const questionField=(label,value)=> <div className="border-b border-[#31543F]/60 py-2 last:border-0" key={label}>
+    <p className="text-xs text-[#A9C5B1]">{label}</p>
+    <p className="text-sm mt-1 whitespace-pre-wrap break-words">{detailValue(value)}</p>
+  </div>;
   const eligible=library.filter(x=>x.ativo&&x.metadata?.origem!=='metodologia_vinicius'&&x.metadata?.requer_avaliacao_profissional!==true);
   const uiField='w-full bg-[#09291E] border border-[#426650] rounded-lg px-2 py-2 text-sm text-[#F8F4E9]';
 
   async function openPlan(plan){
-    setSelectedId(plan.id);setEditing(false);setError('');setSuccess('');setReason('');
+    setSelectedId(plan.id);setEditing(false);setShowQuestionnaire(false);setError('');setSuccess('');setReason('');
     setDraft(JSON.parse(JSON.stringify(plan.treino_json||{})));
   }
   async function startEdit(){
@@ -802,6 +811,37 @@ function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
     {selected&&draft&&<section className="rounded-xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
       <div className="flex justify-between items-start gap-3"><div><h3 className="font-semibold text-lg">{draft.titulo||'Treino'}</h3><p className="text-xs text-[#B9CDBD] mt-1">Aluno: {student(selected.user_id)}</p></div><button className="text-[#E8C579]" onClick={()=>{setSelectedId(null);setEditing(false);}} aria-label="Fechar treino"><X size={18}/></button></div>
       <p className="text-xs text-[#E8C579]">{isDemo(selected)?'Simulação DEMO — não é prescrição':'Plano não demonstrativo'} · {selected.status}</p>
+      <div className="rounded-xl border border-[#426650] bg-[#09291E] p-3">
+        <button type="button" onClick={()=>setShowQuestionnaire(v=>!v)}
+          aria-expanded={showQuestionnaire}
+          className="w-full text-left flex items-center justify-between gap-2 text-sm font-semibold text-[#E8C579]">
+          <span>Questionário do aluno</span><span className="text-xs">{showQuestionnaire?'Ocultar':'Visualizar'}</span>
+        </button>
+        {showQuestionnaire&&(!studentOnboarding?
+          <p className="text-sm text-[#B9CDBD] mt-3">Questionário não encontrado ou acesso não autorizado.</p>:
+          <div className="mt-3">
+            <p className="text-xs text-[#B9CDBD] mb-2">Dados informados pelo aluno. Conferir informações e limitações antes de avaliar a proposta.</p>
+            {questionField('Objetivo',studentOnboarding.objetivo)}
+            {questionField('Experiência em musculação',studentOnboarding.experiencia_musculacao)}
+            {questionField('Tempo de experiência (meses)',studentOnboarding.tempo_experiencia_meses)}
+            {questionField('Idade',studentOnboarding.idade)}
+            {questionField('Gênero',studentOnboarding.genero)}
+            {questionField('Altura (cm)',studentOnboarding.altura_cm)}
+            {questionField('Peso atual (kg)',studentOnboarding.peso_atual)}
+            {questionField('Meta de peso (kg)',studentOnboarding.meta_peso)}
+            {questionField('Nível de atividade',studentOnboarding.nivel_atividade)}
+            {questionField('Local do treino',studentOnboarding.estrutura)}
+            {questionField('Dias disponíveis',studentOnboarding.disponibilidade)}
+            {questionField('Minutos por treino',studentOnboarding.tempo_treino_min)}
+            {questionField('Equipamentos disponíveis',studentOnboarding.equipamentos)}
+            {questionField('Dores, lesões e limitações relatadas',studentOnboarding.limitacoes_fisicas)}
+            {questionField('Restrições alimentares informadas',studentOnboarding.restricoes_alimentares)}
+            {questionField('Preferências alimentares',studentOnboarding.preferencias_alimentares)}
+            {questionField('Hábitos alimentares',studentOnboarding.habitos_alimentares)}
+            {questionField('Atualizado em',studentOnboarding.updated_at?new Date(studentOnboarding.updated_at).toLocaleString('pt-BR'):'Não informado')}
+          </div>
+        )}
+      </div>
       {editing&&<label className="block text-sm">Título<input className={uiField+' mt-1'} value={draft.titulo||''} maxLength={160} onChange={e=>setDraft(d=>({...d,titulo:e.target.value}))}/></label>}
       {Array.isArray(draft.dias)&&draft.dias.map((day,di)=><div key={di} className="rounded-xl bg-[#09291E] border border-[#426650] p-3 space-y-3">
         {editing?<div className="grid grid-cols-2 gap-2"><label className="text-xs">Dia<input className={uiField+' mt-1'} value={day.dia||''} onChange={e=>updateDay(di,'dia',e.target.value)}/></label><label className="text-xs">Foco<input className={uiField+' mt-1'} value={day.foco||''} onChange={e=>updateDay(di,'foco',e.target.value)}/></label></div>:<div><p className="font-semibold text-[#E8C579]">{day.dia}</p><p className="text-xs text-[#B9CDBD]">{day.foco}</p></div>}
@@ -960,7 +1000,7 @@ function AdminScreen({userId,onSignOut}){
           />}
         </>}
         {section==='treinos'&&<><p className="text-sm text-[#B9CDBD]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
-        {section==='revisao'&&<AdminTrainingReview treinos={treinos} profiles={profiles} exerciseLookup={exerciseLookup} onUpdated={refresh}/> }
+        {section==='revisao'&&<AdminTrainingReview treinos={treinos} profiles={profiles} onboarding={onboarding} exerciseLookup={exerciseLookup} onUpdated={refresh}/> }
         {section==='dietas'&&<><p className="text-sm text-[#B9CDBD]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
         {section==='evolucao'&&<>
           <p className="text-sm text-[#B9CDBD]">Frequência e histórico com separação entre planos publicados e simulações DEMO.</p>
