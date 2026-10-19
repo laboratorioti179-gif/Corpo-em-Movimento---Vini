@@ -704,6 +704,126 @@ function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exercis
   </section>;
 }
 
+
+// Revisão no painel existente. Toda alteração passa por RPCs autenticadas no Supabase.
+// DEMO: apenas visualização e edição; aprovação/publicação continuam bloqueadas no banco.
+function AdminTrainingReview({treinos,profiles,exerciseLookup,onUpdated}){
+  const [selectedId,setSelectedId]=useState(null);
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState(null);
+  const [library,setLibrary]=useState([]);
+  const [busy,setBusy]=useState(false);
+  const [error,setError]=useState('');
+  const [success,setSuccess]=useState('');
+  const [reason,setReason]=useState('');
+  const [filter,setFilter]=useState('todos');
+  const selected=treinos.find(x=>x.id===selectedId);
+  const isDemo=p=>p?.treino_json?.demonstrativo===true;
+  const isOfficialDraft=p=>p?.status==='rascunho'&&!isDemo(p);
+  const isApproved=p=>p?.revisao_status==='aprovado';
+  const items=[...treinos].filter(p=>filter==='todos'||
+    (filter==='pendentes'&&p.revisao_status==='pendente')||
+    (filter==='demo'&&isDemo(p))||
+    (filter==='oficiais'&&!isDemo(p)))
+    .sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
+  const student=id=>{const p=profiles.find(x=>x.id===id);return p?.nome||p?.email||'Aluno sem nome';};
+  const eligible=library.filter(x=>x.ativo&&x.metadata?.origem!=='metodologia_vinicius'&&x.metadata?.requer_avaliacao_profissional!==true);
+  const uiField='w-full bg-[#09291E] border border-[#426650] rounded-lg px-2 py-2 text-sm text-[#F8F4E9]';
+
+  async function openPlan(plan){
+    setSelectedId(plan.id);setEditing(false);setError('');setSuccess('');setReason('');
+    setDraft(JSON.parse(JSON.stringify(plan.treino_json||{})));
+  }
+  async function startEdit(){
+    setError('');setSuccess('');
+    if(!library.length){
+      setBusy(true);
+      const {data,error:e}=await supabase.from('biblioteca_exercicios')
+        .select('id,nome,grupo_muscular,ativo,metadata').eq('ativo',true).limit(250);
+      setBusy(false);
+      if(e){setError('Erro ao carregar biblioteca: '+e.message);return;}
+      setLibrary(data||[]);
+    }
+    setEditing(true);
+  }
+  function updateDay(di,key,value){
+    setDraft(d=>({...d,dias:(d.dias||[]).map((day,i)=>i===di?{...day,[key]:value}:day)}));
+  }
+  function updateEx(di,ei,key,value){
+    setDraft(d=>({...d,dias:(d.dias||[]).map((day,i)=>i!==di?day:{...day,exercicios:(day.exercicios||[]).map((ex,j)=>j===ei?{...ex,[key]:value}:ex)})}));
+  }
+  function addExercise(di){
+    if(!eligible.length){setError('Não há exercícios elegíveis disponíveis.');return;}
+    setDraft(d=>({...d,dias:(d.dias||[]).map((day,i)=>i!==di?day:{...day,exercicios:[...(day.exercicios||[]),{exercicio_id:eligible[0].id,series:2,repeticoes:'8-12',observacao:''}]})}));
+  }
+  function removeExercise(di,ei){
+    setDraft(d=>({...d,dias:(d.dias||[]).map((day,i)=>i!==di?day:{...day,exercicios:(day.exercicios||[]).filter((_,j)=>j!==ei)})}));
+  }
+  async function invoke(functionName,args){
+    if(busy||!selected)return;
+    setBusy(true);setError('');setSuccess('');
+    try{
+      const {data,error:e}=await supabase.rpc(functionName,args);
+      if(e)throw e;
+      if(!data?.success)throw new Error('A operação não foi confirmada pelo servidor.');
+      setSuccess(functionName==='cm_editar_treino'?'Edição salva. Revisão redefinida para pendente.':functionName==='cm_revisar_treino'?'Revisão registrada.':'Treino publicado.');
+      setEditing(false);
+      await onUpdated();
+    }catch(e){setError(e.message||'Não foi possível concluir a operação.');}
+    finally{setBusy(false);}
+  }
+  function saveEdit(){
+    if(!draft?.titulo?.trim()){setError('Informe o título do treino.');return;}
+    if(!Array.isArray(draft.dias)||!draft.dias.length){setError('Inclua ao menos um dia.');return;}
+    if(draft.dias.some(day=>!day.dia?.trim()||!Array.isArray(day.exercicios)||!day.exercicios.length)){
+      setError('Cada dia precisa de nome e pelo menos um exercício.');return;
+    }
+    invoke('cm_editar_treino',{p_plano_id:selectedId,p_treino:draft});
+  }
+  return <div className="space-y-4">
+    <div className="rounded-xl bg-[#153B2A] border border-[#426650] p-3 text-sm">
+      <h3 className="font-semibold text-[#E8C579]">Revisão profissional de treinos</h3>
+      <p className="text-[#B9CDBD] mt-2 text-xs">Planos DEMO podem ser consultados e editados, mas não aprovados nem publicados. A metodologia do Vinícius continua pendente de validação.</p>
+    </div>
+    <div className="flex flex-wrap gap-2">{[['todos','Todos'],['pendentes','Pendentes'],['demo','DEMO'],['oficiais','Oficiais']].map(([id,label])=><button key={id} onClick={()=>{setFilter(id);setSelectedId(null);setEditing(false);}} className={`rounded-lg px-3 py-2 text-xs border ${filter===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650]'}`}>{label}</button>)}</div>
+    <p className="text-xs text-[#B9CDBD]">{items.length} treino(s) encontrado(s)</p>
+    {!items.length&&<p className="text-sm text-[#B9CDBD]">Não há treinos nesta categoria.</p>}
+    {items.map(p=><button key={p.id} onClick={()=>openPlan(p)} className={`w-full text-left rounded-xl border p-3 ${selectedId===p.id?'border-[#D8B46B] bg-[#194632]':'border-[#31543F] bg-[#103629]'}`}>
+      <div className="flex justify-between gap-2 items-start"><div className="min-w-0"><p className="font-semibold text-sm">{p.treino_json?.titulo||'Treino sem título'}</p><p className="text-xs text-[#B9CDBD] mt-1">{student(p.user_id)}</p></div><Eye size={18} className="text-[#E8C579] shrink-0"/></div>
+      <p className="text-xs text-[#E8C579] mt-2">{isDemo(p)?'DEMO · não executar':'OFICIAL'} · {p.status} · revisão: {p.revisao_status||'pendente'}</p>
+    </button>)}
+    {selected&&draft&&<section className="rounded-xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
+      <div className="flex justify-between items-start gap-3"><div><h3 className="font-semibold text-lg">{draft.titulo||'Treino'}</h3><p className="text-xs text-[#B9CDBD] mt-1">Aluno: {student(selected.user_id)}</p></div><button className="text-[#E8C579]" onClick={()=>{setSelectedId(null);setEditing(false);}} aria-label="Fechar treino"><X size={18}/></button></div>
+      <p className="text-xs text-[#E8C579]">{isDemo(selected)?'Simulação DEMO — não é prescrição':'Plano não demonstrativo'} · {selected.status}</p>
+      {editing&&<label className="block text-sm">Título<input className={uiField+' mt-1'} value={draft.titulo||''} maxLength={160} onChange={e=>setDraft(d=>({...d,titulo:e.target.value}))}/></label>}
+      {Array.isArray(draft.dias)&&draft.dias.map((day,di)=><div key={di} className="rounded-xl bg-[#09291E] border border-[#426650] p-3 space-y-3">
+        {editing?<div className="grid grid-cols-2 gap-2"><label className="text-xs">Dia<input className={uiField+' mt-1'} value={day.dia||''} onChange={e=>updateDay(di,'dia',e.target.value)}/></label><label className="text-xs">Foco<input className={uiField+' mt-1'} value={day.foco||''} onChange={e=>updateDay(di,'foco',e.target.value)}/></label></div>:<div><p className="font-semibold text-[#E8C579]">{day.dia}</p><p className="text-xs text-[#B9CDBD]">{day.foco}</p></div>}
+        {(day.exercicios||[]).map((ex,ei)=><div key={ei} className="rounded-lg border border-[#31543F] p-3 space-y-2">
+          {editing?<>
+            <label className="text-xs block">Exercício<select className={uiField+' mt-1'} value={ex.exercicio_id||''} onChange={e=>updateEx(di,ei,'exercicio_id',e.target.value)}>{!eligible.some(x=>x.id===ex.exercicio_id)&&<option value={ex.exercicio_id}>{exerciseLookup[ex.exercicio_id]?.nome||'Exercício atual (não elegível)'}</option>}{eligible.map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
+            <div className="grid grid-cols-2 gap-2"><label className="text-xs">Séries<select className={uiField+' mt-1'} value={ex.series||2} onChange={e=>updateEx(di,ei,'series',Number(e.target.value))}>{[1,2,3,4].map(x=><option key={x} value={x}>{x}</option>)}</select></label><label className="text-xs">Repetições<input className={uiField+' mt-1'} maxLength={40} value={ex.repeticoes||''} onChange={e=>updateEx(di,ei,'repeticoes',e.target.value)}/></label></div>
+            <label className="text-xs block">Observação<input className={uiField+' mt-1'} maxLength={300} value={ex.observacao||''} onChange={e=>updateEx(di,ei,'observacao',e.target.value)}/></label>
+            <button onClick={()=>removeExercise(di,ei)} className="text-xs text-red-200 underline">Remover exercício</button>
+          </>:<><p className="text-sm font-medium">{exerciseLookup[ex.exercicio_id]?.nome||ex.exercicio_id}</p><p className="text-xs text-[#E8C579]">{ex.series} séries · {ex.repeticoes} repetições</p>{ex.observacao&&<p className="text-xs text-[#B9CDBD]">{ex.observacao}</p>}</>}
+        </div>)}
+        {editing&&day.exercicios?.length<8&&<button onClick={()=>addExercise(di)} disabled={!eligible.length} className="text-sm text-[#E8C579] flex gap-1 items-center disabled:opacity-40"><Plus size={15}/> Adicionar exercício</button>}
+      </div>)}
+      {error&&<p role="alert" className="rounded-lg p-3 bg-red-950/40 text-red-200 text-xs">{error}</p>}
+      {success&&<p role="status" className="rounded-lg p-3 bg-[#1D4933] text-[#E8C579] text-xs">{success}</p>}
+      {editing?<div className="flex gap-2"><button onClick={()=>{setEditing(false);setDraft(JSON.parse(JSON.stringify(selected.treino_json)));setError('');}} className="flex-1 border border-[#426650] rounded-xl py-3 text-sm">Cancelar</button><button onClick={saveEdit} disabled={busy} className="flex-1 bg-[#D8B46B] text-[#09291E] font-semibold rounded-xl py-3 text-sm disabled:opacity-40">{busy?'Salvando...':'Salvar edição'}</button></div>:<>
+        {selected.status==='rascunho'&&<button onClick={startEdit} disabled={busy} className="w-full border border-[#D8B46B] text-[#E8C579] rounded-xl py-3 text-sm disabled:opacity-40">Editar treino</button>}
+        {isDemo(selected)?<p className="text-xs text-[#F1D8A2]">Aprovação e publicação bloqueadas: treino DEMO. Edição não o transforma em plano oficial.</p>:isOfficialDraft(selected)?<>
+          <p className="text-xs text-[#B9CDBD]">Revisão profissional. A publicação exige também metodologia aprovada e validações do servidor.</p>
+          <label className="block text-xs">Motivo da rejeição<textarea className={uiField+' mt-2'} rows={2} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Obrigatório ao rejeitar"/></label>
+          <div className="grid grid-cols-2 gap-2"><button onClick={()=>invoke('cm_revisar_treino',{p_plano_id:selected.id,p_decisao:'aprovar',p_motivo:null})} disabled={busy||isApproved(selected)} className="bg-[#D8B46B] text-[#09291E] rounded-xl p-3 font-semibold text-sm disabled:opacity-40">Aprovar</button><button onClick={()=>invoke('cm_revisar_treino',{p_plano_id:selected.id,p_decisao:'rejeitar',p_motivo:reason})} disabled={busy||!reason.trim()} className="border border-red-400/60 text-red-200 rounded-xl p-3 text-sm disabled:opacity-40">Rejeitar</button></div>
+          <button onClick={()=>invoke('cm_publicar_treino',{p_plano_id:selected.id})} disabled={busy||!isApproved(selected)||selected.metodologia_aprovada!==true} className="w-full border border-[#426650] rounded-xl p-3 text-sm disabled:opacity-40">Publicar treino</button>
+          {selected.metodologia_aprovada!==true&&<p className="text-xs text-[#F1D8A2]">Publicação indisponível até a aprovação formal da metodologia.</p>}
+        </>:null}
+      </>}
+    </section>}
+  </div>;
+}
+
 function AdminScreen({userId,onSignOut}){
   const [section,setSection]=useState('resumo');
   const [loading,setLoading]=useState(true);
@@ -722,7 +842,7 @@ function AdminScreen({userId,onSignOut}){
       const tables=[
         ['profiles','id,nome,email,phone,role,is_admin,foto_url'],
         ['onboarding_respostas','*'],
-        ['planos_treino','id,user_id,status,treino_json,created_at'],
+        ['planos_treino','id,user_id,status,treino_json,created_at,revisao_status,revisado_por,revisado_em,motivo_rejeicao,metodologia_aprovada'],
         ['cm_planos_alimentares','id,user_id,status,plano_json,created_at'],
         ['cm_treino_checkins','id,user_id,plano_id,semana_inicio,dia_semana,concluido,created_at']
       ];
@@ -772,7 +892,7 @@ function AdminScreen({userId,onSignOut}){
   const selectedDiets=dietas.filter(x=>x.user_id===selected);
   const selectedCheckins=checkins.filter(x=>x.user_id===selected&&x.concluido);
   const card='rounded-2xl border border-[#31543F] bg-[#103629] p-4';
-  const tabs=[['resumo','Resumo',BarChart3],['alunos','Alunos',Users],['treinos','Treinos',Dumbbell],['dietas','Dietas',Utensils],['evolucao','Evolução',TrendingUp]];
+  const tabs=[['resumo','Resumo',BarChart3],['alunos','Alunos',Users],['treinos','Treinos',Dumbbell],['revisao','Revisão',ShieldCheck],['dietas','Dietas',Utensils],['evolucao','Evolução',TrendingUp]];
   return <main className="flex-1 min-h-0 flex flex-col">
     <div className="px-5 pt-5 pb-3 border-b border-[#31543F] shrink-0">
       <div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-[#E8C579] text-xs uppercase tracking-wider"><ShieldCheck size={15}/> Área restrita</div><h2 className="text-xl font-semibold mt-1">Painel Administrativo</h2></div><div className="flex gap-2"><button aria-label="Atualizar indicadores" onClick={refresh} disabled={loading} className="border border-[#426650] rounded-xl p-2"><RefreshCw size={19} className={loading?'animate-spin':''}/></button><button aria-label="Sair da conta" onClick={onSignOut} className="border border-[#426650] rounded-xl p-2"><LogOut size={19}/></button></div></div>
@@ -833,6 +953,7 @@ function AdminScreen({userId,onSignOut}){
           />}
         </>}
         {section==='treinos'&&<><p className="text-sm text-[#B9CDBD]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
+        {section==='revisao'&&<AdminTrainingReview treinos={treinos} profiles={profiles} exerciseLookup={exerciseLookup} onUpdated={refresh}/> }
         {section==='dietas'&&<><p className="text-sm text-[#B9CDBD]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
         {section==='evolucao'&&<>
           <p className="text-sm text-[#B9CDBD]">Frequência e histórico com separação entre planos publicados e simulações DEMO.</p>
