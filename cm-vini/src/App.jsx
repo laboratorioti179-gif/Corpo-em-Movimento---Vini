@@ -421,7 +421,7 @@ function AuthScreen({recoveryMode=false,onFinishRecovery=()=>{}}){
 
 const INITIAL_ANSWERS = {
   idade:'',altura_cm:'',peso_atual:'',genero:'',objetivo:'',meta_peso:'',
-  experiencia_musculacao:'',nivel_atividade:'',estrutura:'academia',
+  experiencia_musculacao:'',tempo_experiencia_meses:'',nivel_atividade:'',estrutura:'academia',
   disponibilidade:[],tempo_treino_min:'',equipamentos:[],limitacoes_fisicas:'',
   restricoes_alimentares:'',preferencias_alimentares:'',habitos_alimentares:'',termos_aceitos:false
 };
@@ -433,7 +433,8 @@ function OnboardingScreen({userId,initial,onDone,onCancel}){
     disponibilidade:Array.isArray(initial?.disponibilidade)?initial.disponibilidade:[],
     equipamentos:Array.isArray(initial?.equipamentos)?initial.equipamentos:[],
     idade:initial?.idade??'',altura_cm:initial?.altura_cm??'',peso_atual:initial?.peso_atual??'',
-    meta_peso:initial?.meta_peso??'',tempo_treino_min:initial?.tempo_treino_min??''}));
+    meta_peso:initial?.meta_peso??'',tempo_treino_min:initial?.tempo_treino_min??'',
+    tempo_experiencia_meses:initial?.tempo_experiencia_meses??''}));
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   const set=(field,value)=>setAnswers(a=>({...a,[field]:value}));
@@ -445,6 +446,7 @@ function OnboardingScreen({userId,initial,onDone,onCancel}){
   function validate(){
     if(step===0 && (!answers.idade || +answers.idade<18 || +answers.idade>100 || +answers.altura_cm<90 || +answers.altura_cm>240 || +answers.peso_atual<25 || +answers.peso_atual>350)) return 'Preencha idade (18 a 100), altura (90 a 240 cm) e peso (25 a 350 kg).';
     if(step===1 && (!answers.objetivo || !answers.experiencia_musculacao))return 'Selecione seu objetivo e nível de experiência.';
+    if(step===1 && (answers.tempo_experiencia_meses==='' || !Number.isInteger(Number(answers.tempo_experiencia_meses)) || Number(answers.tempo_experiencia_meses)<0 || Number(answers.tempo_experiencia_meses)>1200))return 'Informe há quantos meses você pratica musculação (0 a 1200).';
     if(step===2 && (!answers.disponibilidade.length || !answers.tempo_treino_min || +answers.tempo_treino_min<15 || +answers.tempo_treino_min>180))return 'Informe os dias e a duração do treino (15 a 180 minutos).';
     if(step===4 && !answers.termos_aceitos)return 'Leia e aceite o uso das respostas para personalização.';
     return '';
@@ -455,7 +457,7 @@ function OnboardingScreen({userId,initial,onDone,onCancel}){
       const numeric=k=>answers[k]===''?null:Number(answers[k]);
       const payload={user_id:userId,genero:answers.genero||null,objetivo:answers.objetivo,
         idade:numeric('idade'),altura_cm:numeric('altura_cm'),peso_atual:numeric('peso_atual'),meta_peso:numeric('meta_peso'),
-        experiencia_musculacao:answers.experiencia_musculacao,nivel_atividade:answers.nivel_atividade||null,
+        experiencia_musculacao:answers.experiencia_musculacao,tempo_experiencia_meses:numeric('tempo_experiencia_meses'),nivel_atividade:answers.nivel_atividade||null,
         estrutura:answers.estrutura,disponibilidade:answers.disponibilidade,tempo_treino_min:numeric('tempo_treino_min'),
         equipamentos:answers.equipamentos,limitacoes_fisicas:answers.limitacoes_fisicas||null,
         restricoes_alimentares:answers.restricoes_alimentares||null,
@@ -486,6 +488,8 @@ function OnboardingScreen({userId,initial,onDone,onCancel}){
       {step===1&&<>
         {dropdown('objetivo',['Ganhar massa muscular','Emagrecer','Recomposição corporal','Melhorar força','Melhorar condicionamento'],'Objetivo principal')}
         {dropdown('experiencia_musculacao',['Iniciante','Intermediário','Avançado'],'Experiência em musculação')}
+        {number('tempo_experiencia_meses','Há quantos meses você pratica musculação? (0 se nunca treinou)',0,1200)}
+        <p className="text-xs text-[#B3C7B8] mt-2">Informe o total aproximado de meses de prática. A classificação final dependerá da avaliação profissional.</p>
         {dropdown('nivel_atividade',['Sedentário','Pouco ativo','Moderadamente ativo','Muito ativo'],'Nível atual de atividade (opcional)')}
         {number('meta_peso','Meta de peso em kg (opcional)',25,350,'0.1')}
       </>}
@@ -507,6 +511,7 @@ function OnboardingScreen({userId,initial,onDone,onCancel}){
       {step===4&&<>
         <div className="bg-[#103629] border border-[#315641] p-4 rounded-xl text-sm space-y-2">
           <p><strong>Objetivo:</strong> {answers.objetivo}</p><p><strong>Experiência:</strong> {answers.experiencia_musculacao}</p>
+          <p><strong>Tempo de prática:</strong> {answers.tempo_experiencia_meses} meses</p>
           <p><strong>Local:</strong> {answers.estrutura}</p><p><strong>Dias:</strong> {answers.disponibilidade.join(', ')}</p>
           <p><strong>Tempo:</strong> {answers.tempo_treino_min} min</p>
         </div>
@@ -560,7 +565,7 @@ function ProfileScreen({profile,photoUrl,onboarding,session,userId,onSaved,onEdi
       <div className="w-24 h-24 bg-[#133D2B] border border-[#B99B60] rounded-full overflow-hidden grid place-items-center">{photoUrl?<img src={photoUrl} alt="Foto de perfil" className="w-full h-full object-cover"/>:<UserRound size={43} className="text-[#E8C579]"/>}</div>
       <label className="border border-[#B99B60] rounded-xl text-sm px-4 py-2 text-[#E8C579] flex gap-2 items-center cursor-pointer"><Camera size={16}/> Alterar foto<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={uploadPhoto} disabled={busy}/></label>
     </div><section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-3"><h3 className="font-semibold">Dados de cadastro</h3><label className="block text-sm">Nome<input value={nome} onChange={e=>setNome(e.target.value)} className="mt-1 w-full rounded-xl bg-[#09291E] border border-[#426650] px-3 py-2"/></label><label className="block text-sm">E-mail<input readOnly value={session?.user?.email||''} className="mt-1 w-full rounded-xl bg-[#09291E] border border-[#426650] px-3 py-2 opacity-70"/></label><label className="block text-sm">Telefone<input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#09291E] border border-[#426650] px-3 py-2"/></label><button onClick={save} disabled={busy} className="w-full rounded-xl bg-[#D8B46B] text-[#09291E] p-3 font-semibold disabled:opacity-50">{busy?'Salvando...':'Salvar meus dados'}</button></section>
-    <section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-2"><h3 className="font-semibold">Meu questionário</h3><p className="text-sm text-[#B1C5B6]">Objetivo: {onboarding?.objetivo||'Não definido'}</p><p className="text-sm text-[#B1C5B6]">Experiência: {onboarding?.experiencia_musculacao||'Não definido'}</p><p className="text-sm text-[#B1C5B6]">Disponibilidade: {(onboarding?.disponibilidade||[]).join(', ')||'Não definida'}</p><button className="text-[#E8C579] underline text-sm mt-3" onClick={onEditOnboarding}>Atualizar questionário</button></section>
+    <section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-2"><h3 className="font-semibold">Meu questionário</h3><p className="text-sm text-[#B1C5B6]">Objetivo: {onboarding?.objetivo||'Não definido'}</p><p className="text-sm text-[#B1C5B6]">Experiência: {onboarding?.experiencia_musculacao||'Não definido'} · {onboarding?.tempo_experiencia_meses != null ? `${onboarding.tempo_experiencia_meses} meses` : 'Tempo não informado'}</p><p className="text-sm text-[#B1C5B6]">Disponibilidade: {(onboarding?.disponibilidade||[]).join(', ')||'Não definida'}</p><button className="text-[#E8C579] underline text-sm mt-3" onClick={onEditOnboarding}>Atualizar questionário</button></section>
     {error&&<p role="alert" className="text-red-200 text-sm">{error}</p>}{info&&<p role="status" className="text-[#E8C579] text-sm">{info}</p>}
     <button onClick={onSignOut} className="flex items-center gap-2 border border-[#8D6653] text-[#F2CEC0] rounded-xl px-4 py-3"><LogOut size={17}/> Sair da conta</button>
   </main>;
