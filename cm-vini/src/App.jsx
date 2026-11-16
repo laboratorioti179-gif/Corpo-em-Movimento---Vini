@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw, Utensils, Camera, RotateCcw, CalendarDays, LogOut, ShieldCheck, Users, Search, Activity, BarChart3, Eye, X, CreditCard, Trophy } from 'lucide-react';
+import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw, Utensils, Camera, RotateCcw, CalendarDays, LogOut, ShieldCheck, Users, Search, Activity, BarChart3, Eye, X, CreditCard, Trophy, Home as HomeIcon } from 'lucide-react';
 
 // A chave anon/publishable é pública. Nunca coloque service_role ou OPENAI_API_KEY aqui.
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://jaujldyuelyhsqyxyerc.supabase.co';
@@ -24,7 +24,7 @@ const [onboarding,setOnboarding] = useState(null);
 const [onboardingLoading,setOnboardingLoading] = useState(false);
 const [onboardingError,setOnboardingError] = useState('');
 const [editingOnboarding,setEditingOnboarding] = useState(false);
-const [tab,setTab] = useState('chat');
+const [tab,setTab] = useState('inicio');
 const [messages,setMessages] = useState([]);
 const [draft,setDraft] = useState('');
 const [sending,setSending] = useState(false);
@@ -59,7 +59,7 @@ if(!alive)return;
 setSession(next);
 if(event==='PASSWORD_RECOVERY')setPasswordRecovery(true);
 if(event==='SIGNED_OUT'){
-setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('chat');setOnboarding(null);setEditingOnboarding(false);setOnboardingThanks(false);setTrainingGenerationError('');setProfile(null);setPhotoUrl('');setDiet(null);setCheckins([]);setAdminStatus('loading');
+setMessages([]);setLogs([]);setTraining(null);setTrainingExercises({});setTab('inicio');setOnboarding(null);setEditingOnboarding(false);setOnboardingThanks(false);setTrainingGenerationError('');setProfile(null);setPhotoUrl('');setDiet(null);setCheckins([]);setAdminStatus('loading');
 }
 });
 (async()=>{
@@ -315,10 +315,11 @@ return <div className="min-h-[100dvh] bg-[#031D15] text-[#F8F4E9] flex justify-c
 <div className="w-full max-w-[520px] h-[100dvh] flex flex-col bg-[#06271C] border-x border-[#214632]">
 <header className="flex items-center px-5 py-3 gap-3 border-b border-[#244634] bg-[#06271C] min-h-[76px] shrink-0">
 <img src={LOGO} alt="Corpo Em Movimento" className="w-12 h-12 object-contain"/>
-<div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':tab==='dieta'?'Hábitos e alimentação':'Seu espaço'}</p></div>
+<div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='inicio'?'Seu resumo diário':tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':tab==='dieta'?'Hábitos e alimentação':'Seu espaço'}</p></div>
 <button className={`w-10 h-10 grid place-items-center rounded-full border ${tab==='perfil'?'text-[#E8C579] border-[#D6B36B]':'border-[#28503B] text-[#B5C9B8]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={21}/></button>
 </header>
-{boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : adminStatus==='loading' ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : adminStatus==='error' ? <div className="flex-1 p-6 text-red-200">Não foi possível verificar as permissões de acesso. Atualize a página ou contate o suporte.</div> : adminStatus==='admin' ? <AdminScreen userId={userId} onSignOut={()=>supabase.auth.signOut()}/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'treino':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#153D2C] border border-[#BCA064] flex items-center justify-center mx-auto mb-6"><Check className="text-[#E8C579]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#BACFBE] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#B5C6B8] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('treino');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#E8C579] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
+{boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : adminStatus==='loading' ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : adminStatus==='error' ? <div className="flex-1 p-6 text-red-200">Não foi possível verificar as permissões de acesso. Atualize a página ou contate o suporte.</div> : adminStatus==='admin' ? <AdminScreen userId={userId} onSignOut={()=>supabase.auth.signOut()}/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'inicio':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#153D2C] border border-[#BCA064] flex items-center justify-center mx-auto mb-6"><Check className="text-[#E8C579]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#BACFBE] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#B5C6B8] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('inicio');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#E8C579] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
+{tab==='inicio'&&<HomeDashboard profile={profile} subscription={subscriptionAccess} training={training} diet={diet} onNavigate={setTab}/>}
 {tab==='chat'&&<main className="flex-1 flex flex-col min-h-0">
 <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
 {messages.length===0&&<div className="pt-10 text-center"><div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#133C2C] border border-[#A98C51]/50 flex items-center justify-center"><img src={LOGO} alt="" className="w-20 h-20 object-contain"/></div><h2 className="text-2xl font-semibold">Sua jornada começa aqui.</h2><p className="text-[#B8CBBE] text-sm leading-relaxed mt-3 max-w-xs mx-auto">Converse sobre hábitos, movimento e constância. Como você está hoje?</p><p className="text-xs text-[#91AA9A] mt-3">Você está conversando com uma IA, não com o treinador humano.</p><div className="mt-8 flex flex-wrap gap-2 justify-center">{suggestions.map(s=><button key={s} onClick={()=>send(s)} className="text-sm px-3 py-2 border border-[#957E4A] text-[#F0D79F] rounded-full bg-[#103629]">{s}</button>)}</div></div>}
@@ -366,7 +367,7 @@ return <div className="min-h-[100dvh] bg-[#031D15] text-[#F8F4E9] flex justify-c
 <section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="font-semibold">Últimos sete dias</h3><p className="text-sm text-[#B1C5B6] mt-2">{attended}/7 dias com hábitos registrados</p></section>{logError&&<p role="alert" className="text-sm text-red-200">{logError}</p>}
 </main>}
 {tab==='perfil'&&<ProfileScreen profile={profile} photoUrl={photoUrl} onboarding={onboarding} session={session} userId={userId} onSaved={setProfile} onEditOnboarding={()=>setEditingOnboarding(true)} onBack={()=>setTab('chat')} onSignOut={async()=>{const {error}=await supabase.auth.signOut();if(error)setBootError(error.message);}}/>}
-<nav className="shrink-0 border-t border-[#2C503D] flex bg-[#052219] pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'chat',label:'Chat',Icon:MessageCircle},{id:'treino',label:'Meu Treino',Icon:Dumbbell},{id:'dieta',label:'Dieta',Icon:Utensils},{id:'evolucao',label:'Evolução',Icon:TrendingUp},{id:'planos',label:'Planos',Icon:CreditCard}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} className={`flex-1 flex flex-col justify-center items-center h-16 gap-1 text-xs ${tab===id?'text-[#E8C579]':'text-[#99B2A0]'}`}><Icon size={22}/>{label}</button>)}</nav>
+<nav className="shrink-0 border-t border-[#2C503D] flex bg-[#052219] pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'inicio',label:'Início',Icon:HomeIcon},{id:'chat',label:'Chat',Icon:MessageCircle},{id:'treino',label:'Meu Treino',Icon:Dumbbell},{id:'dieta',label:'Dieta',Icon:Utensils},{id:'evolucao',label:'Evolução',Icon:TrendingUp},{id:'planos',label:'Planos',Icon:CreditCard}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} className={`min-w-0 flex-1 flex flex-col justify-center items-center h-16 gap-1 text-[10px] ${tab===id?'text-[#E8C579]':'text-[#99B2A0]'}`}><Icon size={19}/><span className="truncate max-w-full">{label}</span></button>)}</nav>
 </>}
 </div>
 
@@ -1101,3 +1102,80 @@ const start=weekMonday();const month=localDate().slice(0,7);const students=(rows
 const results=students.map(p=>{const count=mode==='treino'?(rows.workouts||[]).filter(c=>c.user_id===p.id&&c.semana_inicio===start&&(rows.plans||[]).some(t=>t.id===c.plano_id&&t.user_id===p.id&&t.status==='publicado'&&t.treino_json?.demonstrativo!==true)).length:(rows.diets||[]).filter(c=>c.user_id===p.id&&String(c.dia).startsWith(month)).length;return {...p,count};}).sort((a,b)=>b.count-a.count||String(a.nome||a.email).localeCompare(String(b.nome||b.email),'pt-BR'));
 return <section className="space-y-4"><div><h3 className="text-lg font-semibold">Ranking dos alunos</h3><p className="text-xs text-[#B9CDBD] mt-1">Treino: semana atual · Dieta: registros deste mês. Os dados são autorrelatados.</p></div><div className="grid grid-cols-2 gap-2"><button onClick={()=>setMode('treino')} className={`rounded-xl border p-3 text-sm ${mode==='treino'?'bg-[#D8B46B] text-[#09291E]':'border-[#426650]'}`}>Ranking de treino</button><button onClick={()=>setMode('dieta')} className={`rounded-xl border p-3 text-sm ${mode==='dieta'?'bg-[#D8B46B] text-[#09291E]':'border-[#426650]'}`}>Ranking de dieta</button></div>{loading&&<p className="text-sm">Carregando ranking...</p>}{error&&<p role="alert" className="text-sm text-red-200">{error}</p>}{!loading&&!error&&results.map((p,i)=><div key={p.id} className="flex items-center justify-between rounded-xl border border-[#31543F] bg-[#103629] p-3"><div className="flex items-center gap-3"><span className="grid place-items-center w-9 h-9 rounded-full bg-[#09291E] text-[#E8C579] font-semibold">{i+1}º</span><div><p className="font-medium text-sm">{p.nome||'Aluno sem nome'}</p><p className="text-xs text-[#B9CDBD]">{p.email}</p></div></div><strong className="text-[#E8C579]">{p.count} {mode==='treino'?'treino(s)':'dia(s)'}</strong></div>)}{!loading&&!results.length&&<p className="text-sm text-[#B9CDBD]">Ainda não há alunos no ranking.</p>}</section>;
 }
+
+
+function HomeDashboard({profile,subscription,training,diet,onNavigate}){
+  const [ranking,setRanking]=useState([]);
+  const [news,setNews]=useState([]);
+  const [loadingRanking,setLoadingRanking]=useState(true);
+  const [loadingNews,setLoadingNews]=useState(true);
+  const [rankingError,setRankingError]=useState('');
+  const [newsError,setNewsError]=useState('');
+  const planIsActive=subscription?.status==='ativa';
+  const planCode=planIsActive?subscription.plano_codigo:'completo';
+  const showTraining=planCode==='treino'||planCode==='completo';
+  const showDiet=planCode==='dieta'||planCode==='completo';
+  const [summary,setSummary]=useState(planCode==='dieta'?'dieta':'treino');
+  const [rankingMode,setRankingMode]=useState('treino');
+  useEffect(()=>{setSummary(planCode==='dieta'?'dieta':'treino');},[planCode]);
+  useEffect(()=>{
+    let alive=true;
+    (async()=>{
+      const {data,error}=await supabase.rpc('cm_rankings_home');
+      if(!alive)return;
+      if(error)setRankingError(error.message||'Não foi possível carregar os rankings.');
+      else setRanking(data||[]);
+      setLoadingRanking(false);
+    })();
+    return()=>{alive=false;};
+  },[]);
+  useEffect(()=>{
+    let alive=true;
+    (async()=>{
+      const {data,error}=await supabase.functions.invoke('cm-noticias-fit');
+      if(!alive)return;
+      if(error)setNewsError('As notícias não estão disponíveis agora.');
+      else setNews(Array.isArray(data?.items)?data.items:[]);
+      setLoadingNews(false);
+    })();
+    return()=>{alive=false;};
+  },[]);
+  const workoutRank=ranking.filter(x=>x.modalidade==='treino');
+  const dietRank=ranking.filter(x=>x.modalidade==='dieta');
+  const selectedRank=rankingMode==='treino'?workoutRank:dietRank;
+  const userRank=selectedRank.find(x=>x.usuario_atual);
+  const days=Array.isArray(training?.treino_json?.dias)?training.treino_json.dias:[];
+  const meals=Array.isArray(diet?.plano_json?.refeicoes)?diet.plano_json.refeicoes:[];
+  const card='rounded-2xl border border-[#31543F] bg-[#103629] p-4';
+  const fmtNewsDate=value=>value?new Date(value).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'';
+  return <main className="flex-1 min-h-0 overflow-y-auto px-5 py-6 space-y-5">
+    <section className="rounded-2xl border border-[#A98C51] bg-gradient-to-br from-[#183D2C] to-[#0B2C20] p-5">
+      <p className="text-xs uppercase tracking-wider text-[#E8C579]">Corpo Em Movimento</p>
+      <h2 className="text-2xl font-semibold mt-2">Olá, {profile?.nome?.split(' ')[0]||'tudo bem'}!</h2>
+      <p className="text-sm text-[#B9CDBD] mt-2">Veja seu acompanhamento, sua posição nos rankings e as novidades do mundo fit.</p>
+    </section>
+    <section className={card}>
+      <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-lg">Seu acompanhamento</h3><p className="text-xs text-[#B9CDBD] mt-1">{planIsActive?`Plano ativo: ${subscription.plano_codigo==='completo'?'Treino + Dieta':subscription.plano_codigo==='treino'?'Treino':'Dieta'}`:'Escolha um resumo para acompanhar.'}</p></div><Activity size={20} className="text-[#E8C579]"/></div>
+      {showTraining&&showDiet&&<div className="grid grid-cols-2 gap-2 mt-4"><button onClick={()=>setSummary('treino')} className={`rounded-xl border p-2 text-sm ${summary==='treino'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Meu treino</button><button onClick={()=>setSummary('dieta')} className={`rounded-xl border p-2 text-sm ${summary==='dieta'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Minha dieta</button></div>}
+      {summary==='treino'&&showTraining&&<div className="mt-4"><h4 className="font-semibold">{training?.treino_json?.titulo||'Seu treino'}</h4>{training?.treino_json?.demonstrativo&&<p className="text-[11px] text-[#E8C579] mt-1">Plano demonstrativo</p>}<p className="text-sm text-[#B9CDBD] mt-2">{training?.treino_json?.justificativa||'Confira os dias e focos do seu plano.'}</p>{days.length?<div className="mt-3 space-y-2">{days.slice(0,3).map((d,i)=><p key={i} className="text-xs rounded-lg bg-[#09291E] p-2"><strong className="text-[#E8C579]">{d.dia||`Dia ${i+1}`}</strong>{d.foco?` · ${d.foco}`:''} · {(d.exercicios||[]).length} exercício(s)</p>)}</div>:<p className="text-xs text-[#AFC4B4] mt-2">Ainda não há treino disponível.</p>}<button onClick={()=>onNavigate('treino')} className="mt-3 text-sm text-[#E8C579] underline">Abrir treino</button></div>}
+      {summary==='dieta'&&showDiet&&<div className="mt-4"><h4 className="font-semibold">{diet?.plano_json?.titulo||'Sua organização alimentar'}</h4><p className="text-sm text-[#B9CDBD] mt-2">{diet?.plano_json?.introducao||'Confira suas sugestões de refeições e hábitos.'}</p>{meals.length?<div className="mt-3 space-y-2">{meals.slice(0,3).map((m,i)=><p key={i} className="text-xs rounded-lg bg-[#09291E] p-2"><strong className="text-[#E8C579]">{m.nome||`Refeição ${i+1}`}</strong>{m.sugestao?` · ${m.sugestao}`:''}</p>)}</div>:<p className="text-xs text-[#AFC4B4] mt-2">Ainda não há sugestões alimentares disponíveis.</p>}<button onClick={()=>onNavigate('dieta')} className="mt-3 text-sm text-[#E8C579] underline">Abrir dieta</button></div>}
+    </section>
+    <section className={card}>
+      <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-lg">Rankings dos alunos</h3><p className="text-xs text-[#B9CDBD] mt-1">Acompanhe sua constância junto aos colegas.</p></div><Trophy size={20} className="text-[#E8C579]"/></div>
+      <div className="grid grid-cols-2 gap-2 mt-4"><button onClick={()=>setRankingMode('treino')} className={`rounded-xl border p-2 text-xs ${rankingMode==='treino'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Ranking de treino</button><button onClick={()=>setRankingMode('dieta')} className={`rounded-xl border p-2 text-xs ${rankingMode==='dieta'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Ranking de dieta</button></div>
+      {loadingRanking&&<p className="text-sm text-[#B9CDBD] mt-3">Carregando rankings...</p>}{rankingError&&<p role="alert" className="text-xs text-red-200 mt-3">{rankingError}</p>}
+      {!loadingRanking&&!rankingError&&<><p className="text-[11px] text-[#B9CDBD] mt-3">{rankingMode==='treino'?'Treinos concluídos nesta semana':'Dias registrados neste mês'}</p>{selectedRank.slice(0,3).map((row,i)=><div key={`${summary}-${row.nome}-${i}`} className={`mt-2 flex items-center justify-between rounded-lg p-2 ${row.usuario_atual?'bg-[#254A33] border border-[#A98C51]':'bg-[#09291E]'}`}><span className="text-xs"><strong className="text-[#E8C579]">{row.posicao}º</strong> · {row.usuario_atual?'Você':row.nome}</span><strong className="text-xs">{row.total} {rankingMode==='treino'?'treino(s)':'dia(s)'}</strong></div>)}{userRank&&userRank.posicao>3&&<p className="text-xs text-[#E8C579] mt-2">Sua posição: {userRank.posicao}º de {selectedRank.length} alunos</p>}{!selectedRank.length&&<p className="text-xs text-[#B9CDBD] mt-3">Ainda não há registros para este ranking.</p>}</>}
+      <p className="text-[10px] text-[#94AE9C] mt-3">Rankings baseados em autorregistros: treino publicado na semana atual e marcações de dieta no mês.</p>
+    </section>
+    <section className={card}>
+      <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-lg">Notícias do mundo fit</h3><p className="text-xs text-[#B9CDBD] mt-1">Atualizadas ao abrir o app.</p></div><Activity size={20} className="text-[#E8C579]"/></div>
+      {loadingNews&&<p className="text-sm text-[#B9CDBD] mt-3">Buscando notícias...</p>}{newsError&&<p role="alert" className="text-xs text-[#E8C579] mt-3">{newsError}</p>}
+      {!loadingNews&&!newsError&&!news.length&&<p className="text-sm text-[#B9CDBD] mt-3">Nenhuma notícia disponível no momento.</p>}
+      <div className="mt-3 space-y-3">{news.slice(0,5).map((item,i)=><a key={item.link||i} href={item.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl bg-[#09291E] border border-[#31543F] p-3 hover:border-[#A98C51]"><p className="text-sm font-medium leading-snug">{item.title}</p><p className="text-[10px] text-[#B9CDBD] mt-2">{[item.source,fmtNewsDate(item.published_at)].filter(Boolean).join(' · ')}</p></a>)}</div>
+      <p className="text-[10px] text-[#94AE9C] mt-3">As matérias são de fontes externas. Consulte a publicação original e profissionais qualificados antes de mudar treino ou alimentação.</p>
+    </section>
+  </main>;
+}
+
+
+
