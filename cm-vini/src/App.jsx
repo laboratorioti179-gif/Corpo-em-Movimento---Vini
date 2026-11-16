@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw, Utensils, Camera, RotateCcw, CalendarDays, LogOut, ShieldCheck, Users, Search, Activity, BarChart3, Eye, X, CreditCard, Trophy, Home as HomeIcon } from 'lucide-react';
+import { MessageCircle, TrendingUp, UserRound, Send, ArrowLeft, Check, Plus, LoaderCircle, Dumbbell, RefreshCw, Utensils, Camera, RotateCcw, CalendarDays, LogOut, ShieldCheck, Users, Search, Activity, BarChart3, Eye, X, CreditCard, Trophy, Home as HomeIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 
 // A chave anon/publishable é pública. Nunca coloque service_role ou OPENAI_API_KEY aqui.
 const URL = import.meta.env.VITE_SUPABASE_URL || 'https://jaujldyuelyhsqyxyerc.supabase.co';
@@ -49,6 +49,8 @@ const [checkins,setCheckins] = useState([]);
 const [checkinBusy,setCheckinBusy] = useState(false);
 const [checkinError,setCheckinError] = useState('');
 const [resetConfirm,setResetConfirm] = useState(false);
+const [trainingDayIndex,setTrainingDayIndex] = useState(0);
+const trainingTouchStart = useRef(null);
 const bottom = useRef(null);
 const today = new Date().toLocaleDateString('en-CA');
 
@@ -304,6 +306,9 @@ const last7=Array.from({length:7},(_,i)=>{const d=new Date();d.setDate(d.getDate
 const attended=last7.filter(d=>logs.some(l=>l.day===d.day)).length;
 const weekRecords=checkins.filter(x=>x.plano_id===training?.id&&x.semana_inicio===weekMonday()&&x.concluido);
 const plannedDays=Array.isArray(training?.treino_json?.dias)?training.treino_json.dias:[];
+const activeTrainingDay=plannedDays[trainingDayIndex]||null;
+useEffect(()=>{setTrainingDayIndex(0);},[training?.id]);
+useEffect(()=>{if(trainingDayIndex>=plannedDays.length)setTrainingDayIndex(Math.max(0,plannedDays.length-1));},[trainingDayIndex,plannedDays.length]);
 const weekCount=new Set(weekRecords.map(x=>x.dia_semana)).size;
 const totalChecks=checkins.filter(x=>x.concluido && x.plano_id===training?.id).length;
 const demoPlan=training?.treino_json?.demonstrativo===true||training?.status==='rascunho';
@@ -311,63 +316,73 @@ const hasActivePlan=subscriptionAccess?.status==='ativa';
 const canAccessTraining=!hasActivePlan||['treino','completo'].includes(subscriptionAccess?.plano_codigo);
 const canAccessDiet=!hasActivePlan||['dieta','completo'].includes(subscriptionAccess?.plano_codigo);
 
-return <div className="min-h-[100dvh] bg-[#031D15] text-[#F8F4E9] flex justify-center" style={{fontFamily:'Inter,system-ui,sans-serif'}}>
-<div className="w-full max-w-[520px] h-[100dvh] flex flex-col bg-[#06271C] border-x border-[#214632]">
-<header className="flex items-center px-5 py-3 gap-3 border-b border-[#244634] bg-[#06271C] min-h-[76px] shrink-0">
-<img src={LOGO} alt="Corpo Em Movimento" className="w-12 h-12 object-contain"/>
-<div className="flex-1 min-w-0"><h1 className="font-semibold tracking-wide text-base">Corpo Em Movimento</h1><p className="text-[#ADC4B2] text-xs">{tab==='inicio'?'Seu resumo diário':tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':tab==='dieta'?'Hábitos e alimentação':'Seu espaço'}</p></div>
-<button className={`w-10 h-10 grid place-items-center rounded-full border ${tab==='perfil'?'text-[#E8C579] border-[#D6B36B]':'border-[#28503B] text-[#B5C9B8]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={21}/></button>
+return <div className="min-h-[100dvh] bg-[#070B08] text-[#F3F5EF] flex justify-center" style={{fontFamily:'Inter,system-ui,sans-serif'}}>
+<div className="w-full max-w-[560px] h-[100dvh] flex flex-col bg-[#101712] border-x border-[#2B3A2E] shadow-2xl shadow-black/30">
+<header className="flex items-center px-5 py-3 gap-3 border-b border-[#2B3A2E] bg-[#101712]/95 backdrop-blur min-h-[76px] shrink-0">
+<img src={LOGO} alt="Corpo Em Movimento" className="w-11 h-11 object-contain"/>
+<div className="flex-1 min-w-0"><h1 className="font-semibold tracking-tight text-[15px]">Corpo Em Movimento</h1><p className="text-[#A9B5AA] text-xs mt-0.5">{tab==='inicio'?'Seu resumo diário':tab==='chat'?'Seu acompanhamento inteligente':tab==='evolucao'?'Sua jornada, um dia de cada vez':tab==='treino'?'Sua proposta de musculação':tab==='dieta'?'Hábitos e alimentação':'Seu espaço'}</p></div>
+<button className={`w-10 h-10 grid place-items-center rounded-full border transition-colors ${tab==='perfil'?'text-[#C5F17A] border-[#536A54] bg-[#19241C]':'border-[#354638] text-[#A9B5AA] hover:bg-[#19241C]'}`} aria-label="Abrir perfil" onClick={()=>setTab(tab==='perfil'?'chat':'perfil')}><UserRound size={20}/></button>
 </header>
-{boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : adminStatus==='loading' ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#E8C579]"/></div> : adminStatus==='error' ? <div className="flex-1 p-6 text-red-200">Não foi possível verificar as permissões de acesso. Atualize a página ou contate o suporte.</div> : adminStatus==='admin' ? <AdminScreen userId={userId} onSignOut={()=>supabase.auth.signOut()}/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#E8C579]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'inicio':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#153D2C] border border-[#BCA064] flex items-center justify-center mx-auto mb-6"><Check className="text-[#E8C579]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#BACFBE] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#B5C6B8] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('inicio');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#E8C579] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
+{boot ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#C5F17A]"/></div> : bootError ? <div className="flex-1 p-8 text-center"><p className="text-amber-200">{bootError}</p><button className="mt-4 underline" onClick={()=>window.location.reload()}>Tentar novamente</button></div> : passwordRecovery ? <AuthScreen recoveryMode onFinishRecovery={()=>setPasswordRecovery(false)}/> : !session ? <AuthScreen/> : adminStatus==='loading' ? <div className="flex-1 grid place-items-center"><LoaderCircle className="animate-spin text-[#C5F17A]"/></div> : adminStatus==='error' ? <div className="flex-1 p-6 text-red-200">Não foi possível verificar as permissões de acesso. Atualize a página ou contate o suporte.</div> : adminStatus==='admin' ? <AdminScreen userId={userId} onSignOut={()=>supabase.auth.signOut()}/> : onboardingLoading || !onboarding ? <div className="flex-1 grid place-items-center p-6 text-center">{onboardingError || 'Carregando seu perfil...'}{onboardingError&&<button className="block mt-3 underline text-[#C5F17A]" onClick={()=>supabase.auth.signOut()}>Sair da conta</button>}</div> : (!onboarding.onboarding_concluido || editingOnboarding) ? <OnboardingScreen userId={userId} initial={onboarding} onDone={data=>{const firstCompletion=!onboarding.onboarding_concluido;setOnboarding(data);setEditingOnboarding(false);setTrainingGenerationError('');setOnboardingThanks(firstCompletion);setTab(firstCompletion?'inicio':'perfil');}} onCancel={onboarding.onboarding_concluido?()=>setEditingOnboarding(false):null}/> : onboardingThanks ? <main className="flex-1 min-h-0 overflow-y-auto px-6 py-8 flex flex-col justify-center"><div className="max-w-sm mx-auto w-full text-center"><div className="w-24 h-24 rounded-full bg-[#19241C] border border-[#536A54] flex items-center justify-center mx-auto mb-6"><Check className="text-[#C5F17A]" size={48}/></div><h2 className="text-2xl font-semibold">Questionário concluído!</h2><p className="text-sm text-[#A9B5AA] mt-4 leading-relaxed">Obrigado por responder! Seu perfil foi salvo. Quando quiser, gere sua primeira proposta demonstrativa de musculação com IA.</p><button onClick={generateTraining} disabled={trainingGenerating} className="mt-8 w-full rounded-xl bg-[#C5F17A] text-[#10170F] font-semibold px-4 py-4 disabled:opacity-50 flex justify-center items-center gap-2">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={19}/> Gerar meu treino</>}</button><p className="text-xs text-[#A9B5AA] mt-4">Esta é uma simulação DEMO para testes. Não é prescrição liberada para execução.</p>{trainingGenerationError&&<p role="alert" className="mt-4 text-sm text-red-200">{trainingGenerationError}</p>}<button onClick={()=>{setOnboardingThanks(false);setTab('inicio');}} disabled={trainingGenerating} className="mt-6 text-sm text-[#C5F17A] underline disabled:opacity-40">Fazer isso depois</button></div></main> : <>
 {tab==='inicio'&&<HomeDashboard profile={profile} subscription={subscriptionAccess} training={training} diet={diet} onNavigate={setTab}/>}
 {tab==='chat'&&<main className="flex-1 flex flex-col min-h-0">
 <div className="flex-1 overflow-y-auto px-5 py-5 space-y-4">
-{messages.length===0&&<div className="pt-10 text-center"><div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#133C2C] border border-[#A98C51]/50 flex items-center justify-center"><img src={LOGO} alt="" className="w-20 h-20 object-contain"/></div><h2 className="text-2xl font-semibold">Sua jornada começa aqui.</h2><p className="text-[#B8CBBE] text-sm leading-relaxed mt-3 max-w-xs mx-auto">Converse sobre hábitos, movimento e constância. Como você está hoje?</p><p className="text-xs text-[#91AA9A] mt-3">Você está conversando com uma IA, não com o treinador humano.</p><div className="mt-8 flex flex-wrap gap-2 justify-center">{suggestions.map(s=><button key={s} onClick={()=>send(s)} className="text-sm px-3 py-2 border border-[#957E4A] text-[#F0D79F] rounded-full bg-[#103629]">{s}</button>)}</div></div>}
-{messages.map(m=><div key={m.id} className={`flex ${m.role==='user'?'justify-end':'justify-start'}`}><p className={`whitespace-pre-wrap break-words max-w-[87%] p-3.5 text-sm leading-relaxed rounded-2xl ${m.role==='user'?'bg-[#CBA864] text-[#0A281A] rounded-br-sm':'bg-[#164232] text-[#F8F4E9] border border-[#315641] rounded-bl-sm'}`}>{m.content}</p></div>)}
-{sending&&<p className="text-[#B2C8B5] text-sm animate-pulse">Preparando resposta...</p>}
+{messages.length===0&&<div className="pt-10 text-center"><div className="w-24 h-24 mx-auto mb-6 rounded-full bg-[#17211B] border border-[#536A54]/50 flex items-center justify-center"><img src={LOGO} alt="" className="w-20 h-20 object-contain"/></div><h2 className="text-2xl font-semibold">Sua jornada começa aqui.</h2><p className="text-[#A9B5AA] text-sm leading-relaxed mt-3 max-w-xs mx-auto">Converse sobre hábitos, movimento e constância. Como você está hoje?</p><p className="text-xs text-[#819084] mt-3">Você está conversando com uma IA, não com o treinador humano.</p><div className="mt-8 flex flex-wrap gap-2 justify-center">{suggestions.map(s=><button key={s} onClick={()=>send(s)} className="text-sm px-3 py-2 border border-[#354638] text-[#D7E9C1] rounded-full bg-[#17211B]">{s}</button>)}</div></div>}
+{messages.map(m=><div key={m.id} className={`flex ${m.role==='user'?'justify-end':'justify-start'}`}><p className={`whitespace-pre-wrap break-words max-w-[87%] p-3.5 text-sm leading-relaxed rounded-2xl ${m.role==='user'?'bg-[#C5F17A] text-[#10170F] rounded-br-sm':'bg-[#17211B] text-[#F3F5EF] border border-[#2B3A2E] rounded-bl-sm'}`}>{m.content}</p></div>)}
+{sending&&<p className="text-[#A9B5AA] text-sm animate-pulse">Preparando resposta...</p>}
 <div ref={bottom}/>
 </div>
 {chatError&&<p role="alert" className="mx-4 mb-2 p-3 rounded-xl bg-red-950/40 text-red-200 text-xs">{chatError}</p>}
-<form onSubmit={e=>{e.preventDefault();send();}} className="shrink-0 px-4 py-3 border-t border-[#244634] bg-[#052219]"><div className="flex items-end bg-[#123A2B] border border-[#335943] rounded-2xl p-2 gap-2"><textarea aria-label="Sua mensagem" rows={1} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Escreva sua mensagem..." maxLength={3000} className="flex-1 min-w-0 bg-transparent py-2 px-2 outline-none resize-none text-sm max-h-28 placeholder:text-[#A7BAAB]"/><button disabled={!draft.trim()||sending} className="bg-[#D8B46B] text-[#0A271A] rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-40" aria-label="Enviar"><Send size={18}/></button></div><p className="text-[10px] text-[#8FA99A] text-center mt-2">A IA não substitui orientações médicas ou acompanhamento profissional.</p></form>
+<form onSubmit={e=>{e.preventDefault();send();}} className="shrink-0 px-4 py-3 border-t border-[#2B3A2E] bg-[#0D1410]"><div className="flex items-end bg-[#19241C] border border-[#354638] rounded-2xl p-2 gap-2"><textarea aria-label="Sua mensagem" rows={1} value={draft} onChange={e=>setDraft(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send();}}} placeholder="Escreva sua mensagem..." maxLength={3000} className="flex-1 min-w-0 bg-transparent py-2 px-2 outline-none resize-none text-sm max-h-28 placeholder:text-[#A9B5AA]"/><button disabled={!draft.trim()||sending} className="bg-[#C5F17A] text-[#10170F] rounded-full w-10 h-10 flex items-center justify-center disabled:opacity-40" aria-label="Enviar"><Send size={18}/></button></div><p className="text-[10px] text-[#819084] text-center mt-2">A IA não substitui orientações médicas ou acompanhamento profissional.</p></form>
 </main>}
-{tab==='treino'&&!canAccessTraining&&<main className="flex-1 p-6"><div className="rounded-2xl border border-[#A98C51] bg-[#183D2C] p-5"><h2 className="text-xl font-semibold">Treino não incluído no plano</h2><p className="text-sm text-[#B9CDBD] mt-2">Escolha o plano Treino ou Treino + Dieta para acessar esta área.</p><button onClick={()=>setTab('planos')} className="mt-4 rounded-xl bg-[#D8B46B] text-[#09291E] px-4 py-2 font-semibold">Ver planos</button></div></main>}
+{tab==='treino'&&!canAccessTraining&&<main className="flex-1 p-6"><div className="rounded-2xl border border-[#536A54] bg-[#19241C] p-5"><h2 className="text-xl font-semibold">Treino não incluído no plano</h2><p className="text-sm text-[#A9B5AA] mt-2">Escolha o plano Treino ou Treino + Dieta para acessar esta área.</p><button onClick={()=>setTab('planos')} className="mt-4 rounded-xl bg-[#C5F17A] text-[#111812] px-4 py-2 font-semibold">Ver planos</button></div></main>}
 {tab==='treino'&&canAccessTraining&&<main className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
-<div className="flex justify-between items-start gap-3"><div><h2 className="text-2xl font-semibold">Meu Treino</h2><p className="text-[#ACC5B1] text-sm mt-1">Seu plano registrado no Corpo Em Movimento.</p></div><button onClick={loadTraining} disabled={trainingLoading} aria-label="Atualizar treino" className="border border-[#55745F] rounded-xl p-2 text-[#E8C579] disabled:opacity-40"><RefreshCw size={19}/></button></div>
-{trainingLoading&&<p className="text-sm text-[#ACC5B1]">Carregando treino...</p>}
+<div className="flex justify-between items-start gap-3"><div><h2 className="text-2xl font-semibold">Meu Treino</h2><p className="text-[#A9B5AA] text-sm mt-1">Seu plano registrado no Corpo Em Movimento.</p></div><button onClick={loadTraining} disabled={trainingLoading} aria-label="Atualizar treino" className="border border-[#354638] rounded-xl p-2 text-[#C5F17A] disabled:opacity-40"><RefreshCw size={19}/></button></div>
+{trainingLoading&&<p className="text-sm text-[#A9B5AA]">Carregando treino...</p>}
 {trainingError&&<p role="alert" className="text-red-200 text-sm rounded-xl border border-red-800 p-3">{trainingError}</p>}
 {trainingGenerationError&&<p role="alert" className="text-red-200 text-sm rounded-xl border border-red-800 p-3">{trainingGenerationError}</p>}
-{!trainingLoading&&<button disabled={trainingGenerating} onClick={generateTraining} className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold p-3 disabled:opacity-50">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={18}/> {training ? 'Gerar outro treino' : 'Gerar meu treino'}</>}</button>}
-{!trainingLoading&&!trainingError&&!training&&<section className="rounded-2xl border border-[#31543F] bg-[#103629] p-5"><p className="font-semibold">Nenhum treino disponível</p><p className="text-sm text-[#B1C5B6] mt-2">Ainda não há plano publicado ou demonstrativo disponível na sua conta.</p></section>}
+{!trainingLoading&&<button disabled={trainingGenerating} onClick={generateTraining} className="w-full flex items-center justify-center gap-2 rounded-xl bg-[#C5F17A] text-[#10170F] font-semibold p-3 disabled:opacity-50">{trainingGenerating?<><LoaderCircle size={18} className="animate-spin"/> Gerando proposta...</>:<><Dumbbell size={18}/> {training ? 'Gerar outro treino' : 'Gerar meu treino'}</>}</button>}
+{!trainingLoading&&!trainingError&&!training&&<section className="rounded-2xl border border-[#2B3A2E] bg-[#17211B] p-5"><p className="font-semibold">Nenhum treino disponível</p><p className="text-sm text-[#A9B5AA] mt-2">Ainda não há plano publicado ou demonstrativo disponível na sua conta.</p></section>}
 {training&&!trainingLoading&&<>
-<div className="rounded-2xl border border-[#A98C51] bg-[#183D2C] p-4"><p className="text-xs font-semibold tracking-wider text-[#E8C579]">{training.treino_json?.demonstrativo?'SIMULAÇÃO DEMO · NÃO EXECUTAR COMO PRESCRIÇÃO':'PLANO REGISTRADO'}</p><h3 className="text-lg font-semibold mt-2">{training.treino_json?.titulo||'Treino de musculação'}</h3><p className="text-xs text-[#BCD0C1] mt-1">Status: {training.status}</p><p className="text-sm text-[#B9CDBD] mt-3">{training.treino_json?.justificativa||''}</p>{training.treino_json?.demonstrativo&&<p className="mt-3 text-sm text-[#F1D8A2]">Proposta fictícia para testar o aplicativo. Não é um treino liberado para execução; necessita validação profissional.</p>}</div>
+<div className="rounded-2xl border border-[#536A54] bg-[#19241C] p-4"><p className="text-xs font-semibold tracking-wider text-[#C5F17A]">{training.treino_json?.demonstrativo?'SIMULAÇÃO DEMO · NÃO EXECUTAR COMO PRESCRIÇÃO':'PLANO REGISTRADO'}</p><h3 className="text-lg font-semibold mt-2">{training.treino_json?.titulo||'Treino de musculação'}</h3><p className="text-xs text-[#A9B5AA] mt-1">Status: {training.status}</p><p className="text-sm text-[#A9B5AA] mt-3">{training.treino_json?.justificativa||''}</p>{training.treino_json?.demonstrativo&&<p className="mt-3 text-sm text-[#F1D8A2]">Proposta fictícia para testar o aplicativo. Não é um treino liberado para execução; necessita validação profissional.</p>}</div>
 {training.treino_json?.requer_avaliacao&&<p className="rounded-xl bg-[#43301B] p-3 text-sm text-[#FFE0A7]">A proposta requer avaliação profissional antes de qualquer orientação individualizada.</p>}
-{(training.treino_json?.dias||[]).map((dia,di)=><section key={di} className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-3"><div><h3 className="text-[#E8C579] font-semibold">{dia.dia}</h3><p className="text-sm text-[#B4CAB8]">{dia.foco}</p></div><label className="flex items-center gap-3 bg-[#09291E] rounded-xl p-3"><input type="checkbox" className="accent-[#D8B46B] w-5 h-5" checked={checkins.some(x=>x.plano_id===training.id&&x.semana_inicio===weekMonday()&&x.dia_semana===weekdayIndex(dia.dia))} disabled={checkinBusy} onChange={()=>toggleCheckin(dia)}/><span className="text-sm">{demoPlan?'Marcar simulação concluída':'Treino realizado'}</span></label>{(dia.exercicios||[]).map((ex,i)=>{const info=trainingExercises[ex.exercicio_id];return <div key={ex.exercicio_id+'-'+i} className="rounded-xl bg-[#09291E] border border-[#2E503C] p-3"><p className="font-medium text-sm">{info?.nome||'Exercício da biblioteca indisponível'}</p>{info&&<p className="text-xs text-[#A8C4AF] mt-1">{[info.grupo_muscular,info.equipamento].filter(Boolean).join(' · ')}</p>}<p className="text-sm text-[#E8C579] mt-2">{ex.series} séries · {ex.repeticoes} repetições</p>{info?.instrucoes&&<p className="text-xs text-[#B9CDBD] mt-2">{info.instrucoes}</p>}{info?.observacoes_seguranca&&<p className="text-xs text-[#EBD6A7] mt-2">Atenção: {info.observacoes_seguranca}</p>}{ex.observacao&&<p className="text-xs text-[#A9BCAE] mt-2">{ex.observacao}</p>}</div>})}</section>)}
-{!training.treino_json?.dias?.length&&<p className="text-sm text-[#BACDBE]">Nenhum exercício foi gerado para esta proposta.</p>}
-<section className="rounded-2xl border border-[#31543F] bg-[#103629] p-4 space-y-3"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Controle semanal</h3><p className="text-xs text-[#A8C4AF]">{weekCount} de {plannedDays.length} dias marcados{demoPlan?' (simulação)':''}</p></div><CalendarDays size={22} className="text-[#D8B46B]"/></div><button onClick={()=>setResetConfirm(true)} disabled={checkinBusy||weekCount===0} className="rounded-xl border border-[#947C51] text-[#E8C579] text-sm px-4 py-2 flex items-center gap-2 disabled:opacity-40"><RotateCcw size={16}/> Zerar semana</button>{resetConfirm&&<div className="p-3 rounded-xl bg-[#123A2B] text-sm"><p>Remover as marcações desta semana? As semanas anteriores serão preservadas.</p><div className="flex gap-3 mt-3"><button onClick={()=>setResetConfirm(false)} className="underline">Cancelar</button><button onClick={resetWeek} disabled={checkinBusy} className="bg-[#D8B46B] text-[#09291E] rounded-lg px-3 py-2">Confirmar</button></div></div>}{checkinError&&<p role="alert" className="text-red-200 text-xs">{checkinError}</p>}</section>
+{activeTrainingDay&&<section key={`${training.id}-${trainingDayIndex}`} className="rounded-3xl bg-[#17211B] border border-[#2B3A2E] p-4 sm:p-5 space-y-4 shadow-xl shadow-black/10" style={{touchAction:'pan-y'}} onTouchStart={e=>{trainingTouchStart.current=e.touches[0]?.clientX??null;}} onTouchEnd={e=>{const start=trainingTouchStart.current;trainingTouchStart.current=null;if(start==null)return;const delta=e.changedTouches[0].clientX-start;if(Math.abs(delta)<48)return;setTrainingDayIndex(index=>Math.max(0,Math.min(plannedDays.length-1,index+(delta<0?1:-1))));}}>
+  <div className="flex items-center justify-between gap-3">
+    <button type="button" aria-label="Dia de treino anterior" disabled={trainingDayIndex===0} onClick={()=>setTrainingDayIndex(i=>Math.max(0,i-1))} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#354638] text-[#C5F17A] disabled:opacity-30"><ChevronLeft size={21}/></button>
+    <div className="min-w-0 flex-1 text-center"><p className="text-[10px] uppercase tracking-[0.22em] text-[#A9B5AA]">Dia {String(trainingDayIndex+1).padStart(2,'0')} de {String(plannedDays.length).padStart(2,'0')}</p><h3 className="mt-1 text-lg font-semibold text-[#C5F17A]">{activeTrainingDay.dia||`Treino ${trainingDayIndex+1}`}</h3><p className="text-sm text-[#A9B5AA]">{activeTrainingDay.foco||'Seu treino do dia'}</p></div>
+    <button type="button" aria-label="Próximo dia de treino" disabled={trainingDayIndex>=plannedDays.length-1} onClick={()=>setTrainingDayIndex(i=>Math.min(plannedDays.length-1,i+1))} className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#354638] text-[#C5F17A] disabled:opacity-30"><ChevronRight size={21}/></button>
+  </div>
+  <div className="flex justify-center gap-1.5" aria-label="Selecionar dia do treino">{plannedDays.map((day,index)=><button key={`${day.dia||index}-${index}`} type="button" aria-label={`Ir para ${day.dia||`dia ${index+1}`}`} aria-current={index===trainingDayIndex?'step':undefined} onClick={()=>setTrainingDayIndex(index)} className={`h-1.5 rounded-full transition-all ${index===trainingDayIndex?'w-7 bg-[#C5F17A]':'w-1.5 bg-[#354638]'}`}/>)}</div>
+  <p className="text-center text-[10px] text-[#819084]">Deslize para o lado para trocar o dia</p>
+  <label className="flex items-center gap-3 rounded-2xl bg-[#111812] p-3.5"><input type="checkbox" className="accent-[#C5F17A] h-5 w-5" checked={checkins.some(x=>x.plano_id===training.id&&x.semana_inicio===weekMonday()&&x.dia_semana===weekdayIndex(activeTrainingDay.dia))} disabled={checkinBusy} onChange={()=>toggleCheckin(activeTrainingDay)}/><span className="text-sm">{demoPlan?'Marcar simulação concluída':'Treino realizado'}</span></label>
+  <div className="space-y-3">{(activeTrainingDay.exercicios||[]).map((ex,i)=>{const info=trainingExercises[ex.exercicio_id];return <article key={ex.exercicio_id+'-'+i} className="rounded-2xl border border-[#2B3A2E] bg-[#111812] p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold text-sm">{info?.nome||'Exercício da biblioteca indisponível'}</p>{info&&<p className="text-xs text-[#A9B5AA] mt-1">{[info.grupo_muscular,info.equipamento].filter(Boolean).join(' · ')}</p>}</div><span className="shrink-0 rounded-full bg-[#193C2A] px-2.5 py-1 text-[11px] font-semibold text-[#C5F17A]">{ex.series} × {ex.repeticoes}</span></div>{info?.instrucoes&&<p className="text-xs leading-relaxed text-[#A9B5AA] mt-3">{info.instrucoes}</p>}{info?.observacoes_seguranca&&<p className="text-xs text-[#EBD6A7] mt-2">Atenção: {info.observacoes_seguranca}</p>}{ex.observacao&&<p className="text-xs text-[#A9B5AA] mt-2">{ex.observacao}</p>}</article>})}</div>
+</section>}
+{!training.treino_json?.dias?.length&&<p className="text-sm text-[#A9B5AA]">Nenhum exercício foi gerado para esta proposta.</p>}
+<section className="rounded-2xl border border-[#2B3A2E] bg-[#17211B] p-4 space-y-3"><div className="flex items-center justify-between"><div><h3 className="font-semibold">Controle semanal</h3><p className="text-xs text-[#A9B5AA]">{weekCount} de {plannedDays.length} dias marcados{demoPlan?' (simulação)':''}</p></div><CalendarDays size={22} className="text-[#C5F17A]"/></div><button onClick={()=>setResetConfirm(true)} disabled={checkinBusy||weekCount===0} className="rounded-xl border border-[#354638] text-[#C5F17A] text-sm px-4 py-2 flex items-center gap-2 disabled:opacity-40"><RotateCcw size={16}/> Zerar semana</button>{resetConfirm&&<div className="p-3 rounded-xl bg-[#19241C] text-sm"><p>Remover as marcações desta semana? As semanas anteriores serão preservadas.</p><div className="flex gap-3 mt-3"><button onClick={()=>setResetConfirm(false)} className="underline">Cancelar</button><button onClick={resetWeek} disabled={checkinBusy} className="bg-[#C5F17A] text-[#111812] rounded-lg px-3 py-2">Confirmar</button></div></div>}{checkinError&&<p role="alert" className="text-red-200 text-xs">{checkinError}</p>}</section>
 </>}
 </main>}
-{tab==='dieta'&&!canAccessDiet&&<main className="flex-1 p-6"><div className="rounded-2xl border border-[#A98C51] bg-[#183D2C] p-5"><h2 className="text-xl font-semibold">Dieta não incluída no plano</h2><p className="text-sm text-[#B9CDBD] mt-2">Escolha o plano Dieta ou Treino + Dieta para acessar esta área.</p><button onClick={()=>setTab('planos')} className="mt-4 rounded-xl bg-[#D8B46B] text-[#09291E] px-4 py-2 font-semibold">Ver planos</button></div></main>}
+{tab==='dieta'&&!canAccessDiet&&<main className="flex-1 p-6"><div className="rounded-2xl border border-[#536A54] bg-[#19241C] p-5"><h2 className="text-xl font-semibold">Dieta não incluída no plano</h2><p className="text-sm text-[#A9B5AA] mt-2">Escolha o plano Dieta ou Treino + Dieta para acessar esta área.</p><button onClick={()=>setTab('planos')} className="mt-4 rounded-xl bg-[#C5F17A] text-[#111812] px-4 py-2 font-semibold">Ver planos</button></div></main>}
 {tab==='dieta'&&canAccessDiet&&<main className="flex-1 overflow-y-auto px-5 py-6 space-y-4">
 <h2 className="text-2xl font-semibold">Minha Alimentação</h2>
-<p className="text-sm text-[#B1C5B6]">Ideias de refeições e organização alimentar geradas pela IA, com base nas preferências do questionário.</p>
+<p className="text-sm text-[#A9B5AA]">Ideias de refeições e organização alimentar geradas pela IA, com base nas preferências do questionário.</p>
 <DietCheckin userId={userId}/>
-<div className="rounded-2xl border border-[#A98C51] bg-[#183D2C] p-4 text-sm text-[#F1D8A2]">Conteúdo educativo DEMO. Não é dieta prescrita nem substitui nutricionista. Restrições e alergias exigem atenção especial.</div>
-<button onClick={generateDiet} disabled={dietGenerating||dietLoading} className="w-full rounded-xl bg-[#D8B46B] text-[#09291E] font-semibold p-3 flex items-center justify-center gap-2 disabled:opacity-50">{dietGenerating?<><LoaderCircle className="animate-spin" size={17}/> Gerando ideias...</>:<><Utensils size={17}/> {diet?'Gerar novas sugestões':'Gerar sugestões com IA'}</>}</button>
-{dietLoading&&<p className="text-sm text-[#B1C5B6]">Carregando sugestões...</p>}
+<div className="rounded-2xl border border-[#536A54] bg-[#19241C] p-4 text-sm text-[#F1D8A2]">Conteúdo educativo DEMO. Não é dieta prescrita nem substitui nutricionista. Restrições e alergias exigem atenção especial.</div>
+<button onClick={generateDiet} disabled={dietGenerating||dietLoading} className="w-full rounded-xl bg-[#C5F17A] text-[#111812] font-semibold p-3 flex items-center justify-center gap-2 disabled:opacity-50">{dietGenerating?<><LoaderCircle className="animate-spin" size={17}/> Gerando ideias...</>:<><Utensils size={17}/> {diet?'Gerar novas sugestões':'Gerar sugestões com IA'}</>}</button>
+{dietLoading&&<p className="text-sm text-[#A9B5AA]">Carregando sugestões...</p>}
 {dietError&&<p role="alert" className="text-red-200 text-sm">{dietError}</p>}
-{diet&&<><div className="rounded-2xl bg-[#103629] p-4 border border-[#31543F]"><h3 className="font-semibold">{diet.plano_json?.titulo||'Organização alimentar'}</h3><p className="text-xs text-[#ACC3AF] mt-2">Gerado em {new Date(diet.created_at).toLocaleDateString('pt-BR')} · {diet.status}</p><p className="text-sm text-[#BDD0BE] mt-3">{diet.plano_json?.introducao||''}</p></div>{(diet.plano_json?.refeicoes||[]).map((r,i)=><section key={i} className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="text-[#E8C579] font-semibold">{r.nome}</h3><p className="text-sm mt-2">{r.sugestao}</p></section>)}{Array.isArray(diet.plano_json?.dicas)&&<section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="font-semibold mb-2">Hábitos úteis</h3>{diet.plano_json.dicas.map((x,i)=><p key={i} className="text-sm mt-2 text-[#B9CDBD]">• {x}</p>)}</section>}</>}
+{diet&&<><div className="rounded-2xl bg-[#17211B] p-4 border border-[#2B3A2E]"><h3 className="font-semibold">{diet.plano_json?.titulo||'Organização alimentar'}</h3><p className="text-xs text-[#A9B5AA] mt-2">Gerado em {new Date(diet.created_at).toLocaleDateString('pt-BR')} · {diet.status}</p><p className="text-sm text-[#A9B5AA] mt-3">{diet.plano_json?.introducao||''}</p></div>{(diet.plano_json?.refeicoes||[]).map((r,i)=><section key={i} className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><h3 className="text-[#C5F17A] font-semibold">{r.nome}</h3><p className="text-sm mt-2">{r.sugestao}</p></section>)}{Array.isArray(diet.plano_json?.dicas)&&<section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><h3 className="font-semibold mb-2">Hábitos úteis</h3>{diet.plano_json.dicas.map((x,i)=><p key={i} className="text-sm mt-2 text-[#A9B5AA]">• {x}</p>)}</section>}</>}
 </main>}
 {tab==='planos'&&<SubscriptionScreen userId={userId}/>}
 {tab==='evolucao'&&<main className="flex-1 overflow-y-auto px-5 py-7 space-y-5">
-<h2 className="text-2xl font-semibold">Minha evolução</h2><p className="text-sm text-[#B1C5B6]">Dados calculados automaticamente a partir dos registros.</p>
-<div className="grid grid-cols-2 gap-3"><section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><p className="text-xs text-[#B1C5B6]">Esta semana</p><p className="text-3xl text-[#E8C579] font-semibold mt-2">{weekCount}/{plannedDays.length}</p><p className="text-xs mt-2">dias marcados</p></section><section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><p className="text-xs text-[#B1C5B6]">Histórico do plano</p><p className="text-3xl text-[#E8C579] font-semibold mt-2">{totalChecks}</p><p className="text-xs mt-2">marcações totais</p></section></div>
-{demoPlan&&<p className="text-xs text-[#E8C579]">Você está usando um treino DEMO: as marcações são simulações, não comprovações de exercício realizado.</p>}
-<section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="font-semibold">Adesão da semana</h3><div className="mt-3 w-full rounded-full bg-[#09291E] h-3 overflow-hidden"><div className="h-full bg-[#D8B46B] rounded-full" style={{width:`${plannedDays.length?Math.min(100,weekCount/plannedDays.length*100):0}%`}}/></div><p className="text-xs text-[#B1C5B6] mt-2">{plannedDays.length?Math.round(weekCount/plannedDays.length*100):0}% das sessões listadas no plano</p></section>
-<section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="font-semibold">Hábitos de hoje <span className="text-[#E8C579]">{doneToday}/{DAILY.length}</span></h3><div className="mt-4 space-y-3">{DAILY.map(h=>{const done=logs.some(l=>l.day===today&&l.habit===h.key);return <button key={h.key} onClick={()=>toggleHabit(h.key)} className={`w-full text-left flex gap-3 items-center rounded-xl border p-3 ${done?'border-[#B99B60] bg-[#214732]':'border-[#31533F] bg-[#0A2C20]'}`}><span>{done?'✓':'+'}</span><span className="text-sm">{h.label}</span></button>})}</div></section>
-<section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="font-semibold">Últimos sete dias</h3><p className="text-sm text-[#B1C5B6] mt-2">{attended}/7 dias com hábitos registrados</p></section>{logError&&<p role="alert" className="text-sm text-red-200">{logError}</p>}
+<h2 className="text-2xl font-semibold">Minha evolução</h2><p className="text-sm text-[#A9B5AA]">Dados calculados automaticamente a partir dos registros.</p>
+<div className="grid grid-cols-2 gap-3"><section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><p className="text-xs text-[#A9B5AA]">Esta semana</p><p className="text-3xl text-[#C5F17A] font-semibold mt-2">{weekCount}/{plannedDays.length}</p><p className="text-xs mt-2">dias marcados</p></section><section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><p className="text-xs text-[#A9B5AA]">Histórico do plano</p><p className="text-3xl text-[#C5F17A] font-semibold mt-2">{totalChecks}</p><p className="text-xs mt-2">marcações totais</p></section></div>
+{demoPlan&&<p className="text-xs text-[#C5F17A]">Você está usando um treino DEMO: as marcações são simulações, não comprovações de exercício realizado.</p>}
+<section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><h3 className="font-semibold">Adesão da semana</h3><div className="mt-3 w-full rounded-full bg-[#111812] h-3 overflow-hidden"><div className="h-full bg-[#C5F17A] rounded-full" style={{width:`${plannedDays.length?Math.min(100,weekCount/plannedDays.length*100):0}%`}}/></div><p className="text-xs text-[#A9B5AA] mt-2">{plannedDays.length?Math.round(weekCount/plannedDays.length*100):0}% das sessões listadas no plano</p></section>
+<section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><h3 className="font-semibold">Hábitos de hoje <span className="text-[#C5F17A]">{doneToday}/{DAILY.length}</span></h3><div className="mt-4 space-y-3">{DAILY.map(h=>{const done=logs.some(l=>l.day===today&&l.habit===h.key);return <button key={h.key} onClick={()=>toggleHabit(h.key)} className={`w-full text-left flex gap-3 items-center rounded-xl border p-3 ${done?'border-[#536A54] bg-[#243328]':'border-[#2B3A2E] bg-[#111812]'}`}><span>{done?'✓':'+'}</span><span className="text-sm">{h.label}</span></button>})}</div></section>
+<section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><h3 className="font-semibold">Últimos sete dias</h3><p className="text-sm text-[#A9B5AA] mt-2">{attended}/7 dias com hábitos registrados</p></section>{logError&&<p role="alert" className="text-sm text-red-200">{logError}</p>}
 </main>}
 {tab==='perfil'&&<ProfileScreen profile={profile} photoUrl={photoUrl} onboarding={onboarding} session={session} userId={userId} onSaved={setProfile} onEditOnboarding={()=>setEditingOnboarding(true)} onBack={()=>setTab('chat')} onSignOut={async()=>{const {error}=await supabase.auth.signOut();if(error)setBootError(error.message);}}/>}
-<nav className="shrink-0 border-t border-[#2C503D] flex bg-[#052219] pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'inicio',label:'Início',Icon:HomeIcon},{id:'chat',label:'Chat',Icon:MessageCircle},{id:'treino',label:'Meu Treino',Icon:Dumbbell},{id:'dieta',label:'Dieta',Icon:Utensils},{id:'evolucao',label:'Evolução',Icon:TrendingUp},{id:'planos',label:'Planos',Icon:CreditCard}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} className={`min-w-0 flex-1 flex flex-col justify-center items-center h-16 gap-1 text-[10px] ${tab===id?'text-[#E8C579]':'text-[#99B2A0]'}`}><Icon size={19}/><span className="truncate max-w-full">{label}</span></button>)}</nav>
+<nav className="shrink-0 border-t border-[#2B3A2E] flex bg-[#0D1410]/95 px-1 pt-1 pb-[env(safe-area-inset-bottom)]" aria-label="Menu principal">{[{id:'inicio',label:'Início',Icon:HomeIcon},{id:'chat',label:'Chat',Icon:MessageCircle},{id:'treino',label:'Treino',Icon:Dumbbell},{id:'dieta',label:'Dieta',Icon:Utensils},{id:'evolucao',label:'Evolução',Icon:TrendingUp},{id:'planos',label:'Planos',Icon:CreditCard}].map(({id,label,Icon})=><button key={id} onClick={()=>setTab(id)} aria-current={tab===id?'page':undefined} className={`min-w-0 flex-1 flex flex-col justify-center items-center min-h-[60px] gap-1 rounded-xl text-[10px] transition-colors ${tab===id?'text-[#C5F17A] bg-[#19241C]':'text-[#819084] hover:text-[#F3F5EF]'}`}><Icon size={19} strokeWidth={tab===id?2.3:1.8}/><span className="truncate max-w-full">{label}</span></button>)}</nav>
 </>}
 </div>
 
@@ -412,25 +427,25 @@ setPassword('');setConfirm('');onFinishRecovery();
 }catch(err){setError(err.message||'Não foi possível concluir a operação.');}
 finally{setBusy(false);}
 }
-const field='w-full rounded-xl border border-[#426650] bg-[#113A2B] px-4 py-3 text-[#F8F4E9] outline-none focus:border-[#E8C579]';
+const field='w-full rounded-xl border border-[#354638] bg-[#19241C] px-4 py-3 text-[#F3F5EF] outline-none focus:border-[#C5F17A]';
 function switchMode(next){setMode(next);setError('');setInfo('');setPassword('');setConfirm('');}
 return <main className="flex-1 overflow-y-auto px-6 py-6 flex flex-col justify-center">
 <div className="mx-auto w-full max-w-sm">
 <img src={LOGO} alt="Corpo Em Movimento" className="h-20 w-20 object-contain mx-auto mb-5"/>
 <h2 className="text-center text-2xl font-semibold">{mode==='login'?'Bem-vindo de volta':mode==='register'?'Crie sua conta':mode==='forgot'?'Recuperar senha':'Definir nova senha'}</h2>
-<p className="text-center text-sm text-[#B3C7B8] mt-2 mb-7">{mode==='register'?'Comece sua jornada com um acesso só seu.':mode==='login'?'Entre para continuar sua jornada.':'Siga as instruções para recuperar o acesso.'}</p>
+<p className="text-center text-sm text-[#A9B5AA] mt-2 mb-7">{mode==='register'?'Comece sua jornada com um acesso só seu.':mode==='login'?'Entre para continuar sua jornada.':'Siga as instruções para recuperar o acesso.'}</p>
 <form onSubmit={submit} className="space-y-4">
 {mode==='register'&&<label className="block text-sm">Nome completo<input className={field+' mt-2'} required value={name} onChange={e=>setName(e.target.value)} autoComplete="name"/></label>}
 {mode!=='update'&&<label className="block text-sm">E-mail<input className={field+' mt-2'} type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email"/></label>}
 {!['forgot'].includes(mode)&&<label className="block text-sm">{mode==='update'?'Nova senha':'Senha'}<input className={field+' mt-2'} type="password" required minLength={mode==='login'?1:8} value={password} onChange={e=>setPassword(e.target.value)} autoComplete={mode==='login'?'current-password':'new-password'}/></label>}
 {['register','update'].includes(mode)&&<label className="block text-sm">Confirmar senha<input className={field+' mt-2'} type="password" required value={confirm} onChange={e=>setConfirm(e.target.value)} autoComplete="new-password"/></label>}
 {error&&<p role="alert" className="text-sm text-red-200">{error}</p>}
-{info&&<p role="status" className="text-sm text-[#E8C579]">{info}</p>}
-<button disabled={busy} type="submit" className="w-full rounded-xl bg-[#D8B46B] text-[#0A271A] font-semibold p-3 disabled:opacity-50">{busy?'Aguarde...':mode==='login'?'Entrar':mode==='register'?'Criar conta':mode==='forgot'?'Enviar link':'Salvar nova senha'}</button>
+{info&&<p role="status" className="text-sm text-[#C5F17A]">{info}</p>}
+<button disabled={busy} type="submit" className="w-full rounded-xl bg-[#C5F17A] text-[#10170F] font-semibold p-3 disabled:opacity-50">{busy?'Aguarde...':mode==='login'?'Entrar':mode==='register'?'Criar conta':mode==='forgot'?'Enviar link':'Salvar nova senha'}</button>
 </form>
-{mode==='login'&&<><button className="block text-sm text-[#E8C579] mx-auto mt-5" onClick={()=>switchMode('forgot')}>Esqueci minha senha</button><p className="text-center text-sm mt-6">Ainda não tem conta? <button className="text-[#E8C579] font-semibold" onClick={()=>switchMode('register')}>Cadastre-se</button></p></>}
-{mode==='register'&&<p className="text-center text-sm mt-6">Já tem uma conta? <button className="text-[#E8C579] font-semibold" onClick={()=>switchMode('login')}>Entrar</button></p>}
-{mode==='forgot'&&<button className="block text-sm text-[#E8C579] mx-auto mt-6" onClick={()=>switchMode('login')}>Voltar para login</button>}
+{mode==='login'&&<><button className="block text-sm text-[#C5F17A] mx-auto mt-5" onClick={()=>switchMode('forgot')}>Esqueci minha senha</button><p className="text-center text-sm mt-6">Ainda não tem conta? <button className="text-[#C5F17A] font-semibold" onClick={()=>switchMode('register')}>Cadastre-se</button></p></>}
+{mode==='register'&&<p className="text-center text-sm mt-6">Já tem uma conta? <button className="text-[#C5F17A] font-semibold" onClick={()=>switchMode('login')}>Entrar</button></p>}
+{mode==='forgot'&&<button className="block text-sm text-[#C5F17A] mx-auto mt-6" onClick={()=>switchMode('login')}>Voltar para login</button>}
 </div>
 
   </main>;
@@ -443,7 +458,7 @@ disponibilidade:[],tempo_treino_min:'',equipamentos:[],limitacoes_fisicas:'',
 restricoes_alimentares:'',preferencias_alimentares:'',habitos_alimentares:'',termos_aceitos:false
 };
 const STEPS = ['Sobre você','Seu objetivo','Sua rotina','Saúde e alimentação','Confirmação'];
-const FIELD = 'w-full rounded-xl border border-[#426650] bg-[#113A2B] px-4 py-3 mt-2 text-[#F8F4E9] outline-none focus:border-[#E8C579]';
+const FIELD = 'w-full rounded-xl border border-[#354638] bg-[#19241C] px-4 py-3 mt-2 text-[#F3F5EF] outline-none focus:border-[#C5F17A]';
 function OnboardingScreen({userId,initial,onDone,onCancel}){
 const [step,setStep]=useState(0);
 const [answers,setAnswers]=useState(()=>({...INITIAL_ANSWERS,...(initial||{}),
@@ -456,7 +471,7 @@ const [busy,setBusy]=useState(false);
 const [error,setError]=useState('');
 const set=(field,value)=>setAnswers(a=>({...a,[field]:value}));
 const toggle=(field,value)=>setAnswers(a=>({...a,[field]:a[field].includes(value)?a[field].filter(v=>v!==value):[...a[field],value]}));
-const options=(field,items)=><div className="flex flex-wrap gap-2 mt-3">{items.map(item=><button key={item} type="button" onClick={()=>toggle(field,item)} className={`rounded-xl px-3 py-2 text-sm border ${answers[field].includes(item)?'bg-[#D8B46B] text-[#0B291B] border-[#D8B46B]':'bg-[#113A2B] border-[#426650]'}`}>{item}</button>)}</div>;
+const options=(field,items)=><div className="flex flex-wrap gap-2 mt-3">{items.map(item=><button key={item} type="button" onClick={()=>toggle(field,item)} className={`rounded-xl px-3 py-2 text-sm border ${answers[field].includes(item)?'bg-[#C5F17A] text-[#0B291B] border-[#C5F17A]':'bg-[#19241C] border-[#354638]'}`}>{item}</button>)}</div>;
 const dropdown=(field,items,label)=><label className="block text-sm mt-4">{label}<select required value={answers[field]} onChange={e=>set(field,e.target.value)} className={FIELD}><option value="">Selecione</option>{items.map(x=><option key={x} value={x}>{x}</option>)}</select></label>;
 const number=(field,label,min,max,stepValue='1')=><label className="block text-sm mt-4">{label}<input type="number" inputMode="decimal" min={min} max={max} step={stepValue} value={answers[field]} onChange={e=>set(field,e.target.value)} className={FIELD}/></label>;
 const textarea=(field,label,placeholder)=><label className="block text-sm mt-4">{label}<textarea rows={3} value={answers[field]||''} onChange={e=>set(field,e.target.value)} placeholder={placeholder} className={FIELD+' resize-none'}/></label>;
@@ -492,10 +507,10 @@ finally{setBusy(false);}
 }
 return <main className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
 <div className="max-w-sm mx-auto pb-6">
-<div className="flex items-center justify-between text-xs text-[#B3C7B8]"><span>Seu perfil de treino</span><span>Etapa {step+1} de {STEPS.length}</span></div>
-<div className="h-1.5 rounded-full bg-[#315641] mt-3 mb-7"><div className="h-full rounded-full bg-[#D8B46B]" style={{width:`${(step+1)*20}%`}}/></div>
+<div className="flex items-center justify-between text-xs text-[#A9B5AA]"><span>Seu perfil de treino</span><span>Etapa {step+1} de {STEPS.length}</span></div>
+<div className="h-1.5 rounded-full bg-[#2B3A2E] mt-3 mb-7"><div className="h-full rounded-full bg-[#C5F17A]" style={{width:`${(step+1)*20}%`}}/></div>
 <h2 className="text-2xl font-semibold">{STEPS[step]}</h2>
-<p className="text-sm text-[#B3C7B8] mt-2 mb-5">{step===0?'Vamos conhecer suas características.':step===1?'O que você deseja conquistar?':step===2?'Vamos adaptar o treino à sua disponibilidade.':step===3?'Estas respostas são opcionais e ajudam a identificar cuidados necessários.':'Confira as informações antes de finalizar.'}</p>
+<p className="text-sm text-[#A9B5AA] mt-2 mb-5">{step===0?'Vamos conhecer suas características.':step===1?'O que você deseja conquistar?':step===2?'Vamos adaptar o treino à sua disponibilidade.':step===3?'Estas respostas são opcionais e ajudam a identificar cuidados necessários.':'Confira as informações antes de finalizar.'}</p>
 {step===0&&<>
 {number('idade','Sua idade (anos)',18,100)}
 {number('altura_cm','Sua altura (cm)',90,240,'0.1')}
@@ -506,7 +521,7 @@ return <main className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
 {dropdown('objetivo',['Ganhar massa muscular','Emagrecer','Recomposição corporal','Melhorar força','Melhorar condicionamento'],'Objetivo principal')}
 {dropdown('experiencia_musculacao',['Iniciante','Intermediário','Avançado'],'Experiência em musculação')}
 {number('tempo_experiencia_meses','Há quantos meses você pratica musculação? (0 se nunca treinou)',0,1200)}
-<p className="text-xs text-[#B3C7B8] mt-2">Informe o total aproximado de meses de prática. A classificação final dependerá da avaliação profissional.</p>
+<p className="text-xs text-[#A9B5AA] mt-2">Informe o total aproximado de meses de prática. A classificação final dependerá da avaliação profissional.</p>
 {dropdown('nivel_atividade',['Sedentário','Pouco ativo','Moderadamente ativo','Muito ativo'],'Nível atual de atividade (opcional)')}
 {number('meta_peso','Meta de peso em kg (opcional)',25,350,'0.1')}
 </>}
@@ -523,22 +538,22 @@ return <main className="flex-1 min-h-0 overflow-y-auto px-6 py-6">
 {textarea('restricoes_alimentares','Restrições alimentares (opcional)','Alergias ou alimentos que evita')}
 {textarea('preferencias_alimentares','Preferências alimentares (opcional)','Alimentos que prefere ou não gosta')}
 {textarea('habitos_alimentares','Rotina alimentar (opcional)','Como costuma organizar suas refeições?')}
-<p className="text-xs text-[#B3C7B8] mt-4">O app não substitui orientação médica, de nutricionista ou de profissional de educação física.</p>
+<p className="text-xs text-[#A9B5AA] mt-4">O app não substitui orientação médica, de nutricionista ou de profissional de educação física.</p>
 </>}
 {step===4&&<>
-<div className="bg-[#103629] border border-[#315641] p-4 rounded-xl text-sm space-y-2">
+<div className="bg-[#17211B] border border-[#2B3A2E] p-4 rounded-xl text-sm space-y-2">
 <p><strong>Objetivo:</strong> {answers.objetivo}</p><p><strong>Experiência:</strong> {answers.experiencia_musculacao}</p>
 <p><strong>Tempo de prática:</strong> {answers.tempo_experiencia_meses} meses</p>
 <p><strong>Local:</strong> {answers.estrutura}</p><p><strong>Dias:</strong> {answers.disponibilidade.join(', ')}</p>
 <p><strong>Tempo:</strong> {answers.tempo_treino_min} min</p>
 </div>
 <label className="flex gap-3 mt-5 text-sm items-start"><input type="checkbox" checked={!!answers.termos_aceitos} onChange={e=>set('termos_aceitos',e.target.checked)} className="mt-1"/><span>Autorizo o armazenamento e uso das minhas respostas, incluindo as informações opcionais de saúde e alimentação, para personalizar minha experiência no aplicativo. Posso atualizá-las posteriormente.</span></label>
-<p className="text-xs text-[#B3C7B8] mt-3">A geração de treino individualizado será habilitada após integração e validação dos protocolos profissionais.</p>
+<p className="text-xs text-[#A9B5AA] mt-3">A geração de treino individualizado será habilitada após integração e validação dos protocolos profissionais.</p>
 </>}
 {error&&<p role="alert" className="mt-4 text-sm text-red-200">{error}</p>}
 <div className="flex gap-3 mt-8">
-{(step>0||onCancel)&&<button type="button" disabled={busy} onClick={()=>{if(step>0){setStep(s=>s-1);setError('');}else onCancel?.();}} className="px-5 py-3 border border-[#426650] rounded-xl">Voltar</button>}
-<button type="button" disabled={busy} onClick={next} className="flex-1 px-4 py-3 bg-[#D8B46B] text-[#0A271A] font-semibold rounded-xl disabled:opacity-50">{busy?'Salvando...':step===4?'Concluir questionário':'Continuar'}</button>
+{(step>0||onCancel)&&<button type="button" disabled={busy} onClick={()=>{if(step>0){setStep(s=>s-1);setError('');}else onCancel?.();}} className="px-5 py-3 border border-[#354638] rounded-xl">Voltar</button>}
+<button type="button" disabled={busy} onClick={next} className="flex-1 px-4 py-3 bg-[#C5F17A] text-[#10170F] font-semibold rounded-xl disabled:opacity-50">{busy?'Salvando...':step===4?'Concluir questionário':'Continuar'}</button>
 </div>
 </div>
 
@@ -578,13 +593,13 @@ onSaved(data);setInfo('Foto atualizada.');
 }catch(e){setError(e.message||'Falha no envio da foto.');}
 finally{setBusy(false);event.target.value='';}
 }
-return <main className="flex-1 overflow-y-auto px-6 py-6 space-y-5"><button onClick={onBack} className="text-[#E8C579] text-sm flex gap-2 items-center"><ArrowLeft size={16}/> Voltar</button>
+return <main className="flex-1 overflow-y-auto px-6 py-6 space-y-5"><button onClick={onBack} className="text-[#C5F17A] text-sm flex gap-2 items-center"><ArrowLeft size={16}/> Voltar</button>
 <h2 className="text-2xl font-semibold">Meu Perfil</h2><div className="flex flex-col items-center gap-3">
-<div className="w-24 h-24 bg-[#133D2B] border border-[#B99B60] rounded-full overflow-hidden grid place-items-center">{photoUrl?<img src={photoUrl} alt="Foto de perfil" className="w-full h-full object-cover"/>:<UserRound size={43} className="text-[#E8C579]"/>}</div>
-<label className="border border-[#B99B60] rounded-xl text-sm px-4 py-2 text-[#E8C579] flex gap-2 items-center cursor-pointer"><Camera size={16}/> Alterar foto<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={uploadPhoto} disabled={busy}/></label>
-</div><section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-3"><h3 className="font-semibold">Dados de cadastro</h3><label className="block text-sm">Nome<input value={nome} onChange={e=>setNome(e.target.value)} className="mt-1 w-full rounded-xl bg-[#09291E] border border-[#426650] px-3 py-2"/></label><label className="block text-sm">E-mail<input readOnly value={session?.user?.email||''} className="mt-1 w-full rounded-xl bg-[#09291E] border border-[#426650] px-3 py-2 opacity-70"/></label><label className="block text-sm">Telefone<input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#09291E] border border-[#426650] px-3 py-2"/></label><button onClick={save} disabled={busy} className="w-full rounded-xl bg-[#D8B46B] text-[#09291E] p-3 font-semibold disabled:opacity-50">{busy?'Salvando...':'Salvar meus dados'}</button></section>
-<section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4 space-y-2"><h3 className="font-semibold">Meu questionário</h3><p className="text-sm text-[#B1C5B6]">Objetivo: {onboarding?.objetivo||'Não definido'}</p><p className="text-sm text-[#B1C5B6]">Experiência: {onboarding?.experiencia_musculacao||'Não definido'} · {onboarding?.tempo_experiencia_meses != null ? `${onboarding.tempo_experiencia_meses} meses` : 'Tempo não informado'}</p><p className="text-sm text-[#B1C5B6]">Disponibilidade: {(onboarding?.disponibilidade||[]).join(', ')||'Não definida'}</p><button className="text-[#E8C579] underline text-sm mt-3" onClick={onEditOnboarding}>Atualizar questionário</button></section>
-{error&&<p role="alert" className="text-red-200 text-sm">{error}</p>}{info&&<p role="status" className="text-[#E8C579] text-sm">{info}</p>}
+<div className="w-24 h-24 bg-[#133D2B] border border-[#536A54] rounded-full overflow-hidden grid place-items-center">{photoUrl?<img src={photoUrl} alt="Foto de perfil" className="w-full h-full object-cover"/>:<UserRound size={43} className="text-[#C5F17A]"/>}</div>
+<label className="border border-[#536A54] rounded-xl text-sm px-4 py-2 text-[#C5F17A] flex gap-2 items-center cursor-pointer"><Camera size={16}/> Alterar foto<input type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={uploadPhoto} disabled={busy}/></label>
+</div><section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4 space-y-3"><h3 className="font-semibold">Dados de cadastro</h3><label className="block text-sm">Nome<input value={nome} onChange={e=>setNome(e.target.value)} className="mt-1 w-full rounded-xl bg-[#111812] border border-[#354638] px-3 py-2"/></label><label className="block text-sm">E-mail<input readOnly value={session?.user?.email||''} className="mt-1 w-full rounded-xl bg-[#111812] border border-[#354638] px-3 py-2 opacity-70"/></label><label className="block text-sm">Telefone<input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-1 w-full rounded-xl bg-[#111812] border border-[#354638] px-3 py-2"/></label><button onClick={save} disabled={busy} className="w-full rounded-xl bg-[#C5F17A] text-[#111812] p-3 font-semibold disabled:opacity-50">{busy?'Salvando...':'Salvar meus dados'}</button></section>
+<section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4 space-y-2"><h3 className="font-semibold">Meu questionário</h3><p className="text-sm text-[#A9B5AA]">Objetivo: {onboarding?.objetivo||'Não definido'}</p><p className="text-sm text-[#A9B5AA]">Experiência: {onboarding?.experiencia_musculacao||'Não definido'} · {onboarding?.tempo_experiencia_meses != null ? `${onboarding.tempo_experiencia_meses} meses` : 'Tempo não informado'}</p><p className="text-sm text-[#A9B5AA]">Disponibilidade: {(onboarding?.disponibilidade||[]).join(', ')||'Não definida'}</p><button className="text-[#C5F17A] underline text-sm mt-3" onClick={onEditOnboarding}>Atualizar questionário</button></section>
+{error&&<p role="alert" className="text-red-200 text-sm">{error}</p>}{info&&<p role="status" className="text-[#C5F17A] text-sm">{info}</p>}
 <button onClick={onSignOut} className="flex items-center gap-2 border border-[#8D6653] text-[#F2CEC0] rounded-xl px-4 py-3"><LogOut size={17}/> Sair da conta</button>
 
   </main>;
@@ -623,20 +638,20 @@ max:Math.max(1,...periods.map(w=>w.real+w.demo))};
 }
 
 function CmEvolutionChart({stats}){
-return <div className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
+return <div className="rounded-xl border border-[#2B3A2E] bg-[#111812] p-3">
 <h4 className="font-medium text-sm">Frequência nas últimas 8 semanas</h4>
-<div className="flex items-center gap-4 text-[11px] text-[#BDD0BE] mt-2">
-<span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#D8B46B]"/>Treinos registrados</span>
-<span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#668874]"/>Simulações DEMO</span>
+<div className="flex items-center gap-4 text-[11px] text-[#A9B5AA] mt-2">
+<span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#C5F17A]"/>Treinos registrados</span>
+<span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-sm bg-[#536A54]"/>Simulações DEMO</span>
 </div>
 <div className="grid grid-cols-8 gap-1.5 items-end mt-5 h-28" aria-label="Gráfico de marcações semanais">
 {stats.periods.map(w=><div key={w.key} className="h-full flex flex-col justify-end items-center gap-1 min-w-0" title={`Semana ${w.label}: ${w.real} reais, ${w.demo} DEMO`}>
-<span className="text-[10px] text-[#BDD0BE]">{w.real+w.demo}</span>
+<span className="text-[10px] text-[#A9B5AA]">{w.real+w.demo}</span>
 <div className="h-20 w-full flex flex-col justify-end rounded-t-sm overflow-hidden bg-[#153729]">
-{w.demo>0&&<div className="w-full bg-[#668874]" style={{height:`${w.demo/stats.max*100}%`}}/>}
-{w.real>0&&<div className="w-full bg-[#D8B46B]" style={{height:`${w.real/stats.max*100}%`}}/>}
+{w.demo>0&&<div className="w-full bg-[#536A54]" style={{height:`${w.demo/stats.max*100}%`}}/>}
+{w.real>0&&<div className="w-full bg-[#C5F17A]" style={{height:`${w.real/stats.max*100}%`}}/>}
 </div>
-<span className="text-[9px] text-[#BDD0BE] whitespace-nowrap">{w.label}</span>
+<span className="text-[9px] text-[#A9B5AA] whitespace-nowrap">{w.label}</span>
 </div>)}
 </div>
 
@@ -648,7 +663,7 @@ function AdminStudentDetails({profile,onboarding,workouts,diets,checkins,exercis
 const [tab,setTab]=useState('questionario');
 const fmt=d=>d?new Date(d).toLocaleDateString('pt-BR'):'Não informado';
 const value=v=>Array.isArray(v)?(v.join(', ')||'Não informado'):(v===null||v===undefined||v===''?'Não informado':String(v));
-const field=(label,v)=><div className="py-2 border-b border-[#31543F]/60 last:border-0" key={label}><p className="text-xs text-[#A9C5B1]">{label}</p><p className="text-sm mt-1 whitespace-pre-wrap break-words">{value(v)}</p></div>;
+const field=(label,v)=><div className="py-2 border-b border-[#2B3A2E]/60 last:border-0" key={label}><p className="text-xs text-[#A9B5AA]">{label}</p><p className="text-sm mt-1 whitespace-pre-wrap break-words">{value(v)}</p></div>;
 const opts=[['questionario','Questionário'],['treinos','Treinos'],['dieta','Dieta'],['evolucao','Evolução']];
 const week=weekMonday();
 const weekly=checkins.filter(x=>x.semana_inicio===week);
@@ -656,11 +671,11 @@ const completed=checkins.filter(x=>x.concluido);
 const evolution=cmEvolutionStats(checkins,workouts);
 const sortedWorkouts=[...workouts].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
 const sortedDiets=[...diets].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at)));
-return <section className="rounded-2xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
-<div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="font-semibold text-lg">Ficha do aluno</h3><p className="font-medium mt-2">{profile.nome||'Nome não informado'}</p><p className="text-xs text-[#B8CEBD] mt-1 break-all">{profile.email||'E-mail não informado'}</p></div><button onClick={onClose} aria-label="Fechar ficha" className="p-2 rounded-lg border border-[#426650]"><X size={18}/></button></div>
-<div className="grid grid-cols-2 gap-2">{opts.map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={`text-xs rounded-xl border px-2 py-3 ${tab===id?'bg-[#D8B46B] border-[#D8B46B] text-[#09291E] font-semibold':'border-[#426650] text-[#C4D4C6] bg-[#082B1E]'}`}>{label}</button>)}</div>
-{tab==='questionario'&&<div className="rounded-xl bg-[#09291E] p-3">
-{!onboarding?<p className="text-sm text-[#B8CEBD]">Questionário não encontrado.</p>:<>
+return <section className="rounded-2xl border border-[#536A54] bg-[#17211B] p-4 space-y-4">
+<div className="flex items-start justify-between gap-2"><div className="min-w-0"><h3 className="font-semibold text-lg">Ficha do aluno</h3><p className="font-medium mt-2">{profile.nome||'Nome não informado'}</p><p className="text-xs text-[#A9B5AA] mt-1 break-all">{profile.email||'E-mail não informado'}</p></div><button onClick={onClose} aria-label="Fechar ficha" className="p-2 rounded-lg border border-[#354638]"><X size={18}/></button></div>
+<div className="grid grid-cols-2 gap-2">{opts.map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={`text-xs rounded-xl border px-2 py-3 ${tab===id?'bg-[#C5F17A] border-[#C5F17A] text-[#111812] font-semibold':'border-[#354638] text-[#A9B5AA] bg-[#082B1E]'}`}>{label}</button>)}</div>
+{tab==='questionario'&&<div className="rounded-xl bg-[#111812] p-3">
+{!onboarding?<p className="text-sm text-[#A9B5AA]">Questionário não encontrado.</p>:<>
 {field('Objetivo',onboarding.objetivo)}
 {field('Experiência em musculação',onboarding.experiencia_musculacao)}
 {field('Idade',onboarding.idade)}
@@ -681,45 +696,45 @@ return <section className="rounded-2xl border border-[#A98C51] bg-[#103629] p-4 
 </>}
 </div>}
 {tab==='treinos'&&<div className="space-y-3">
-<p className="text-xs text-[#B8CEBD]">{sortedWorkouts.length} plano(s) encontrado(s)</p>
+<p className="text-xs text-[#A9B5AA]">{sortedWorkouts.length} plano(s) encontrado(s)</p>
 {!sortedWorkouts.length&&<p className="text-sm">Não há treinos cadastrados.</p>}
-{sortedWorkouts.map(plan=><article key={plan.id} className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
-<h4 className="font-medium">{plan.treino_json?.titulo||'Plano de treino'}</h4><p className="text-xs text-[#E8C579] mt-1">{plan.treino_json?.demonstrativo?'DEMO — não liberado para execução':plan.status} · {fmt(plan.created_at)}</p>
-{plan.treino_json?.justificativa&&<p className="text-xs text-[#BDD0BE] mt-2">{plan.treino_json.justificativa}</p>}
-{(Array.isArray(plan.treino_json?.dias)?plan.treino_json.dias:[]).map((day,i)=><details key={i} className="mt-3 rounded-lg border border-[#31543F] p-2"><summary className="text-sm cursor-pointer text-[#E8C579]">{day.dia||`Dia ${i+1}`} — {day.foco||'Treino'}</summary><div className="mt-2 space-y-2">{(day.exercicios||[]).map((ex,j)=><p key={j} className="text-xs text-[#B8CEBD] break-words">Exercício {j+1}: {exerciseLookup[ex.exercicio_id]?.nome||ex.nome||ex.exercicio_nome||'Exercício não encontrado na biblioteca'} · {ex.series??'—'} séries · {ex.repeticoes??'—'} repetições</p>)}</div></details>)}
+{sortedWorkouts.map(plan=><article key={plan.id} className="rounded-xl border border-[#2B3A2E] bg-[#111812] p-3">
+<h4 className="font-medium">{plan.treino_json?.titulo||'Plano de treino'}</h4><p className="text-xs text-[#C5F17A] mt-1">{plan.treino_json?.demonstrativo?'DEMO — não liberado para execução':plan.status} · {fmt(plan.created_at)}</p>
+{plan.treino_json?.justificativa&&<p className="text-xs text-[#A9B5AA] mt-2">{plan.treino_json.justificativa}</p>}
+{(Array.isArray(plan.treino_json?.dias)?plan.treino_json.dias:[]).map((day,i)=><details key={i} className="mt-3 rounded-lg border border-[#2B3A2E] p-2"><summary className="text-sm cursor-pointer text-[#C5F17A]">{day.dia||`Dia ${i+1}`} — {day.foco||'Treino'}</summary><div className="mt-2 space-y-2">{(day.exercicios||[]).map((ex,j)=><p key={j} className="text-xs text-[#A9B5AA] break-words">Exercício {j+1}: {exerciseLookup[ex.exercicio_id]?.nome||ex.nome||ex.exercicio_nome||'Exercício não encontrado na biblioteca'} · {ex.series??'—'} séries · {ex.repeticoes??'—'} repetições</p>)}</div></details>)}
 </article>)}
-<p className="text-xs text-[#A6BDAA]">Os nomes são consultados na biblioteca de exercícios do Supabase.</p>
+<p className="text-xs text-[#A9B5AA]">Os nomes são consultados na biblioteca de exercícios do Supabase.</p>
 </div>}
 {tab==='dieta'&&<div className="space-y-3">
-<p className="text-xs text-[#B8CEBD]">{sortedDiets.length} plano(s) alimentar(es) encontrado(s)</p>
+<p className="text-xs text-[#A9B5AA]">{sortedDiets.length} plano(s) alimentar(es) encontrado(s)</p>
 {!sortedDiets.length&&<p className="text-sm">Não há planos alimentares cadastrados.</p>}
-{sortedDiets.map(plan=><article key={plan.id} className="rounded-xl border border-[#31543F] bg-[#09291E] p-3">
-<h4 className="font-medium">{plan.plano_json?.titulo||'Plano alimentar'}</h4><p className="text-xs text-[#E8C579] mt-1">{plan.status||'Sem status'} · {fmt(plan.created_at)}</p>
-<p className="text-xs text-[#B8CEBD] mt-2">{plan.plano_json?.introducao||'Plano demonstrativo, sujeito a avaliação nutricional.'}</p>
-{(Array.isArray(plan.plano_json?.refeicoes)?plan.plano_json.refeicoes:[]).map((r,i)=><div className="mt-3 border-t border-[#31543F] pt-2" key={i}><p className="text-sm font-medium text-[#E8C579]">{r.nome||`Refeição ${i+1}`}</p><p className="text-xs text-[#B8CEBD] mt-1">{r.sugestao||'Sem detalhes'}</p></div>)}
-{Array.isArray(plan.plano_json?.dicas)&&<p className="text-xs text-[#B8CEBD] mt-3">Dicas: {plan.plano_json.dicas.join(' · ')}</p>}
+{sortedDiets.map(plan=><article key={plan.id} className="rounded-xl border border-[#2B3A2E] bg-[#111812] p-3">
+<h4 className="font-medium">{plan.plano_json?.titulo||'Plano alimentar'}</h4><p className="text-xs text-[#C5F17A] mt-1">{plan.status||'Sem status'} · {fmt(plan.created_at)}</p>
+<p className="text-xs text-[#A9B5AA] mt-2">{plan.plano_json?.introducao||'Plano demonstrativo, sujeito a avaliação nutricional.'}</p>
+{(Array.isArray(plan.plano_json?.refeicoes)?plan.plano_json.refeicoes:[]).map((r,i)=><div className="mt-3 border-t border-[#2B3A2E] pt-2" key={i}><p className="text-sm font-medium text-[#C5F17A]">{r.nome||`Refeição ${i+1}`}</p><p className="text-xs text-[#A9B5AA] mt-1">{r.sugestao||'Sem detalhes'}</p></div>)}
+{Array.isArray(plan.plano_json?.dicas)&&<p className="text-xs text-[#A9B5AA] mt-3">Dicas: {plan.plano_json.dicas.join(' · ')}</p>}
 </article>)}
 </div>}
 {tab==='evolucao'&&<div className="space-y-3">
 <div className="grid grid-cols-2 gap-2">
-<div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Treinos registrados na semana</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{evolution.weekReal}</p></div>
-<div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Simulações nesta semana</p><p className="text-2xl text-[#A5C0AB] font-semibold mt-1">{evolution.weekDemo}</p></div>
-<div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Histórico de treinos registrados</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{evolution.realTotal}</p></div>
-<div className="rounded-xl bg-[#09291E] p-3"><p className="text-xs text-[#B8CEBD]">Semanas com registros (8 últimas)</p><p className="text-2xl text-[#E8C579] font-semibold mt-1">{evolution.realWeeks}/8</p></div>
+<div className="rounded-xl bg-[#111812] p-3"><p className="text-xs text-[#A9B5AA]">Treinos registrados na semana</p><p className="text-2xl text-[#C5F17A] font-semibold mt-1">{evolution.weekReal}</p></div>
+<div className="rounded-xl bg-[#111812] p-3"><p className="text-xs text-[#A9B5AA]">Simulações nesta semana</p><p className="text-2xl text-[#A5C0AB] font-semibold mt-1">{evolution.weekDemo}</p></div>
+<div className="rounded-xl bg-[#111812] p-3"><p className="text-xs text-[#A9B5AA]">Histórico de treinos registrados</p><p className="text-2xl text-[#C5F17A] font-semibold mt-1">{evolution.realTotal}</p></div>
+<div className="rounded-xl bg-[#111812] p-3"><p className="text-xs text-[#A9B5AA]">Semanas com registros (8 últimas)</p><p className="text-2xl text-[#C5F17A] font-semibold mt-1">{evolution.realWeeks}/8</p></div>
 </div>
 <CmEvolutionChart stats={evolution}/>
-<div className="rounded-xl bg-[#09291E] p-3 space-y-2">
+<div className="rounded-xl bg-[#111812] p-3 space-y-2">
 <p className="text-sm font-medium">Histórico de marcações</p>
-<p className="text-xs text-[#B8CEBD]">{evolution.demoTotal} marcação(ões) DEMO em todo o período consultado</p>
-{evolution.unknownTotal>0&&<p className="text-xs text-[#E8C579]">{evolution.unknownTotal} marcação(ões) sem plano identificado, excluídas dos indicadores.</p>}
-{!completed.length&&<p className="text-xs text-[#B8CEBD]">Nenhuma marcação cadastrada até o momento.</p>}
+<p className="text-xs text-[#A9B5AA]">{evolution.demoTotal} marcação(ões) DEMO em todo o período consultado</p>
+{evolution.unknownTotal>0&&<p className="text-xs text-[#C5F17A]">{evolution.unknownTotal} marcação(ões) sem plano identificado, excluídas dos indicadores.</p>}
+{!completed.length&&<p className="text-xs text-[#A9B5AA]">Nenhuma marcação cadastrada até o momento.</p>}
 {[...completed].sort((x,y)=>String(y.semana_inicio).localeCompare(String(x.semana_inicio))).slice(0,12).map(c=>{
 const plan=workouts.find(p=>p.id===c.plano_id);
 const isDemo=!plan||plan.treino_json?.demonstrativo===true||plan.status!=='publicado';
-return <div key={c.id} className="flex justify-between gap-2 border-t border-[#31543F] pt-2 text-xs"><span>Semana de {c.semana_inicio?.split('-').reverse().join('/')||'—'}</span><span className={isDemo?'text-[#A5C0AB]':'text-[#E8C579]'}>{!plan?'Plano não encontrado':isDemo?'DEMO':'Registrado'}</span></div>;
+return <div key={c.id} className="flex justify-between gap-2 border-t border-[#2B3A2E] pt-2 text-xs"><span>Semana de {c.semana_inicio?.split('-').reverse().join('/')||'—'}</span><span className={isDemo?'text-[#A5C0AB]':'text-[#C5F17A]'}>{!plan?'Plano não encontrado':isDemo?'DEMO':'Registrado'}</span></div>;
 })}
 </div>
-<p className="text-xs text-[#B8CEBD]">Indicadores de autorregistro: não comprovam a execução física. Propostas DEMO são apenas simulações. Histórico limitado aos dados consultados.</p>
+<p className="text-xs text-[#A9B5AA]">Indicadores de autorregistro: não comprovam a execução física. Propostas DEMO são apenas simulações. Histórico limitado aos dados consultados.</p>
 </div>}
 
   </section>;
@@ -759,13 +774,13 @@ const studentOnboarding=selected ? [...onboarding].filter(x=>x.user_id===selecte
 .sort((a,b)=>String(b.updated_at||b.created_at||'').localeCompare(String(a.updated_at||a.created_at||'')))[0] : null;
 const detailValue=v=>Array.isArray(v)?(v.length?v.join(', '):'Não informado'):
 (v===null||v===undefined||String(v).trim()===''?'Não informado':String(v));
-const questionField=(label,value)=> <div className="border-b border-[#31543F]/60 py-2 last:border-0" key={label}>
-<p className="text-xs text-[#A9C5B1]">{label}</p>
+const questionField=(label,value)=> <div className="border-b border-[#2B3A2E]/60 py-2 last:border-0" key={label}>
+<p className="text-xs text-[#A9B5AA]">{label}</p>
 <p className="text-sm mt-1 whitespace-pre-wrap break-words">{detailValue(value)}</p>
 
   </div>;
   const eligible=library.filter(x=>x.ativo&&x.metadata?.origem!=='metodologia_vinicius'&&x.metadata?.requer_avaliacao_profissional!==true);
-  const uiField='w-full bg-[#09291E] border border-[#426650] rounded-lg px-2 py-2 text-sm text-[#F8F4E9]';
+  const uiField='w-full bg-[#111812] border border-[#354638] rounded-lg px-2 py-2 text-sm text-[#F3F5EF]';
 
 async function openPlan(plan){
 setSelectedId(plan.id);setEditing(false);setShowQuestionnaire(false);setError('');setSuccess('');setReason('');
@@ -818,30 +833,30 @@ setError('Cada dia precisa de nome e pelo menos um exercício.');return;
 invoke('cm_editar_treino',{p_plano_id:selectedId,p_treino:draft});
 }
 return <div className="space-y-4">
-<div className="rounded-xl bg-[#153B2A] border border-[#426650] p-3 text-sm">
-<h3 className="font-semibold text-[#E8C579]">Revisão profissional de treinos</h3>
-<p className="text-[#B9CDBD] mt-2 text-xs">Fila exclusiva de propostas oficiais. Simulações e testes internos ficam fora desta área. A publicação depende da aprovação profissional e da metodologia.</p>
+<div className="rounded-xl bg-[#153B2A] border border-[#354638] p-3 text-sm">
+<h3 className="font-semibold text-[#C5F17A]">Revisão profissional de treinos</h3>
+<p className="text-[#A9B5AA] mt-2 text-xs">Fila exclusiva de propostas oficiais. Simulações e testes internos ficam fora desta área. A publicação depende da aprovação profissional e da metodologia.</p>
 </div>
-<div className="flex flex-wrap gap-2">{revisionFilters.map(([id,label])=><button key={id} onClick={()=>{setFilter(id);setSelectedId(null);setEditing(false);setError('');setSuccess('');}} className={`rounded-lg px-3 py-2 text-xs border ${filter===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650]'}`}>{label} ({counts[id]})</button>)}</div>
-<p className="text-xs text-[#B9CDBD]">{items.length} treino(s) encontrado(s)</p>
-{!items.length&&<p className="text-sm text-[#B9CDBD]">Nenhum treino oficial nesta situação. Os testes anteriores continuam preservados no banco.</p>}
-{items.map(p=><button key={p.id} onClick={()=>openPlan(p)} className={`w-full text-left rounded-xl border p-3 ${selectedId===p.id?'border-[#D8B46B] bg-[#194632]':'border-[#31543F] bg-[#103629]'}`}>
-<div className="flex justify-between gap-2 items-start"><div className="min-w-0"><p className="font-semibold text-sm">{p.treino_json?.titulo||'Treino sem título'}</p><p className="text-xs text-[#B9CDBD] mt-1">{student(p.user_id)}</p></div><Eye size={18} className="text-[#E8C579] shrink-0"/></div>
-<p className="text-xs text-[#E8C579] mt-2">{p.status} · revisão: {p.revisao_status||'pendente'}</p>
+<div className="flex flex-wrap gap-2">{revisionFilters.map(([id,label])=><button key={id} onClick={()=>{setFilter(id);setSelectedId(null);setEditing(false);setError('');setSuccess('');}} className={`rounded-lg px-3 py-2 text-xs border ${filter===id?'bg-[#C5F17A] text-[#111812] border-[#C5F17A]':'border-[#354638]'}`}>{label} ({counts[id]})</button>)}</div>
+<p className="text-xs text-[#A9B5AA]">{items.length} treino(s) encontrado(s)</p>
+{!items.length&&<p className="text-sm text-[#A9B5AA]">Nenhum treino oficial nesta situação. Os testes anteriores continuam preservados no banco.</p>}
+{items.map(p=><button key={p.id} onClick={()=>openPlan(p)} className={`w-full text-left rounded-xl border p-3 ${selectedId===p.id?'border-[#C5F17A] bg-[#194632]':'border-[#2B3A2E] bg-[#17211B]'}`}>
+<div className="flex justify-between gap-2 items-start"><div className="min-w-0"><p className="font-semibold text-sm">{p.treino_json?.titulo||'Treino sem título'}</p><p className="text-xs text-[#A9B5AA] mt-1">{student(p.user_id)}</p></div><Eye size={18} className="text-[#C5F17A] shrink-0"/></div>
+<p className="text-xs text-[#C5F17A] mt-2">{p.status} · revisão: {p.revisao_status||'pendente'}</p>
 </button>)}
-{selected&&draft&&<section className="rounded-xl border border-[#A98C51] bg-[#103629] p-4 space-y-4">
-<div className="flex justify-between items-start gap-3"><div><h3 className="font-semibold text-lg">{draft.titulo||'Treino'}</h3><p className="text-xs text-[#B9CDBD] mt-1">Aluno: {student(selected.user_id)}</p></div><button className="text-[#E8C579]" onClick={()=>{setSelectedId(null);setEditing(false);}} aria-label="Fechar treino"><X size={18}/></button></div>
-<p className="text-xs text-[#E8C579]">{isDemo(selected)?'Simulação DEMO — não é prescrição':'Plano não demonstrativo'} · {selected.status}</p>
-<div className="rounded-xl border border-[#426650] bg-[#09291E] p-3">
+{selected&&draft&&<section className="rounded-xl border border-[#536A54] bg-[#17211B] p-4 space-y-4">
+<div className="flex justify-between items-start gap-3"><div><h3 className="font-semibold text-lg">{draft.titulo||'Treino'}</h3><p className="text-xs text-[#A9B5AA] mt-1">Aluno: {student(selected.user_id)}</p></div><button className="text-[#C5F17A]" onClick={()=>{setSelectedId(null);setEditing(false);}} aria-label="Fechar treino"><X size={18}/></button></div>
+<p className="text-xs text-[#C5F17A]">{isDemo(selected)?'Simulação DEMO — não é prescrição':'Plano não demonstrativo'} · {selected.status}</p>
+<div className="rounded-xl border border-[#354638] bg-[#111812] p-3">
 <button type="button" onClick={()=>setShowQuestionnaire(v=>!v)}
 aria-expanded={showQuestionnaire}
-className="w-full text-left flex items-center justify-between gap-2 text-sm font-semibold text-[#E8C579]">
+className="w-full text-left flex items-center justify-between gap-2 text-sm font-semibold text-[#C5F17A]">
 <span>Questionário do aluno</span><span className="text-xs">{showQuestionnaire?'Ocultar':'Visualizar'}</span>
 </button>
 {showQuestionnaire&&(!studentOnboarding?
-<p className="text-sm text-[#B9CDBD] mt-3">Questionário não encontrado ou acesso não autorizado.</p>:
+<p className="text-sm text-[#A9B5AA] mt-3">Questionário não encontrado ou acesso não autorizado.</p>:
 <div className="mt-3">
-<p className="text-xs text-[#B9CDBD] mb-2">Dados informados pelo aluno. Conferir informações e limitações antes de avaliar a proposta.</p>
+<p className="text-xs text-[#A9B5AA] mb-2">Dados informados pelo aluno. Conferir informações e limitações antes de avaliar a proposta.</p>
 {questionField('Objetivo',studentOnboarding.objetivo)}
 {questionField('Experiência em musculação',studentOnboarding.experiencia_musculacao)}
 {questionField('Tempo de experiência (meses)',studentOnboarding.tempo_experiencia_meses)}
@@ -864,27 +879,27 @@ className="w-full text-left flex items-center justify-between gap-2 text-sm font
 )}
 </div>
 {editing&&<label className="block text-sm">Título<input className={uiField+' mt-1'} value={draft.titulo||''} maxLength={160} onChange={e=>setDraft(d=>({...d,titulo:e.target.value}))}/></label>}
-{Array.isArray(draft.dias)&&draft.dias.map((day,di)=><div key={di} className="rounded-xl bg-[#09291E] border border-[#426650] p-3 space-y-3">
-{editing?<div className="grid grid-cols-2 gap-2"><label className="text-xs">Dia<input className={uiField+' mt-1'} value={day.dia||''} onChange={e=>updateDay(di,'dia',e.target.value)}/></label><label className="text-xs">Foco<input className={uiField+' mt-1'} value={day.foco||''} onChange={e=>updateDay(di,'foco',e.target.value)}/></label></div>:<div><p className="font-semibold text-[#E8C579]">{day.dia}</p><p className="text-xs text-[#B9CDBD]">{day.foco}</p></div>}
-{(day.exercicios||[]).map((ex,ei)=><div key={ei} className="rounded-lg border border-[#31543F] p-3 space-y-2">
+{Array.isArray(draft.dias)&&draft.dias.map((day,di)=><div key={di} className="rounded-xl bg-[#111812] border border-[#354638] p-3 space-y-3">
+{editing?<div className="grid grid-cols-2 gap-2"><label className="text-xs">Dia<input className={uiField+' mt-1'} value={day.dia||''} onChange={e=>updateDay(di,'dia',e.target.value)}/></label><label className="text-xs">Foco<input className={uiField+' mt-1'} value={day.foco||''} onChange={e=>updateDay(di,'foco',e.target.value)}/></label></div>:<div><p className="font-semibold text-[#C5F17A]">{day.dia}</p><p className="text-xs text-[#A9B5AA]">{day.foco}</p></div>}
+{(day.exercicios||[]).map((ex,ei)=><div key={ei} className="rounded-lg border border-[#2B3A2E] p-3 space-y-2">
 {editing?<>
 <label className="text-xs block">Exercício<select className={uiField+' mt-1'} value={ex.exercicio_id||''} onChange={e=>updateEx(di,ei,'exercicio_id',e.target.value)}>{!eligible.some(x=>x.id===ex.exercicio_id)&&<option value={ex.exercicio_id}>{exerciseLookup[ex.exercicio_id]?.nome||'Exercício atual (não elegível)'}</option>}{eligible.map(x=><option key={x.id} value={x.id}>{x.nome}</option>)}</select></label>
 <div className="grid grid-cols-2 gap-2"><label className="text-xs">Séries<select className={uiField+' mt-1'} value={ex.series||2} onChange={e=>updateEx(di,ei,'series',Number(e.target.value))}>{[1,2,3,4].map(x=><option key={x} value={x}>{x}</option>)}</select></label><label className="text-xs">Repetições<input className={uiField+' mt-1'} maxLength={40} value={ex.repeticoes||''} onChange={e=>updateEx(di,ei,'repeticoes',e.target.value)}/></label></div>
 <label className="text-xs block">Observação<input className={uiField+' mt-1'} maxLength={300} value={ex.observacao||''} onChange={e=>updateEx(di,ei,'observacao',e.target.value)}/></label>
 <button onClick={()=>removeExercise(di,ei)} className="text-xs text-red-200 underline">Remover exercício</button>
-</>:<><p className="text-sm font-medium">{exerciseLookup[ex.exercicio_id]?.nome||ex.exercicio_id}</p><p className="text-xs text-[#E8C579]">{ex.series} séries · {ex.repeticoes} repetições</p>{ex.observacao&&<p className="text-xs text-[#B9CDBD]">{ex.observacao}</p>}</>}
+</>:<><p className="text-sm font-medium">{exerciseLookup[ex.exercicio_id]?.nome||ex.exercicio_id}</p><p className="text-xs text-[#C5F17A]">{ex.series} séries · {ex.repeticoes} repetições</p>{ex.observacao&&<p className="text-xs text-[#A9B5AA]">{ex.observacao}</p>}</>}
 </div>)}
-{editing&&day.exercicios?.length<8&&<button onClick={()=>addExercise(di)} disabled={!eligible.length} className="text-sm text-[#E8C579] flex gap-1 items-center disabled:opacity-40"><Plus size={15}/> Adicionar exercício</button>}
+{editing&&day.exercicios?.length<8&&<button onClick={()=>addExercise(di)} disabled={!eligible.length} className="text-sm text-[#C5F17A] flex gap-1 items-center disabled:opacity-40"><Plus size={15}/> Adicionar exercício</button>}
 </div>)}
 {error&&<p role="alert" className="rounded-lg p-3 bg-red-950/40 text-red-200 text-xs">{error}</p>}
-{success&&<p role="status" className="rounded-lg p-3 bg-[#1D4933] text-[#E8C579] text-xs">{success}</p>}
-{editing?<div className="flex gap-2"><button onClick={()=>{setEditing(false);setDraft(JSON.parse(JSON.stringify(selected.treino_json)));setError('');}} className="flex-1 border border-[#426650] rounded-xl py-3 text-sm">Cancelar</button><button onClick={saveEdit} disabled={busy} className="flex-1 bg-[#D8B46B] text-[#09291E] font-semibold rounded-xl py-3 text-sm disabled:opacity-40">{busy?'Salvando...':'Salvar edição'}</button></div>:<>
-{selected.status==='rascunho'&&<button onClick={startEdit} disabled={busy} className="w-full border border-[#D8B46B] text-[#E8C579] rounded-xl py-3 text-sm disabled:opacity-40">Editar treino</button>}
+{success&&<p role="status" className="rounded-lg p-3 bg-[#1D4933] text-[#C5F17A] text-xs">{success}</p>}
+{editing?<div className="flex gap-2"><button onClick={()=>{setEditing(false);setDraft(JSON.parse(JSON.stringify(selected.treino_json)));setError('');}} className="flex-1 border border-[#354638] rounded-xl py-3 text-sm">Cancelar</button><button onClick={saveEdit} disabled={busy} className="flex-1 bg-[#C5F17A] text-[#111812] font-semibold rounded-xl py-3 text-sm disabled:opacity-40">{busy?'Salvando...':'Salvar edição'}</button></div>:<>
+{selected.status==='rascunho'&&<button onClick={startEdit} disabled={busy} className="w-full border border-[#C5F17A] text-[#C5F17A] rounded-xl py-3 text-sm disabled:opacity-40">Editar treino</button>}
 {isDemo(selected)?<p className="text-xs text-[#F1D8A2]">Aprovação e publicação bloqueadas: treino DEMO. Edição não o transforma em plano oficial.</p>:isOfficialDraft(selected)?<>
-<p className="text-xs text-[#B9CDBD]">Revisão profissional. A publicação exige também metodologia aprovada e validações do servidor.</p>
+<p className="text-xs text-[#A9B5AA]">Revisão profissional. A publicação exige também metodologia aprovada e validações do servidor.</p>
 <label className="block text-xs">Motivo da rejeição<textarea className={uiField+' mt-2'} rows={2} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Obrigatório ao rejeitar"/></label>
-<div className="grid grid-cols-2 gap-2"><button onClick={()=>invoke('cm_revisar_treino',{p_plano_id:selected.id,p_decisao:'aprovar',p_motivo:null})} disabled={busy||isApproved(selected)} className="bg-[#D8B46B] text-[#09291E] rounded-xl p-3 font-semibold text-sm disabled:opacity-40">Aprovar</button><button onClick={()=>invoke('cm_revisar_treino',{p_plano_id:selected.id,p_decisao:'rejeitar',p_motivo:reason})} disabled={busy||!reason.trim()} className="border border-red-400/60 text-red-200 rounded-xl p-3 text-sm disabled:opacity-40">Rejeitar</button></div>
-<button onClick={()=>invoke('cm_publicar_treino',{p_plano_id:selected.id})} disabled={busy||!isApproved(selected)||selected.metodologia_aprovada!==true} className="w-full border border-[#426650] rounded-xl p-3 text-sm disabled:opacity-40">Publicar treino</button>
+<div className="grid grid-cols-2 gap-2"><button onClick={()=>invoke('cm_revisar_treino',{p_plano_id:selected.id,p_decisao:'aprovar',p_motivo:null})} disabled={busy||isApproved(selected)} className="bg-[#C5F17A] text-[#111812] rounded-xl p-3 font-semibold text-sm disabled:opacity-40">Aprovar</button><button onClick={()=>invoke('cm_revisar_treino',{p_plano_id:selected.id,p_decisao:'rejeitar',p_motivo:reason})} disabled={busy||!reason.trim()} className="border border-red-400/60 text-red-200 rounded-xl p-3 text-sm disabled:opacity-40">Rejeitar</button></div>
+<button onClick={()=>invoke('cm_publicar_treino',{p_plano_id:selected.id})} disabled={busy||!isApproved(selected)||selected.metodologia_aprovada!==true} className="w-full border border-[#354638] rounded-xl p-3 text-sm disabled:opacity-40">Publicar treino</button>
 {selected.metodologia_aprovada!==true&&<p className="text-xs text-[#F1D8A2]">Publicação indisponível até a aprovação formal da metodologia.</p>}
 </>:null}
 </>}
@@ -960,20 +975,20 @@ const selectedOnboarding=onboarding.filter(x=>x.user_id===selected).sort((a,b)=>
 const selectedWorkouts=treinos.filter(x=>x.user_id===selected);
 const selectedDiets=dietas.filter(x=>x.user_id===selected);
 const selectedCheckins=checkins.filter(x=>x.user_id===selected&&x.concluido);
-const card='rounded-2xl border border-[#31543F] bg-[#103629] p-4';
+const card='rounded-2xl border border-[#2B3A2E] bg-[#17211B] p-4';
 const tabs=[['resumo','Resumo',BarChart3],['alunos','Alunos',Users],['treinos','Treinos',Dumbbell],['revisao','Revisão',ShieldCheck],['dietas','Dietas',Utensils],['evolucao','Evolução',TrendingUp],['rankings','Rankings',Trophy]];
 return <main className="flex-1 min-h-0 flex flex-col">
-<div className="px-5 pt-5 pb-3 border-b border-[#31543F] shrink-0">
-<div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-[#E8C579] text-xs uppercase tracking-wider"><ShieldCheck size={15}/> Área restrita</div><h2 className="text-xl font-semibold mt-1">Painel Administrativo</h2></div><div className="flex gap-2"><button aria-label="Atualizar indicadores" onClick={refresh} disabled={loading} className="border border-[#426650] rounded-xl p-2"><RefreshCw size={19} className={loading?'animate-spin':''}/></button><button aria-label="Sair da conta" onClick={onSignOut} className="border border-[#426650] rounded-xl p-2"><LogOut size={19}/></button></div></div>
-<div className="mt-4 flex gap-2 overflow-x-auto pb-1">{tabs.map(([id,label,Icon])=><button key={id} onClick={()=>{setSection(id);setSelected(null);setExpanded(false);}} className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border ${section===id?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'bg-[#103629] border-[#426650] text-[#BBD0C0]'}`}><Icon size={15}/>{label}</button>)}</div>
+<div className="px-5 pt-5 pb-3 border-b border-[#2B3A2E] shrink-0">
+<div className="flex items-center justify-between gap-3"><div><div className="flex items-center gap-2 text-[#C5F17A] text-xs uppercase tracking-wider"><ShieldCheck size={15}/> Área restrita</div><h2 className="text-xl font-semibold mt-1">Painel Administrativo</h2></div><div className="flex gap-2"><button aria-label="Atualizar indicadores" onClick={refresh} disabled={loading} className="border border-[#354638] rounded-xl p-2"><RefreshCw size={19} className={loading?'animate-spin':''}/></button><button aria-label="Sair da conta" onClick={onSignOut} className="border border-[#354638] rounded-xl p-2"><LogOut size={19}/></button></div></div>
+<div className="mt-4 flex gap-2 overflow-x-auto pb-1">{tabs.map(([id,label,Icon])=><button key={id} onClick={()=>{setSection(id);setSelected(null);setExpanded(false);}} className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border ${section===id?'bg-[#C5F17A] text-[#111812] border-[#C5F17A]':'bg-[#17211B] border-[#354638] text-[#A9B5AA]'}`}><Icon size={15}/>{label}</button>)}</div>
 </div>
 <div className="flex-1 min-h-0 overflow-y-auto px-5 py-5 space-y-4">
 {exerciseError&&<div role="alert" className="p-3 bg-amber-950/40 text-amber-100 text-sm rounded-xl">{exerciseError}</div>}
 {error&&<div role="alert" className="p-3 bg-red-950/50 text-red-100 text-sm rounded-xl">{error}</div>}
-{loading&&<p className="text-sm text-[#BCD0C1]">Carregando dados do painel...</p>}
+{loading&&<p className="text-sm text-[#A9B5AA]">Carregando dados do painel...</p>}
 {!loading&&<>
 {section==='resumo'&&<>
-<div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-lg">Visão geral</h3><p className="text-xs text-[#B9CDBD] mt-1">Informações dos registros acessíveis ao administrador.</p></div><span className="text-[10px] text-[#D8B46B] border border-[#6D7753] rounded-full px-2 py-1 shrink-0">Atualização manual</span></div>
+<div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-lg">Visão geral</h3><p className="text-xs text-[#A9B5AA] mt-1">Informações dos registros acessíveis ao administrador.</p></div><span className="text-[10px] text-[#C5F17A] border border-[#6D7753] rounded-full px-2 py-1 shrink-0">Atualização manual</span></div>
 {(()=>{
 const studentIds=new Set(students.map(p=>p.id));
 const studentOnboarding=onboarding.filter(x=>studentIds.has(x.user_id)&&x.onboarding_concluido===true);
@@ -1000,17 +1015,17 @@ const metrics=[
 [evo.weekDemo,'Simulações marcadas nesta semana',CalendarDays]
 ];
 return <>
-<div className="grid grid-cols-2 gap-3">{metrics.map(([value,label,Icon])=><div className={card} key={label}><Icon size={18} className="text-[#E8C579]"/><p className="text-3xl font-semibold text-[#F8F4E9] mt-2">{value}</p><p className="text-xs text-[#B8CEBD] mt-1 leading-snug">{label}</p></div>)}</div>
-<section className={card}><h3 className="font-semibold">Cadastros e acompanhamento</h3><p className="text-xs text-[#B9CDBD] mt-2">{answeredStudents} de {students.length} aluno(s) com questionário concluído.</p><div className="w-full h-3 mt-3 rounded-full overflow-hidden bg-[#09291E]"><div className="h-full rounded-full bg-[#D8B46B]" style={{width:`${students.length?Math.min(100,answeredStudents/students.length*100):0}%`}}/></div><p className="text-xs text-[#B9CDBD] mt-2">{completedUsers} conta(s) possuem ao menos uma marcação registrada no histórico consultado (incluindo simulações).</p></section>
-<section className={card}><h3 className="font-semibold mb-3">Frequência nas últimas semanas</h3><CmEvolutionChart stats={evo}/><p className="text-xs text-[#B9CDBD] mt-3">Marcações são registros declarados; simulações DEMO aparecem separadas dos planos publicados.</p></section>
-<section className={card}><h3 className="font-semibold">Atividade recente</h3>{activity.length?<div className="mt-3 space-y-3">{activity.map(item=><div className="border-b border-[#31543F] pb-3 last:border-0 last:pb-0" key={item.id}><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{item.label}</p><span className="text-[10px] text-[#E8C579] shrink-0">{fmt(item.when)}</span></div><p className="text-xs text-[#B9CDBD] mt-1">{item.detail} · {item.type||'Registrado'}</p></div>)}</div>:<p className="text-sm text-[#B9CDBD] mt-2">Nenhuma atividade recente disponível.</p>}</section>
+<div className="grid grid-cols-2 gap-3">{metrics.map(([value,label,Icon])=><div className={card} key={label}><Icon size={18} className="text-[#C5F17A]"/><p className="text-3xl font-semibold text-[#F3F5EF] mt-2">{value}</p><p className="text-xs text-[#A9B5AA] mt-1 leading-snug">{label}</p></div>)}</div>
+<section className={card}><h3 className="font-semibold">Cadastros e acompanhamento</h3><p className="text-xs text-[#A9B5AA] mt-2">{answeredStudents} de {students.length} aluno(s) com questionário concluído.</p><div className="w-full h-3 mt-3 rounded-full overflow-hidden bg-[#111812]"><div className="h-full rounded-full bg-[#C5F17A]" style={{width:`${students.length?Math.min(100,answeredStudents/students.length*100):0}%`}}/></div><p className="text-xs text-[#A9B5AA] mt-2">{completedUsers} conta(s) possuem ao menos uma marcação registrada no histórico consultado (incluindo simulações).</p></section>
+<section className={card}><h3 className="font-semibold mb-3">Frequência nas últimas semanas</h3><CmEvolutionChart stats={evo}/><p className="text-xs text-[#A9B5AA] mt-3">Marcações são registros declarados; simulações DEMO aparecem separadas dos planos publicados.</p></section>
+<section className={card}><h3 className="font-semibold">Atividade recente</h3>{activity.length?<div className="mt-3 space-y-3">{activity.map(item=><div className="border-b border-[#2B3A2E] pb-3 last:border-0 last:pb-0" key={item.id}><div className="flex items-start justify-between gap-2"><p className="text-sm font-medium">{item.label}</p><span className="text-[10px] text-[#C5F17A] shrink-0">{fmt(item.when)}</span></div><p className="text-xs text-[#A9B5AA] mt-1">{item.detail} · {item.type||'Registrado'}</p></div>)}</div>:<p className="text-sm text-[#A9B5AA] mt-2">Nenhuma atividade recente disponível.</p>}</section>
 </>;
 })()}
 </>}
 {section==='alunos'&&<>
-<label className="flex gap-2 items-center px-3 rounded-xl border border-[#426650] bg-[#09291E]"><Search size={18} className="text-[#B8CEBD]"/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar aluno por nome ou e-mail" className="bg-transparent w-full outline-none py-3 text-sm"/></label>
-<p className="text-xs text-[#B8CEBD]">{results.length} aluno(s) encontrado(s)</p>
-{results.map(p=><button key={p.id} onClick={()=>{setSelected(p.id);setExpanded(false);}} className="w-full text-left rounded-xl border border-[#31543F] bg-[#103629] p-4 flex justify-between items-center"><span className="min-w-0"><strong className="block text-sm truncate">{p.nome||'Nome não informado'}</strong><span className="block text-xs text-[#B8CEBD] truncate mt-1">{p.email}</span></span><Eye className="shrink-0 text-[#E8C579]" size={18}/></button>)}
+<label className="flex gap-2 items-center px-3 rounded-xl border border-[#354638] bg-[#111812]"><Search size={18} className="text-[#A9B5AA]"/><input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Buscar aluno por nome ou e-mail" className="bg-transparent w-full outline-none py-3 text-sm"/></label>
+<p className="text-xs text-[#A9B5AA]">{results.length} aluno(s) encontrado(s)</p>
+{results.map(p=><button key={p.id} onClick={()=>{setSelected(p.id);setExpanded(false);}} className="w-full text-left rounded-xl border border-[#2B3A2E] bg-[#17211B] p-4 flex justify-between items-center"><span className="min-w-0"><strong className="block text-sm truncate">{p.nome||'Nome não informado'}</strong><span className="block text-xs text-[#A9B5AA] truncate mt-1">{p.email}</span></span><Eye className="shrink-0 text-[#C5F17A]" size={18}/></button>)}
 {selectedProfile&&<AdminStudentDetails
 profile={selectedProfile}
 onboarding={selectedOnboarding}
@@ -1022,24 +1037,24 @@ onClose={()=>setSelected(null)}
 />}
 </>}
 {section==='rankings'&&<AdminRankings/>}
-{section==='treinos'&&<><p className="text-sm text-[#B9CDBD]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
+{section==='treinos'&&<><p className="text-sm text-[#A9B5AA]">Planos cadastrados — consulta administrativa.</p>{[...treinos].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.treino_json?.titulo||'Plano de treino'}</p><p className="text-xs text-[#A9B5AA] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#C5F17A] mt-2">{p.treino_json?.demonstrativo?'DEMO — não liberado para execução':p.status}</p></article>)}{!treinos.length&&<p className="text-sm text-[#A9B5AA]">Nenhum plano encontrado.</p>}</>}
 {section==='revisao'&&<AdminTrainingReview treinos={treinos} profiles={profiles} onboarding={onboarding} exerciseLookup={exerciseLookup} onUpdated={refresh}/> }
-{section==='dietas'&&<><p className="text-sm text-[#B9CDBD]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#B9CDBD] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#E8C579] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#B9CDBD]">Nenhum plano encontrado.</p>}</>}
+{section==='dietas'&&<><p className="text-sm text-[#A9B5AA]">Planos alimentares cadastrados — consulta administrativa.</p>{[...dietas].sort((a,b)=>String(b.created_at).localeCompare(String(a.created_at))).map(p=><article className={card} key={p.id}><p className="font-medium">{p.plano_json?.titulo||'Plano alimentar'}</p><p className="text-xs text-[#A9B5AA] mt-1">{name(p.user_id)} · {fmt(p.created_at)}</p><p className="text-xs text-[#C5F17A] mt-2">{p.status==='aprovado'?'Registrado como aprovado':'Rascunho demonstrativo'}</p></article>)}{!dietas.length&&<p className="text-sm text-[#A9B5AA]">Nenhum plano encontrado.</p>}</>}
 {section==='evolucao'&&<>
-<p className="text-sm text-[#B9CDBD]">Frequência e histórico com separação entre planos publicados e simulações DEMO.</p>
+<p className="text-sm text-[#A9B5AA]">Frequência e histórico com separação entre planos publicados e simulações DEMO.</p>
 {(()=>{const all=cmEvolutionStats(checkins,treinos);return <>
 <div className="grid grid-cols-2 gap-3">
-<div className={card}><p className="text-xs text-[#B9CDBD]">Treinos registrados nesta semana</p><p className="text-3xl text-[#E8C579] mt-2">{all.weekReal}</p></div>
-<div className={card}><p className="text-xs text-[#B9CDBD]">Simulações nesta semana</p><p className="text-3xl text-[#A5C0AB] mt-2">{all.weekDemo}</p></div>
+<div className={card}><p className="text-xs text-[#A9B5AA]">Treinos registrados nesta semana</p><p className="text-3xl text-[#C5F17A] mt-2">{all.weekReal}</p></div>
+<div className={card}><p className="text-xs text-[#A9B5AA]">Simulações nesta semana</p><p className="text-3xl text-[#A5C0AB] mt-2">{all.weekDemo}</p></div>
 </div>
 <CmEvolutionChart stats={all}/>
-{all.unknownTotal>0&&<p className="text-xs text-[#E8C579]">{all.unknownTotal} marcação(ões) sem plano identificado, não contabilizadas.</p>}
+{all.unknownTotal>0&&<p className="text-xs text-[#C5F17A]">{all.unknownTotal} marcação(ões) sem plano identificado, não contabilizadas.</p>}
 </>;})()}
 <h3 className="font-semibold">Por aluno</h3>
-{students.map(p=>{const x=cmEvolutionStats(checkins.filter(c=>c.user_id===p.id),treinos.filter(t=>t.user_id===p.id));return <div className={card} key={p.id}><p className="font-medium text-sm">{p.nome||p.email}</p><p className="text-xs text-[#B9CDBD] mt-2">Esta semana: {x.weekReal} treino(s) registrado(s) · {x.weekDemo} simulação(ões)</p><p className="text-xs text-[#B9CDBD] mt-1">Histórico: {x.realTotal} registros · {x.demoTotal} DEMO</p></div>})}
-<p className="text-xs text-[#B9CDBD]">Autorregistros não comprovam a realização física dos exercícios.</p>
+{students.map(p=>{const x=cmEvolutionStats(checkins.filter(c=>c.user_id===p.id),treinos.filter(t=>t.user_id===p.id));return <div className={card} key={p.id}><p className="font-medium text-sm">{p.nome||p.email}</p><p className="text-xs text-[#A9B5AA] mt-2">Esta semana: {x.weekReal} treino(s) registrado(s) · {x.weekDemo} simulação(ões)</p><p className="text-xs text-[#A9B5AA] mt-1">Histórico: {x.realTotal} registros · {x.demoTotal} DEMO</p></div>})}
+<p className="text-xs text-[#A9B5AA]">Autorregistros não comprovam a realização física dos exercícios.</p>
 </>}
-<p className="text-xs text-[#94AE9C] leading-relaxed">Indicadores calculados com até 1.000 registros por tabela; não representam necessariamente a base completa. O acesso é condicionado às políticas do Supabase.</p>
+<p className="text-xs text-[#819084] leading-relaxed">Indicadores calculados com até 1.000 registros por tabela; não representam necessariamente a base completa. O acesso é condicionado às políticas do Supabase.</p>
 </>}
 </div>
 
@@ -1069,12 +1084,12 @@ else{setNotice('Plano selecionado. A cobrança será habilitada quando o pagamen
 setBusy(false);
 }
 const money=c=>c==null?'Valor a definir':(Number(c)/100).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})+'/mês';
-return <main className="flex-1 overflow-y-auto px-5 py-6 space-y-4"><div><h2 className="text-2xl font-semibold">Planos mensais</h2><p className="text-sm text-[#B1C5B6] mt-1">Escolha o acompanhamento que combina com você.</p></div>
-{subscription&&<div className="rounded-xl border border-[#A98C51] bg-[#183D2C] p-4 text-sm">Plano atual: <strong>{plans.find(p=>p.codigo===subscription.plano_codigo)?.nome||subscription.plano_codigo}</strong> · {subscription.status==='ativa'?'Ativo':'Aguardando cobrança'}</div>}
-{loading&&<p className="text-sm text-[#B1C5B6]">Carregando opções...</p>}{error&&<p role="alert" className="text-sm text-red-200">{error}</p>}{notice&&<p role="status" className="text-sm text-emerald-200">{notice}</p>}
-{!loading&&plans.map(p=><article key={p.codigo} className="rounded-2xl border border-[#31543F] bg-[#103629] p-4"><div className="flex justify-between gap-3"><div><h3 className="font-semibold text-lg">{p.nome}</h3><p className="text-sm text-[#B9CDBD] mt-1">{p.descricao}</p></div><p className="shrink-0 text-[#E8C579] font-semibold">{money(p.valor_mensal_centavos)}</p></div><button disabled={busy||subscription?.plano_codigo===p.codigo} onClick={()=>choose(p.codigo)} className="w-full mt-4 rounded-xl bg-[#D8B46B] text-[#09291E] font-semibold p-3 disabled:opacity-50">{subscription?.plano_codigo===p.codigo?'Plano selecionado':busy?'Salvando...':'Escolher plano'}</button></article>)}
-{!loading&&!plans.length&&<p className="text-sm text-[#B9CDBD]">Os planos ainda não foram publicados pelo administrador.</p>}
-<p className="text-xs text-[#94AE9C]">A escolha fica registrada, mas esta versão não realiza cobrança. A integração com ASAAS será conectada depois.</p>
+return <main className="flex-1 overflow-y-auto px-5 py-6 space-y-4"><div><h2 className="text-2xl font-semibold">Planos mensais</h2><p className="text-sm text-[#A9B5AA] mt-1">Escolha o acompanhamento que combina com você.</p></div>
+{subscription&&<div className="rounded-xl border border-[#536A54] bg-[#19241C] p-4 text-sm">Plano atual: <strong>{plans.find(p=>p.codigo===subscription.plano_codigo)?.nome||subscription.plano_codigo}</strong> · {subscription.status==='ativa'?'Ativo':'Aguardando cobrança'}</div>}
+{loading&&<p className="text-sm text-[#A9B5AA]">Carregando opções...</p>}{error&&<p role="alert" className="text-sm text-red-200">{error}</p>}{notice&&<p role="status" className="text-sm text-emerald-200">{notice}</p>}
+{!loading&&plans.map(p=><article key={p.codigo} className="rounded-2xl border border-[#2B3A2E] bg-[#17211B] p-4"><div className="flex justify-between gap-3"><div><h3 className="font-semibold text-lg">{p.nome}</h3><p className="text-sm text-[#A9B5AA] mt-1">{p.descricao}</p></div><p className="shrink-0 text-[#C5F17A] font-semibold">{money(p.valor_mensal_centavos)}</p></div><button disabled={busy||subscription?.plano_codigo===p.codigo} onClick={()=>choose(p.codigo)} className="w-full mt-4 rounded-xl bg-[#C5F17A] text-[#111812] font-semibold p-3 disabled:opacity-50">{subscription?.plano_codigo===p.codigo?'Plano selecionado':busy?'Salvando...':'Escolher plano'}</button></article>)}
+{!loading&&!plans.length&&<p className="text-sm text-[#A9B5AA]">Os planos ainda não foram publicados pelo administrador.</p>}
+<p className="text-xs text-[#819084]">A escolha fica registrada, mas esta versão não realiza cobrança. A integração com ASAAS será conectada depois.</p>
 
   </main>;
 }
@@ -1086,7 +1101,7 @@ const day=localDate();
 async function refresh(){const {data,error}=await supabase.from('cm_dieta_checkins').select('id').eq('user_id',userId).eq('dia',day).maybeSingle();if(error)setError(error.message);else setDone(!!data);}
 useEffect(()=>{if(userId)refresh();},[userId,day]);
 async function toggle(){setBusy(true);setError('');const {data}=await supabase.from('cm_dieta_checkins').select('id').eq('user_id',userId).eq('dia',day).maybeSingle();let result;if(data)result=await supabase.from('cm_dieta_checkins').delete().eq('id',data.id);else result=await supabase.from('cm_dieta_checkins').insert({user_id:userId,dia:day,concluido:true});if(result.error)setError(result.error.message);else setDone(!data);setBusy(false);}
-return <section className="rounded-2xl bg-[#103629] border border-[#31543F] p-4"><h3 className="font-semibold">Acompanhamento da dieta</h3><p className="text-xs text-[#B1C5B6] mt-1">Marque quando conseguiu seguir sua organização alimentar hoje.</p><button onClick={toggle} disabled={busy} className={`w-full mt-3 rounded-xl border p-3 text-sm ${done?'border-[#B99B60] bg-[#214732]':'border-[#31533F] bg-[#0A2C20]'} disabled:opacity-50`}>{busy?'Salvando...':done?'✓ Registro de hoje concluído':'Marcar meu dia como concluído'}</button>{error&&<p role="alert" className="text-xs text-red-200 mt-2">{error}</p>}</section>;
+return <section className="rounded-2xl bg-[#17211B] border border-[#2B3A2E] p-4"><h3 className="font-semibold">Acompanhamento da dieta</h3><p className="text-xs text-[#A9B5AA] mt-1">Marque quando conseguiu seguir sua organização alimentar hoje.</p><button onClick={toggle} disabled={busy} className={`w-full mt-3 rounded-xl border p-3 text-sm ${done?'border-[#536A54] bg-[#243328]':'border-[#2B3A2E] bg-[#111812]'} disabled:opacity-50`}>{busy?'Salvando...':done?'✓ Registro de hoje concluído':'Marcar meu dia como concluído'}</button>{error&&<p role="alert" className="text-xs text-red-200 mt-2">{error}</p>}</section>;
 }
 
 // Rankings are based on self-reported completed check-ins, with DEMO workouts excluded.
@@ -1100,7 +1115,7 @@ supabase.from('planos_treino').select('id,user_id,status,treino_json').limit(100
 ]);if(!active)return;const err=e1||e2||e3||e4;if(err)setError(err.message);else setRows({profiles:profiles||[],workouts:workouts||[],diets:diets||[],plans:plans||[]});setLoading(false);})();return()=>{active=false;};},[]);
 const start=weekMonday();const month=localDate().slice(0,7);const students=(rows.profiles||[]).filter(p=>!(p.is_admin||p.role==='admin'||p.role==='professor'));
 const results=students.map(p=>{const count=mode==='treino'?(rows.workouts||[]).filter(c=>c.user_id===p.id&&c.semana_inicio===start&&(rows.plans||[]).some(t=>t.id===c.plano_id&&t.user_id===p.id&&t.status==='publicado'&&t.treino_json?.demonstrativo!==true)).length:(rows.diets||[]).filter(c=>c.user_id===p.id&&String(c.dia).startsWith(month)).length;return {...p,count};}).sort((a,b)=>b.count-a.count||String(a.nome||a.email).localeCompare(String(b.nome||b.email),'pt-BR'));
-return <section className="space-y-4"><div><h3 className="text-lg font-semibold">Ranking dos alunos</h3><p className="text-xs text-[#B9CDBD] mt-1">Treino: semana atual · Dieta: registros deste mês. Os dados são autorrelatados.</p></div><div className="grid grid-cols-2 gap-2"><button onClick={()=>setMode('treino')} className={`rounded-xl border p-3 text-sm ${mode==='treino'?'bg-[#D8B46B] text-[#09291E]':'border-[#426650]'}`}>Ranking de treino</button><button onClick={()=>setMode('dieta')} className={`rounded-xl border p-3 text-sm ${mode==='dieta'?'bg-[#D8B46B] text-[#09291E]':'border-[#426650]'}`}>Ranking de dieta</button></div>{loading&&<p className="text-sm">Carregando ranking...</p>}{error&&<p role="alert" className="text-sm text-red-200">{error}</p>}{!loading&&!error&&results.map((p,i)=><div key={p.id} className="flex items-center justify-between rounded-xl border border-[#31543F] bg-[#103629] p-3"><div className="flex items-center gap-3"><span className="grid place-items-center w-9 h-9 rounded-full bg-[#09291E] text-[#E8C579] font-semibold">{i+1}º</span><div><p className="font-medium text-sm">{p.nome||'Aluno sem nome'}</p><p className="text-xs text-[#B9CDBD]">{p.email}</p></div></div><strong className="text-[#E8C579]">{p.count} {mode==='treino'?'treino(s)':'dia(s)'}</strong></div>)}{!loading&&!results.length&&<p className="text-sm text-[#B9CDBD]">Ainda não há alunos no ranking.</p>}</section>;
+return <section className="space-y-4"><div><h3 className="text-lg font-semibold">Ranking dos alunos</h3><p className="text-xs text-[#A9B5AA] mt-1">Treino: semana atual · Dieta: registros deste mês. Os dados são autorrelatados.</p></div><div className="grid grid-cols-2 gap-2"><button onClick={()=>setMode('treino')} className={`rounded-xl border p-3 text-sm ${mode==='treino'?'bg-[#C5F17A] text-[#111812]':'border-[#354638]'}`}>Ranking de treino</button><button onClick={()=>setMode('dieta')} className={`rounded-xl border p-3 text-sm ${mode==='dieta'?'bg-[#C5F17A] text-[#111812]':'border-[#354638]'}`}>Ranking de dieta</button></div>{loading&&<p className="text-sm">Carregando ranking...</p>}{error&&<p role="alert" className="text-sm text-red-200">{error}</p>}{!loading&&!error&&results.map((p,i)=><div key={p.id} className="flex items-center justify-between rounded-xl border border-[#2B3A2E] bg-[#17211B] p-3"><div className="flex items-center gap-3"><span className="grid place-items-center w-9 h-9 rounded-full bg-[#111812] text-[#C5F17A] font-semibold">{i+1}º</span><div><p className="font-medium text-sm">{p.nome||'Aluno sem nome'}</p><p className="text-xs text-[#A9B5AA]">{p.email}</p></div></div><strong className="text-[#C5F17A]">{p.count} {mode==='treino'?'treino(s)':'dia(s)'}</strong></div>)}{!loading&&!results.length&&<p className="text-sm text-[#A9B5AA]">Ainda não há alunos no ranking.</p>}</section>;
 }
 
 
@@ -1146,36 +1161,36 @@ function HomeDashboard({profile,subscription,training,diet,onNavigate}){
   const userRank=selectedRank.find(x=>x.usuario_atual);
   const days=Array.isArray(training?.treino_json?.dias)?training.treino_json.dias:[];
   const meals=Array.isArray(diet?.plano_json?.refeicoes)?diet.plano_json.refeicoes:[];
-  const card='rounded-2xl border border-[#31543F] bg-[#103629] p-4';
+  const card='rounded-2xl border border-[#2B3A2E] bg-[#17211B] p-4';
   const fmtNewsDate=value=>value?new Date(value).toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}):'';
   return <main className="flex-1 min-h-0 overflow-y-auto px-5 py-6 space-y-5">
-    <section className="rounded-2xl border border-[#A98C51] bg-gradient-to-br from-[#183D2C] to-[#0B2C20] p-5">
-      <p className="text-xs uppercase tracking-wider text-[#E8C579]">Corpo Em Movimento</p>
+    <section className="rounded-2xl border border-[#536A54] bg-gradient-to-br from-[#19241C] to-[#111812] p-5">
+      <p className="text-xs uppercase tracking-wider text-[#C5F17A]">Corpo Em Movimento</p>
       <h2 className="text-2xl font-semibold mt-2">Olá, {profile?.nome?.split(' ')[0]||'tudo bem'}!</h2>
-      <p className="text-sm text-[#B9CDBD] mt-2">Veja seu acompanhamento, sua posição nos rankings e as novidades do mundo fit.</p>
+      <p className="text-sm text-[#A9B5AA] mt-2">Veja seu acompanhamento, sua posição nos rankings e as novidades do mundo fit.</p>
+    </section>
+    <section className="grid grid-cols-2 gap-3" aria-label="Acesso rápido">
+      {[{id:'treino',label:'Meu treino',detail:'Acesse seus dias',Icon:Dumbbell,available:showTraining},{id:'dieta',label:'Minha dieta',detail:'Veja suas refeições',Icon:Utensils,available:showDiet}].map(({id,label,detail,Icon,available})=><button key={id} onClick={()=>onNavigate(available?id:'planos')} className="group flex min-h-[108px] flex-col justify-between rounded-2xl border border-[#2B3A2E] bg-[#17211B] p-4 text-left transition hover:border-[#536A54] hover:bg-[#19241C] active:scale-[0.98]"><span className="grid h-9 w-9 place-items-center rounded-xl bg-[#243328] text-[#C5F17A]"><Icon size={19}/></span><span className="mt-3 block"><strong className="block text-sm">{label}</strong><span className="mt-0.5 block text-[11px] text-[#A9B5AA]">{available?detail:'Ver opções de plano'}</span></span></button>)}
     </section>
     <section className={card}>
-      <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-lg">Seu acompanhamento</h3><p className="text-xs text-[#B9CDBD] mt-1">{planIsActive?`Plano ativo: ${subscription.plano_codigo==='completo'?'Treino + Dieta':subscription.plano_codigo==='treino'?'Treino':'Dieta'}`:'Escolha um resumo para acompanhar.'}</p></div><Activity size={20} className="text-[#E8C579]"/></div>
-      {showTraining&&showDiet&&<div className="grid grid-cols-2 gap-2 mt-4"><button onClick={()=>setSummary('treino')} className={`rounded-xl border p-2 text-sm ${summary==='treino'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Meu treino</button><button onClick={()=>setSummary('dieta')} className={`rounded-xl border p-2 text-sm ${summary==='dieta'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Minha dieta</button></div>}
-      {summary==='treino'&&showTraining&&<div className="mt-4"><h4 className="font-semibold">{training?.treino_json?.titulo||'Seu treino'}</h4>{training?.treino_json?.demonstrativo&&<p className="text-[11px] text-[#E8C579] mt-1">Plano demonstrativo</p>}<p className="text-sm text-[#B9CDBD] mt-2">{training?.treino_json?.justificativa||'Confira os dias e focos do seu plano.'}</p>{days.length?<div className="mt-3 space-y-2">{days.slice(0,3).map((d,i)=><p key={i} className="text-xs rounded-lg bg-[#09291E] p-2"><strong className="text-[#E8C579]">{d.dia||`Dia ${i+1}`}</strong>{d.foco?` · ${d.foco}`:''} · {(d.exercicios||[]).length} exercício(s)</p>)}</div>:<p className="text-xs text-[#AFC4B4] mt-2">Ainda não há treino disponível.</p>}<button onClick={()=>onNavigate('treino')} className="mt-3 text-sm text-[#E8C579] underline">Abrir treino</button></div>}
-      {summary==='dieta'&&showDiet&&<div className="mt-4"><h4 className="font-semibold">{diet?.plano_json?.titulo||'Sua organização alimentar'}</h4><p className="text-sm text-[#B9CDBD] mt-2">{diet?.plano_json?.introducao||'Confira suas sugestões de refeições e hábitos.'}</p>{meals.length?<div className="mt-3 space-y-2">{meals.slice(0,3).map((m,i)=><p key={i} className="text-xs rounded-lg bg-[#09291E] p-2"><strong className="text-[#E8C579]">{m.nome||`Refeição ${i+1}`}</strong>{m.sugestao?` · ${m.sugestao}`:''}</p>)}</div>:<p className="text-xs text-[#AFC4B4] mt-2">Ainda não há sugestões alimentares disponíveis.</p>}<button onClick={()=>onNavigate('dieta')} className="mt-3 text-sm text-[#E8C579] underline">Abrir dieta</button></div>}
+      <div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-lg">Seu acompanhamento</h3><p className="text-xs text-[#A9B5AA] mt-1">{planIsActive?`Plano ativo: ${subscription.plano_codigo==='completo'?'Treino + Dieta':subscription.plano_codigo==='treino'?'Treino':'Dieta'}`:'Escolha um resumo para acompanhar.'}</p></div><Activity size={20} className="text-[#C5F17A]"/></div>
+      {showTraining&&showDiet&&<div className="grid grid-cols-2 gap-2 mt-4"><button onClick={()=>setSummary('treino')} className={`rounded-xl border p-2 text-sm ${summary==='treino'?'bg-[#C5F17A] text-[#111812] border-[#C5F17A]':'border-[#354638] text-[#A9B5AA]'}`}>Meu treino</button><button onClick={()=>setSummary('dieta')} className={`rounded-xl border p-2 text-sm ${summary==='dieta'?'bg-[#C5F17A] text-[#111812] border-[#C5F17A]':'border-[#354638] text-[#A9B5AA]'}`}>Minha dieta</button></div>}
+      {summary==='treino'&&showTraining&&<div className="mt-4"><h4 className="font-semibold">{training?.treino_json?.titulo||'Seu treino'}</h4>{training?.treino_json?.demonstrativo&&<p className="text-[11px] text-[#C5F17A] mt-1">Plano demonstrativo</p>}<p className="text-sm text-[#A9B5AA] mt-2">{training?.treino_json?.justificativa||'Confira os dias e focos do seu plano.'}</p>{days.length?<div className="mt-3 space-y-2">{days.slice(0,3).map((d,i)=><p key={i} className="text-xs rounded-lg bg-[#111812] p-2"><strong className="text-[#C5F17A]">{d.dia||`Dia ${i+1}`}</strong>{d.foco?` · ${d.foco}`:''} · {(d.exercicios||[]).length} exercício(s)</p>)}</div>:<p className="text-xs text-[#A9B5AA] mt-2">Ainda não há treino disponível.</p>}<button onClick={()=>onNavigate('treino')} className="mt-3 text-sm text-[#C5F17A] underline">Abrir treino</button></div>}
+      {summary==='dieta'&&showDiet&&<div className="mt-4"><h4 className="font-semibold">{diet?.plano_json?.titulo||'Sua organização alimentar'}</h4><p className="text-sm text-[#A9B5AA] mt-2">{diet?.plano_json?.introducao||'Confira suas sugestões de refeições e hábitos.'}</p>{meals.length?<div className="mt-3 space-y-2">{meals.slice(0,3).map((m,i)=><p key={i} className="text-xs rounded-lg bg-[#111812] p-2"><strong className="text-[#C5F17A]">{m.nome||`Refeição ${i+1}`}</strong>{m.sugestao?` · ${m.sugestao}`:''}</p>)}</div>:<p className="text-xs text-[#A9B5AA] mt-2">Ainda não há sugestões alimentares disponíveis.</p>}<button onClick={()=>onNavigate('dieta')} className="mt-3 text-sm text-[#C5F17A] underline">Abrir dieta</button></div>}
     </section>
     <section className={card}>
-      <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-lg">Rankings dos alunos</h3><p className="text-xs text-[#B9CDBD] mt-1">Acompanhe sua constância junto aos colegas.</p></div><Trophy size={20} className="text-[#E8C579]"/></div>
-      <div className="grid grid-cols-2 gap-2 mt-4"><button onClick={()=>setRankingMode('treino')} className={`rounded-xl border p-2 text-xs ${rankingMode==='treino'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Ranking de treino</button><button onClick={()=>setRankingMode('dieta')} className={`rounded-xl border p-2 text-xs ${rankingMode==='dieta'?'bg-[#D8B46B] text-[#09291E] border-[#D8B46B]':'border-[#426650] text-[#B9CDBD]'}`}>Ranking de dieta</button></div>
-      {loadingRanking&&<p className="text-sm text-[#B9CDBD] mt-3">Carregando rankings...</p>}{rankingError&&<p role="alert" className="text-xs text-red-200 mt-3">{rankingError}</p>}
-      {!loadingRanking&&!rankingError&&<><p className="text-[11px] text-[#B9CDBD] mt-3">{rankingMode==='treino'?'Treinos concluídos nesta semana':'Dias registrados neste mês'}</p>{selectedRank.slice(0,3).map((row,i)=><div key={`${summary}-${row.nome}-${i}`} className={`mt-2 flex items-center justify-between rounded-lg p-2 ${row.usuario_atual?'bg-[#254A33] border border-[#A98C51]':'bg-[#09291E]'}`}><span className="text-xs"><strong className="text-[#E8C579]">{row.posicao}º</strong> · {row.usuario_atual?'Você':row.nome}</span><strong className="text-xs">{row.total} {rankingMode==='treino'?'treino(s)':'dia(s)'}</strong></div>)}{userRank&&userRank.posicao>3&&<p className="text-xs text-[#E8C579] mt-2">Sua posição: {userRank.posicao}º de {selectedRank.length} alunos</p>}{!selectedRank.length&&<p className="text-xs text-[#B9CDBD] mt-3">Ainda não há registros para este ranking.</p>}</>}
-      <p className="text-[10px] text-[#94AE9C] mt-3">Rankings baseados em autorregistros: treino publicado na semana atual e marcações de dieta no mês.</p>
+      <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-lg">Rankings dos alunos</h3><p className="text-xs text-[#A9B5AA] mt-1">Acompanhe sua constância junto aos colegas.</p></div><Trophy size={20} className="text-[#C5F17A]"/></div>
+      <div className="grid grid-cols-2 gap-2 mt-4"><button onClick={()=>setRankingMode('treino')} className={`rounded-xl border p-2 text-xs ${rankingMode==='treino'?'bg-[#C5F17A] text-[#111812] border-[#C5F17A]':'border-[#354638] text-[#A9B5AA]'}`}>Ranking de treino</button><button onClick={()=>setRankingMode('dieta')} className={`rounded-xl border p-2 text-xs ${rankingMode==='dieta'?'bg-[#C5F17A] text-[#111812] border-[#C5F17A]':'border-[#354638] text-[#A9B5AA]'}`}>Ranking de dieta</button></div>
+      {loadingRanking&&<p className="text-sm text-[#A9B5AA] mt-3">Carregando rankings...</p>}{rankingError&&<p role="alert" className="text-xs text-red-200 mt-3">{rankingError}</p>}
+      {!loadingRanking&&!rankingError&&<><p className="text-[11px] text-[#A9B5AA] mt-3">{rankingMode==='treino'?'Treinos concluídos nesta semana':'Dias registrados neste mês'}</p>{selectedRank.slice(0,3).map((row,i)=><div key={`${summary}-${row.nome}-${i}`} className={`mt-2 flex items-center justify-between rounded-lg p-2 ${row.usuario_atual?'bg-[#254A33] border border-[#536A54]':'bg-[#111812]'}`}><span className="text-xs"><strong className="text-[#C5F17A]">{row.posicao}º</strong> · {row.usuario_atual?'Você':row.nome}</span><strong className="text-xs">{row.total} {rankingMode==='treino'?'treino(s)':'dia(s)'}</strong></div>)}{userRank&&userRank.posicao>3&&<p className="text-xs text-[#C5F17A] mt-2">Sua posição: {userRank.posicao}º de {selectedRank.length} alunos</p>}{!selectedRank.length&&<p className="text-xs text-[#A9B5AA] mt-3">Ainda não há registros para este ranking.</p>}</>}
+      <p className="text-[10px] text-[#819084] mt-3">Rankings baseados em autorregistros: treino publicado na semana atual e marcações de dieta no mês.</p>
     </section>
     <section className={card}>
-      <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-lg">Notícias do mundo fit</h3><p className="text-xs text-[#B9CDBD] mt-1">Atualizadas ao abrir o app.</p></div><Activity size={20} className="text-[#E8C579]"/></div>
-      {loadingNews&&<p className="text-sm text-[#B9CDBD] mt-3">Buscando notícias...</p>}{newsError&&<p role="alert" className="text-xs text-[#E8C579] mt-3">{newsError}</p>}
-      {!loadingNews&&!newsError&&!news.length&&<p className="text-sm text-[#B9CDBD] mt-3">Nenhuma notícia disponível no momento.</p>}
-      <div className="mt-3 space-y-3">{news.slice(0,5).map((item,i)=><a key={item.link||i} href={item.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl bg-[#09291E] border border-[#31543F] p-3 hover:border-[#A98C51]"><p className="text-sm font-medium leading-snug">{item.title}</p><p className="text-[10px] text-[#B9CDBD] mt-2">{[item.source,fmtNewsDate(item.published_at)].filter(Boolean).join(' · ')}</p></a>)}</div>
-      <p className="text-[10px] text-[#94AE9C] mt-3">As matérias são de fontes externas. Consulte a publicação original e profissionais qualificados antes de mudar treino ou alimentação.</p>
+      <div className="flex items-center justify-between gap-2"><div><h3 className="font-semibold text-lg">Notícias do mundo fit</h3><p className="text-xs text-[#A9B5AA] mt-1">Atualizadas ao abrir o app.</p></div><Activity size={20} className="text-[#C5F17A]"/></div>
+      {loadingNews&&<p className="text-sm text-[#A9B5AA] mt-3">Buscando notícias...</p>}{newsError&&<p role="alert" className="text-xs text-[#C5F17A] mt-3">{newsError}</p>}
+      {!loadingNews&&!newsError&&!news.length&&<p className="text-sm text-[#A9B5AA] mt-3">Nenhuma notícia disponível no momento.</p>}
+      <div className="mt-3 space-y-3">{news.slice(0,5).map((item,i)=><a key={item.link||i} href={item.link} target="_blank" rel="noopener noreferrer" className="block rounded-xl bg-[#111812] border border-[#2B3A2E] p-3 hover:border-[#536A54]"><p className="text-sm font-medium leading-snug">{item.title}</p><p className="text-[10px] text-[#A9B5AA] mt-2">{[item.source,fmtNewsDate(item.published_at)].filter(Boolean).join(' · ')}</p></a>)}</div>
+      <p className="text-[10px] text-[#819084] mt-3">As matérias são de fontes externas. Consulte a publicação original e profissionais qualificados antes de mudar treino ou alimentação.</p>
     </section>
   </main>;
 }
-
-
-
